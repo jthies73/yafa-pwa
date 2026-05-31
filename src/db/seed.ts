@@ -4,7 +4,6 @@ import type {
   Routine,
   Plan,
   Workout,
-  AthleteProfile,
   AppState,
 } from "./types";
 

@@ -13,8 +13,8 @@ export default defineConfig({
       injectRegister: 'auto',
       includeAssets: ['favicon.svg', 'pwa-192x192.png', 'pwa-512x512.png', 'icons.svg'],
       manifest: {
-        name: 'Yafa - Yet Another Fitness App',
-        short_name: 'Yafa',
+        name: 'Y A F A',
+        short_name: 'Y A F A',
         description: 'Yet Another Fitness App - Keep track of your workouts and measurements.',
         theme_color: '#08060d',
         background_color: '#08060d',

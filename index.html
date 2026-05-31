@@ -21,17 +21,17 @@
         overflow: hidden;
       }
 
-      /* Premium radial gradient background */
+      /* Polished, minimalistic, flat, and technical landing page */
       .landing-page {
         position: fixed;
         inset: 0;
         display: flex;
         align-items: center;
         justify-content: center;
-        background: radial-gradient(circle at center, #111422 0%, #08060d 100%);
+        background: #08060d;
         z-index: 9999;
         opacity: 1;
-        transition: opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        transition: opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1);
         overflow: hidden;
       }
 
@@ -40,15 +40,15 @@
         flex-direction: column;
         align-items: center;
         text-align: center;
-        max-width: 400px;
+        max-width: 360px;
         width: 90%;
       }
 
       .landing-logo-container {
         position: relative;
-        width: 140px;
-        height: 140px;
-        margin-bottom: 24px;
+        width: 120px;
+        height: 120px;
+        margin-bottom: 32px;
       }
 
       .landing-logo {
@@ -56,73 +56,34 @@
         width: 100%;
         height: 100%;
         z-index: 2;
-        animation: landing-pulse 2s infinite ease-in-out;
-      }
-
-      .logo-glow {
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        width: 100px;
-        height: 100px;
-        background: rgba(31, 199, 185, 0.4);
-        filter: blur(40px);
-        border-radius: 50%;
-        transform: translate(-50%, -50%);
-        z-index: 1;
-        animation: glow-pulse 2s infinite ease-in-out;
-      }
-
-      @keyframes landing-pulse {
-        0%, 100% {
-          transform: scale(1);
-          filter: drop-shadow(0 0 10px rgba(31, 199, 185, 0.3));
-        }
-        50% {
-          transform: scale(1.05);
-          filter: drop-shadow(0 0 25px rgba(31, 199, 185, 0.6));
-        }
-      }
-
-      @keyframes glow-pulse {
-        0%, 100% {
-          opacity: 0.6;
-          transform: translate(-50%, -50%) scale(0.9);
-        }
-        50% {
-          opacity: 1;
-          transform: translate(-50%, -50%) scale(1.2);
-        }
       }
 
       .landing-title {
-        font-size: 40px;
-        font-weight: 700;
-        letter-spacing: 4px;
+        font-size: 32px;
+        font-weight: 800;
+        letter-spacing: 8px;
         margin: 0 0 8px 0;
-        background: linear-gradient(135deg, #1fc7b9 0%, #0fd8ca 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        text-shadow: 0 0 30px rgba(31, 199, 185, 0.15);
+        color: #ffffff;
+        text-transform: uppercase;
       }
 
       .landing-subtitle {
-        font-size: 15px;
-        letter-spacing: 0.5px;
+        font-size: 13px;
+        letter-spacing: 2px;
         color: #8a8897;
-        margin: 0 0 40px 0;
+        text-transform: uppercase;
+        margin: 0 0 48px 0;
       }
 
       .redirect-container {
         width: 100%;
-        margin-bottom: 30px;
+        margin-bottom: 32px;
       }
 
       .progress-bar-container {
         width: 100%;
-        height: 6px;
-        background: rgba(255, 255, 255, 0.08);
-        border-radius: 3px;
+        height: 2px;
+        background: rgba(255, 255, 255, 0.06);
         overflow: hidden;
         margin-bottom: 12px;
       }
@@ -131,57 +92,59 @@
         height: 100%;
         width: 100%;
         background: #1fc7b9;
-        box-shadow: 0 0 10px rgba(31, 199, 185, 0.5);
-        border-radius: 3px;
       }
 
       .redirect-text {
-        font-size: 13px;
-        color: #7b7987;
+        font-size: 12px;
+        color: #8a8897;
         margin: 0;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        letter-spacing: 0.5px;
       }
 
       .time-num {
         color: #1fc7b9;
-        font-weight: 600;
+        font-weight: 500;
       }
 
       .skip-btn {
         display: inline-flex;
         align-items: center;
-        gap: 8px;
-        background: rgba(255, 255, 255, 0.05);
-        border: 1px solid rgba(255, 255, 255, 0.1);
+        gap: 6px;
+        background: transparent;
+        border: 1px solid rgba(255, 255, 255, 0.12);
         color: #d1d0db;
-        padding: 10px 20px;
-        border-radius: 30px;
-        font-size: 14px;
+        padding: 8px 20px;
+        border-radius: 4px;
+        font-size: 11px;
         font-weight: 500;
+        letter-spacing: 1.5px;
+        text-transform: uppercase;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
         cursor: pointer;
-        transition: all 0.3s ease;
+        transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
         text-decoration: none;
       }
 
       .skip-btn:hover {
-        background: rgba(31, 199, 185, 0.1);
-        border-color: rgba(31, 199, 185, 0.4);
-        color: #fff;
-        transform: translateY(-1px);
-        box-shadow: 0 4px 15px rgba(31, 199, 185, 0.15);
+        background: #1fc7b9;
+        border-color: #1fc7b9;
+        color: #08060d;
       }
 
       .skip-btn:active {
-        transform: translateY(0);
+        background: #19a398;
+        border-color: #19a398;
       }
 
       .arrow-icon {
-        width: 16px;
-        height: 16px;
-        transition: transform 0.3s ease;
+        width: 14px;
+        height: 14px;
+        transition: transform 0.2s ease;
       }
 
       .skip-btn:hover .arrow-icon {
-        transform: translateX(3px);
+        transform: translateX(2px);
       }
 
       /* Hidden utility class to allow body overflow once app is active */
@@ -203,7 +166,6 @@
             <!-- Heartbeat stem -->
             <path d="M100 95 L100 115 L80 125 L120 137 L100 147 L100 170" stroke="#1fc7b9" stroke-width="22" stroke-linecap="round" stroke-linejoin="round" />
           </svg>
-          <div class="logo-glow"></div>
         </div>
 
         <h1 class="landing-title">YAFA</h1>

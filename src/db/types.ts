@@ -23,9 +23,12 @@ export interface TopSetProgressionParams {
   weightIncrement: number;
 }
 
-export type ProgressionParams = LinearProgressionParams | DoubleProgressionParams | TopSetProgressionParams;
+export type ProgressionParams =
+  | LinearProgressionParams
+  | DoubleProgressionParams
+  | TopSetProgressionParams;
 
-export type ProgressionModelType = 'linear' | 'double' | 'topset_backoff';
+export type ProgressionModelType = "linear" | "double" | "topset_backoff";
 
 export interface Exercise {
   id: string;
@@ -107,6 +110,6 @@ export interface Workout {
 
 export interface AppState {
   activeWorkoutId: string | null;
-  theme: 'dark' | 'light' | 'system';
-  units: 'metric' | 'imperial';
+  theme: "dark" | "light" | "system";
+  units: "metric" | "imperial";
 }

@@ -51,4 +51,3 @@ YAFA V1 implements core progression engines designed for varying fatigue profile
 - **Logic**: A heavy top set near maximal RPE is followed by back-off sets at a lower percentage to accumulate clean volume.
 - **Config Parameters**: `top_set_target_reps`, `top_set_target_rpe`, `back_off_sets`, `percentage_drop`, `weight_increment`.
 - **Execution Rule**: Increase top set load by `weight_increment` if performance targets are met at or below target RPE; dynamically recalculate back-off loads.
-

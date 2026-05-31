@@ -1,11 +1,5 @@
 import { db } from "./db";
-import type {
-  Exercise,
-  Routine,
-  Plan,
-  Workout,
-  AppState,
-} from "./types";
+import type { Exercise, Routine, Plan, Workout, AppState } from "./types";
 
 // Standard evidence-based RTS (Reactive Training Systems) RPE-to-percentage-of-1RM matrix.
 // Keyed by reps (1-10) and then by RPE (6-10). Value is percentage of 1RM as a decimal.
@@ -446,13 +440,7 @@ export async function seedDatabase() {
   try {
     await db.transaction(
       "rw",
-      [
-        db.exercises,
-        db.routines,
-        db.plans,
-        db.workouts,
-        db.appState,
-      ],
+      [db.exercises, db.routines, db.plans, db.workouts, db.appState],
       async () => {
         await db.exercises.bulkAdd(exercises);
         await db.routines.bulkAdd(routines);

@@ -2,6 +2,8 @@
 
 This file contains base instructions and technical guidelines for Google Gemini to pair-program on the Yafa project.
 
+> **Instructions sync**: This project maintains two parallel instruction files — `CLAUDE.md` (Claude Code) and `.gemini/instructions.md` (Gemini). Whenever instructions are added or changed in one file, apply the same change to the other.
+
 ---
 
 ## 🎨 Design Language & Visual Aesthetics

@@ -1782,6 +1782,11 @@ detect-libc@^2.0.3:
   resolved "https://registry.npmjs.org/detect-libc/-/detect-libc-2.1.2.tgz"
   integrity sha512-Btj2BOOO83o3WyH59e8MgXsxEQVcarkUOpEYrubB0urwnN10yQ364rsiByU11nZlqWYZm05i/of7io4mzihBtQ==
 
+dexie@^4.4.3:
+  version "4.4.3"
+  resolved "https://registry.yarnpkg.com/dexie/-/dexie-4.4.3.tgz#6e3c286a53b0424ed49f648213611499597a7642"
+  integrity sha512-N+3IGQ3HPlyO2YAkntGAwitm42BpBGV86MttzUMiRzWLa4NGh0pltVRcUVF4ybL/OnXjCrr9k7SDPIKkFYP2Lg==
+
 dunder-proto@^1.0.0, dunder-proto@^1.0.1:
   version "1.0.1"
   resolved "https://registry.yarnpkg.com/dunder-proto/-/dunder-proto-1.0.1.tgz#d7ae667e1dc83482f8b70fd0f6eefc50da30f58a"

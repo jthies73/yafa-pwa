@@ -18,6 +18,7 @@ This file contains base instructions and technical guidelines for Google Gemini 
 * **Styling**: Tailwind CSS v4. Always prefer Tailwind utility classes over custom CSS.
 * **Component Library**: Use **Reka UI** components (installed in the project) when applicable instead of writing complex UI controls or accessible structures from scratch.
 * **PWA**: Integrated using `vite-plugin-pwa`.
+* **State Persistence / Database**: **Dexie.js** (IndexedDB wrapper) for robust, offline persistence of all app-related state (workouts, exercises, routines, RPE grids).
 
 ---
 

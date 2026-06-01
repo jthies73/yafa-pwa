@@ -9,6 +9,7 @@
 - **Mobile-first approach**: Design all layouts, interactions, and media screens primarily for mobile viewports, ensuring a seamless phone interface before scaling to larger screens.
 - **Consistency**: Align new components with existing styles, typography, and spacing.
 - **Assets**: Never use generic image placeholders. Prefer inline SVGs or programmatic graphics styled with Tailwind utility classes.
+- **Interactive Cursor**: Explicitly apply the `cursor-pointer` utility class (or `cursor: pointer` in CSS) to all clickable elements (buttons, links, triggers, interactive controls) to ensure clear visual feedback.
 
 ## Stack & Technologies
 

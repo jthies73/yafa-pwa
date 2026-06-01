@@ -12,6 +12,7 @@ This file contains base instructions and technical guidelines for Google Gemini 
 * **Mobile-First Design**: Design all layouts, user experiences, and screen components primarily optimized for mobile viewports, ensuring a seamless phone interface before scaling upwards.
 * **Alignment & Consistency**: When creating new components or populating pages, align the new designs seamlessly with existing stylings, typography, and spacing.
 * **Asset Integrity**: Never use generic image placeholders. Prefer inline SVGs or clean programmatic graphics styled with Tailwind utility classes.
+* **Interactive Cursor**: Explicitly apply the `cursor-pointer` utility class (or `cursor: pointer` in CSS) to all clickable elements (buttons, links, triggers, interactive controls) to ensure clear visual feedback.
 
 ---
 

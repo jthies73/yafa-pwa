@@ -9,6 +9,7 @@ This file contains base instructions and technical guidelines for Google Gemini 
 ## 🎨 Design Language & Visual Aesthetics
 * **Minimalistic, Flat, & Technical Style**: Always maintain a highly polished, minimalistic, flat, and technical/clean aesthetic across the entire application. Avoid unnecessary gradients, heavy skeuomorphism, or bloated decorations. 
 * **Harmonious Palette**: Use `#1fc7b9` (turquoise) as the primary accent color. Support dark/light mode configurations smoothly using Tailwind v4 theme variables.
+* **Mobile-First Design**: Design all layouts, user experiences, and screen components primarily optimized for mobile viewports, ensuring a seamless phone interface before scaling upwards.
 * **Alignment & Consistency**: When creating new components or populating pages, align the new designs seamlessly with existing stylings, typography, and spacing.
 * **Asset Integrity**: Never use generic image placeholders. Prefer inline SVGs or clean programmatic graphics styled with Tailwind utility classes.
 

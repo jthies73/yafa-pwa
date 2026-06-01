@@ -6,6 +6,7 @@
 
 - **Minimalistic, flat, technical style**: Maintain a polished, minimalistic, flat, and clean aesthetic. Avoid unnecessary gradients, heavy skeuomorphism, or decorative bloat.
 - **Primary accent color**: `#1fc7b9` (turquoise). Support dark/light mode using Tailwind v4 theme variables.
+- **Mobile-first approach**: Design all layouts, interactions, and media screens primarily for mobile viewports, ensuring a seamless phone interface before scaling to larger screens.
 - **Consistency**: Align new components with existing styles, typography, and spacing.
 - **Assets**: Never use generic image placeholders. Prefer inline SVGs or programmatic graphics styled with Tailwind utility classes.
 

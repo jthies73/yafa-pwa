@@ -125,7 +125,6 @@ const exercises: Exercise[] = [
     notes: "High bar or low bar. Focus on depth and control.",
     bodyweightFactor: 0.0,
     rpeMatrix: DEFAULT_RPE_MATRIX,
-    minWeightIncrement: 2.5,
     created_at: Date.now(),
   },
   {
@@ -136,7 +135,6 @@ const exercises: Exercise[] = [
     notes: "Touch the chest, drive with legs, keep shoulder blades retracted.",
     bodyweightFactor: 0.0,
     rpeMatrix: DEFAULT_RPE_MATRIX,
-    minWeightIncrement: 2.5,
     created_at: Date.now(),
   },
   {
@@ -147,7 +145,6 @@ const exercises: Exercise[] = [
     notes: "Keep bar close, pull shoulders back, drive through feet.",
     bodyweightFactor: 0.0,
     rpeMatrix: DEFAULT_RPE_MATRIX,
-    minWeightIncrement: 5.0,
     created_at: Date.now(),
   },
   {
@@ -158,7 +155,6 @@ const exercises: Exercise[] = [
     notes: "Barbell press from collarbone. Squeeze glutes and core.",
     bodyweightFactor: 0.0,
     rpeMatrix: DEFAULT_RPE_MATRIX,
-    minWeightIncrement: 2.5,
     created_at: Date.now(),
   },
   {
@@ -169,7 +165,6 @@ const exercises: Exercise[] = [
     notes: "Full range of motion. Dead hang to chin over bar.",
     bodyweightFactor: 1.0,
     rpeMatrix: DEFAULT_RPE_MATRIX,
-    minWeightIncrement: 2.5,
     created_at: Date.now(),
   },
   {
@@ -181,7 +176,6 @@ const exercises: Exercise[] = [
       "Controlled eccentric, push up explosively. Maintain a straight line.",
     bodyweightFactor: 0.65,
     rpeMatrix: DEFAULT_RPE_MATRIX,
-    minWeightIncrement: 2.5,
     created_at: Date.now(),
   },
   {
@@ -192,7 +186,6 @@ const exercises: Exercise[] = [
     notes: "Lead with elbows, slight forward lean, control the descent.",
     bodyweightFactor: 0.0,
     rpeMatrix: DEFAULT_RPE_MATRIX,
-    minWeightIncrement: 1.0,
     created_at: Date.now(),
   },
   {
@@ -203,7 +196,6 @@ const exercises: Exercise[] = [
     notes: "Dumbbell or barbell curl. Avoid swinging or shoulder flexion.",
     bodyweightFactor: 0.0,
     rpeMatrix: DEFAULT_RPE_MATRIX,
-    minWeightIncrement: 2.5,
     created_at: Date.now(),
   },
 ];

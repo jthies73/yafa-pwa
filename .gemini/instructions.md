@@ -26,6 +26,7 @@ This file contains base instructions and technical guidelines for Google Gemini 
 * **Component Library**: Use **Reka UI** components (installed in the project) when applicable instead of writing complex UI controls or accessible structures from scratch.
 * **PWA**: Integrated using `vite-plugin-pwa`.
 * **State Persistence / Database**: **Dexie.js** (IndexedDB wrapper) for robust, offline persistence of all app-related state (workouts, exercises, routines, RPE grids).
+* **Navigation Persistence**: Always save and restore the `fullPath` (e.g. `/plans/123`) of the current page to the persistent app state instead of just the route name, ensuring dynamic routes with parameters remain persistent across reloads.
 
 ---
 

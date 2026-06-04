@@ -19,8 +19,9 @@
 - **Build system**: Vite
 - **Styling**: Tailwind CSS v4 — always prefer utility classes over custom CSS
 - **Component library**: Reka UI — use it for complex UI controls and accessible structures instead of building from scratch
-- **PWA**: `vite-plugin-pwa`
-- **State persistence**: Dexie.js (IndexedDB) for offline persistence of workouts, exercises, routines, and RPE grids
+- **PWA**: Integrated using `vite-plugin-pwa`.
+- **State Persistence / Database**: **Dexie.js** (IndexedDB wrapper) for robust, offline persistence of all app-related state (workouts, exercises, routines, RPE grids).
+- **Navigation Persistence**: Always save and restore the `fullPath` (e.g. `/plans/123`) of the current page to the persistent app state instead of just the route name, ensuring dynamic routes with parameters remain persistent across reloads.
 
 ## Project Structure
 

@@ -2,7 +2,6 @@
 import { ref, watch } from "vue";
 import type { RoutineExerciseConfig, ProgressionModelType } from "../db/types";
 import AppBottomSheet from "./AppBottomSheet.vue";
-import { DialogTitle } from "reka-ui";
 
 const props = defineProps<{
   exerciseName: string;
@@ -38,8 +37,11 @@ const DEFAULT_PARAMS: Record<ProgressionModelType, Record<string, number>> = {
   },
 };
 
-watch(open, (isOpen) => {
-  if (isOpen) {
+// Reset form state every time the sheet opens, based on current props
+watch(
+  open,
+  (isOpen) => {
+    if (!isOpen) return;
     if (props.initialConfig) {
       configModel.value = props.initialConfig.progressionModel;
       configParams.value = {
@@ -54,8 +56,9 @@ watch(open, (isOpen) => {
       configParams.value = { ...DEFAULT_PARAMS.linear };
       configNotes.value = "";
     }
-  }
-});
+  },
+  { immediate: true },
+);
 
 const changeModel = (model: ProgressionModelType) => {
   configModel.value = model;
@@ -84,11 +87,11 @@ const save = () => {
       >
         {{ isEditing ? "Edit Exercise" : "Add Exercise" }}
       </p>
-      <DialogTitle
+      <h2
         class="text-lg font-bold text-text-h-light dark:text-text-h-dark truncate"
       >
         {{ exerciseName }}
-      </DialogTitle>
+      </h2>
     </template>
 
     <div class="px-5 py-5 flex flex-col gap-6">

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from "vue";
+import { ref, computed, nextTick, onMounted, onUnmounted } from "vue";
 import { useRouter } from "vue-router";
 import { liveQuery } from "dexie";
 import { db } from "../db/db";
@@ -69,11 +69,12 @@ const initialConfig = computed(() => {
   return undefined;
 });
 
-const handleSelectExercise = (exercise: Exercise) => {
+const handleSelectExercise = async (exercise: Exercise) => {
   configExerciseId.value = exercise.id;
   configExerciseName.value = exercise.name;
   editingIndex.value = null;
   showPicker.value = false;
+  await nextTick();
   showConfig.value = true;
 };
 

@@ -9,6 +9,7 @@
     "format": "prettier \"src/**/*.{js,jsx,ts,tsx,vue,css,md}\" \"*.md\" --write"
   },
   "dependencies": {
+    "@plainsheet/core": "^1.0.1",
     "dexie": "^4.4.3",
     "reka-ui": "^2.9.7",
     "vue": "^3.5.34",

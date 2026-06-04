@@ -4,12 +4,15 @@ import { useRouter } from "vue-router";
 import { liveQuery } from "dexie";
 import { db } from "../db/db";
 import type { Plan, Routine } from "../db/types";
+import { createPlan, type PlanInput } from "../db/repository";
 import PlanCard from "./PlanCard.vue";
 import AppFab from "./AppFab.vue";
+import PlanFormSheet from "./PlanFormSheet.vue";
 
 const router = useRouter();
 const plans = ref<Plan[]>([]);
 const routinesMap = ref<Record<string, Routine>>({});
+const showForm = ref(false);
 
 let subscription: any;
 
@@ -44,7 +47,14 @@ const handlePlanClick = (plan: Plan) => {
 };
 
 const handleCreatePlan = () => {
-  console.log("Create Plan FAB clicked");
+  showForm.value = true;
+};
+
+const handleSavePlan = async (input: PlanInput) => {
+  const id = await createPlan(input);
+  showForm.value = false;
+  // Jump straight into the new plan so the user can add routines.
+  router.push({ name: "plan-details", params: { id } });
 };
 </script>
 
@@ -105,5 +115,11 @@ const handleCreatePlan = () => {
 
     <!-- FAB Button -->
     <AppFab label="New Plan" @click="handleCreatePlan" />
+
+    <PlanFormSheet
+      v-model:open="showForm"
+      :is-editing="false"
+      @save="handleSavePlan"
+    />
   </div>
 </template>

@@ -1,76 +1,137 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, computed, onMounted, onUnmounted } from "vue";
+import { liveQuery } from "dexie";
+import { db } from "../db/db";
+import type { Exercise } from "../db/types";
+import {
+  createExercise,
+  updateExercise,
+  deleteExercise,
+  countExerciseUsage,
+  type ExerciseInput,
+} from "../db/repository";
+import AppFab from "./AppFab.vue";
+import ExerciseFormSheet from "./ExerciseFormSheet.vue";
+import ConfirmDialog from "./ConfirmDialog.vue";
 
-interface Category {
-  name: string;
-  count: number;
-  iconPath: string; // SVG path
-}
+const exercises = ref<Exercise[]>([]);
+const searchQuery = ref("");
+let subscription: any;
 
-const categories = ref<Category[]>([
-  {
-    name: "Chest",
-    count: 12,
-    iconPath: "M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z",
-  },
-  {
-    name: "Back",
-    count: 14,
-    iconPath: "M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5",
-  },
-  {
-    name: "Legs",
-    count: 18,
-    iconPath:
-      "M4 3h16a2 2 0 0 1 2 2v6a10 10 0 0 1-10 10A10 10 0 0 1 2 11V5a2 2 0 0 1 2-2z",
-  },
-  {
-    name: "Shoulders",
-    count: 10,
-    iconPath:
-      "M12 2a5 5 0 0 0-5 5v3a5 5 0 0 0 10 0V7a5 5 0 0 0-5-5zM12 14c-4.42 0-8 1.79-8 4v2h16v-2c0-2.21-3.58-4-8-4z",
-  },
-  {
-    name: "Arms",
-    count: 15,
-    iconPath:
-      "M6.5 2C3.46 2 1 4.46 1 7.5c0 1.63.7 3.09 1.83 4.1C1.72 12.82 1 14.57 1 16.5c0 3.04 2.46 5.5 5.5 5.5s5.5-2.46 5.5-5.5c0-1.93-.72-3.68-1.83-4.9C11.3 10.59 12 9.13 12 7.5 12 4.46 9.54 2 6.5 2z",
-  },
-  {
-    name: "Core",
-    count: 8,
-    iconPath:
-      "M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z",
-  },
-]);
+onMounted(() => {
+  subscription = liveQuery(() =>
+    db.exercises.orderBy("name").toArray(),
+  ).subscribe({
+    next: (result) => (exercises.value = result),
+    error: (err) => console.error("Error loading exercises:", err),
+  });
+});
 
-const handleCategoryClick = (categoryName: string) => {
-  console.log(`Exercise Category clicked: ${categoryName}`);
+onUnmounted(() => subscription?.unsubscribe());
+
+const filtered = computed(() => {
+  const q = searchQuery.value.toLowerCase().trim();
+  if (!q) return exercises.value;
+  return exercises.value.filter(
+    (e) =>
+      e.name.toLowerCase().includes(q) ||
+      e.primaryMuscleGroup.toLowerCase().includes(q) ||
+      e.secondaryMuscleGroups?.some((s) => s.toLowerCase().includes(q)),
+  );
+});
+
+// Group exercises by primary muscle group, alphabetically.
+const grouped = computed(() => {
+  const groups: Record<string, Exercise[]> = {};
+  for (const e of filtered.value) {
+    (groups[e.primaryMuscleGroup] ??= []).push(e);
+  }
+  return Object.keys(groups)
+    .sort((a, b) => a.localeCompare(b))
+    .map((group) => ({ group, items: groups[group] }));
+});
+
+// --- Form sheet ---
+const showForm = ref(false);
+const editingExercise = ref<Exercise | null>(null);
+
+const formInitial = computed<ExerciseInput | undefined>(() => {
+  const e = editingExercise.value;
+  if (!e) return undefined;
+  return {
+    name: e.name,
+    primaryMuscleGroup: e.primaryMuscleGroup,
+    secondaryMuscleGroups: e.secondaryMuscleGroups,
+    notes: e.notes,
+    bodyweightFactor: e.bodyweightFactor,
+  };
+});
+
+const openCreate = () => {
+  editingExercise.value = null;
+  showForm.value = true;
+};
+
+const openEdit = (exercise: Exercise) => {
+  editingExercise.value = exercise;
+  showForm.value = true;
+};
+
+const handleSave = async (input: ExerciseInput) => {
+  if (editingExercise.value) {
+    await updateExercise(editingExercise.value.id, input);
+  } else {
+    await createExercise(input);
+  }
+  showForm.value = false;
+};
+
+// --- Delete confirmation ---
+const showConfirm = ref(false);
+const pendingDelete = ref<Exercise | null>(null);
+const pendingUsage = ref(0);
+
+const requestDelete = async (exercise: Exercise) => {
+  pendingDelete.value = exercise;
+  pendingUsage.value = await countExerciseUsage(exercise.id);
+  showConfirm.value = true;
+};
+
+const confirmMessage = computed(() => {
+  const e = pendingDelete.value;
+  if (!e) return "";
+  if (pendingUsage.value > 0) {
+    return `"${e.name}" is used in ${pendingUsage.value} routine slot${
+      pendingUsage.value === 1 ? "" : "s"
+    }. Deleting it will remove it from those routines. This cannot be undone.`;
+  }
+  return `Delete "${e.name}" from your exercise library? This cannot be undone.`;
+});
+
+const confirmDelete = async () => {
+  if (pendingDelete.value) await deleteExercise(pendingDelete.value.id);
+  pendingDelete.value = null;
 };
 </script>
 
 <template>
-  <div class="p-6 relative min-h-full flex flex-col animate-fade-in">
-    <!-- Header Section -->
-    <div
-      class="mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4"
-    >
-      <div>
-        <h1
-          class="text-3xl font-bold tracking-tight text-text-h-light dark:text-text-h-dark"
-        >
-          Exercises
-        </h1>
-        <p class="text-sm text-text-light dark:text-text-dark opacity-70 mt-1">
-          Explore and manage your exercise database
-        </p>
-      </div>
+  <div class="relative flex min-h-full flex-col p-6 pb-24">
+    <!-- Header -->
+    <div class="mb-6">
+      <h1
+        class="text-3xl font-bold tracking-tight text-text-h-light dark:text-text-h-dark"
+      >
+        Exercises
+      </h1>
+      <p class="mt-1 text-sm text-text-light dark:text-text-dark opacity-70">
+        Manage your exercise library
+      </p>
     </div>
 
-    <!-- Search Placeholder -->
-    <div class="mb-8 max-w-md w-full relative">
+    <!-- Search -->
+    <div class="relative mb-6 w-full max-w-md">
       <div
-        class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"
+        class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3"
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"
@@ -89,49 +150,159 @@ const handleCategoryClick = (categoryName: string) => {
         </svg>
       </div>
       <input
-        type="text"
+        v-model="searchQuery"
+        type="search"
         placeholder="Search exercises..."
-        disabled
-        class="w-full bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-lg py-2.5 pl-10 pr-4 text-sm text-text-h-light dark:text-text-h-dark placeholder-text-light/50 dark:placeholder-text-dark/50 opacity-80 cursor-not-allowed focus:outline-none"
+        class="w-full rounded-lg border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark py-2.5 pl-10 pr-4 text-sm text-text-h-light dark:text-text-h-dark placeholder-text-light/50 dark:placeholder-text-dark/50 focus:border-accent/50 focus:outline-none focus:ring-2 focus:ring-accent/40"
       />
     </div>
 
-    <!-- Categories Grid -->
-    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-      <div
-        v-for="category in categories"
-        :key="category.name"
-        class="bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-xl p-5 flex flex-col items-center justify-center text-center cursor-pointer transition-colors duration-150 hover:bg-surface-light-hover dark:hover:bg-surface-dark-hover"
-        @click="handleCategoryClick(category.name)"
+    <!-- Empty library -->
+    <div
+      v-if="exercises.length === 0"
+      class="flex flex-grow flex-col items-center justify-center rounded-xl border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark p-8 text-center shadow-sm"
+    >
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        width="56"
+        height="56"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.5"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        class="mb-4 text-accent opacity-80"
       >
-        <div
-          class="w-12 h-12 rounded-lg bg-accent/10 flex items-center justify-center text-accent mb-3"
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path :d="category.iconPath" />
-          </svg>
-        </div>
-        <h3
-          class="font-bold text-text-h-light dark:text-text-h-dark text-sm sm:text-base"
-        >
-          {{ category.name }}
-        </h3>
-        <span
-          class="text-xs text-text-light dark:text-text-dark opacity-60 mt-1"
-        >
-          {{ category.count }} exercises
-        </span>
-      </div>
+        <path d="M6.5 6.5 17.5 17.5" />
+        <path d="m21 21-1-1" />
+        <path d="m3 3 1 1" />
+        <path d="m18 22 4-4" />
+        <path d="m2 6 4-4" />
+        <path d="m3 10 7-7" />
+        <path d="m14 21 7-7" />
+      </svg>
+      <h2
+        class="mb-2 text-xl font-semibold text-text-h-light dark:text-text-h-dark"
+      >
+        No exercises yet
+      </h2>
+      <p class="max-w-sm text-text-light dark:text-text-dark opacity-70">
+        Build your exercise library to start composing routines and tracking
+        progression.
+      </p>
     </div>
+
+    <!-- No search results -->
+    <div
+      v-else-if="filtered.length === 0"
+      class="flex flex-grow flex-col items-center justify-center py-16 text-center"
+    >
+      <p class="text-sm text-text-light dark:text-text-dark opacity-50">
+        No exercises match "{{ searchQuery }}"
+      </p>
+    </div>
+
+    <!-- Grouped list -->
+    <div v-else class="flex flex-col gap-6">
+      <section v-for="section in grouped" :key="section.group">
+        <h2
+          class="mb-2 px-1 text-xs font-bold uppercase tracking-wider text-text-light dark:text-text-dark opacity-50"
+        >
+          {{ section.group }}
+        </h2>
+        <div
+          class="overflow-hidden rounded-xl border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark shadow-sm"
+        >
+          <div
+            v-for="exercise in section.items"
+            :key="exercise.id"
+            class="flex cursor-pointer items-center gap-3 border-b border-border-light dark:border-border-dark px-5 py-4 transition-colors duration-150 last:border-0 hover:bg-surface-light-hover dark:hover:bg-surface-dark-hover"
+            @click="openEdit(exercise)"
+          >
+            <div class="min-w-0 flex-1">
+              <div
+                class="truncate text-sm font-bold text-text-h-light dark:text-text-h-dark"
+              >
+                {{ exercise.name }}
+              </div>
+              <div
+                v-if="exercise.secondaryMuscleGroups?.length"
+                class="mt-0.5 truncate text-xs text-text-light dark:text-text-dark opacity-55"
+              >
+                {{ exercise.secondaryMuscleGroups.join(", ") }}
+              </div>
+            </div>
+
+            <!-- Bodyweight indicator -->
+            <span
+              v-if="exercise.bodyweightFactor > 0"
+              class="shrink-0 rounded-md border border-border-light dark:border-border-dark px-2 py-0.5 font-mono text-xs text-text-light dark:text-text-dark"
+              title="Bodyweight factor"
+            >
+              BW ×{{ exercise.bodyweightFactor }}
+            </span>
+
+            <!-- Edit chevron -->
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              class="shrink-0 text-text-light dark:text-text-dark opacity-30"
+            >
+              <polyline points="9 18 15 12 9 6"></polyline>
+            </svg>
+
+            <!-- Delete -->
+            <button
+              class="-mr-1 shrink-0 cursor-pointer p-1.5 text-text-light dark:text-text-dark transition-colors duration-150 hover:text-red-500"
+              title="Delete exercise"
+              @click.stop="requestDelete(exercise)"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="15"
+                height="15"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <polyline points="3 6 5 6 21 6"></polyline>
+                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path>
+                <path d="M10 11v6M14 11v6"></path>
+                <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path>
+              </svg>
+            </button>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- New Exercise FAB -->
+    <AppFab label="New Exercise" @click="openCreate" />
+
+    <ExerciseFormSheet
+      v-model:open="showForm"
+      :is-editing="editingExercise !== null"
+      :initial="formInitial"
+      @save="handleSave"
+    />
+
+    <ConfirmDialog
+      v-model:open="showConfirm"
+      title="Delete exercise?"
+      :message="confirmMessage"
+      confirm-label="Delete"
+      @confirm="confirmDelete"
+    />
   </div>
 </template>

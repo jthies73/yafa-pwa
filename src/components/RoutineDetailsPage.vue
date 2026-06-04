@@ -4,9 +4,16 @@ import { useRouter } from "vue-router";
 import { liveQuery } from "dexie";
 import { db } from "../db/db";
 import type { Routine, Exercise, RoutineExerciseConfig } from "../db/types";
+import {
+  updateRoutine,
+  deleteRoutine,
+  type RoutineInput,
+} from "../db/repository";
 import AppFab from "./AppFab.vue";
 import ExercisePickerSheet from "./ExercisePickerSheet.vue";
 import ExerciseConfigSheet from "./ExerciseConfigSheet.vue";
+import RoutineFormSheet from "./RoutineFormSheet.vue";
+import ConfirmDialog from "./ConfirmDialog.vue";
 
 const props = defineProps<{ id: string }>();
 const router = useRouter();
@@ -47,6 +54,34 @@ onMounted(() => {
 onUnmounted(() => subscription?.unsubscribe());
 
 const goBack = () => router.back();
+
+// --- Rename routine ---
+const showRoutineForm = ref(false);
+
+const routineFormInitial = computed(() =>
+  routine.value ? { name: routine.value.name } : undefined,
+);
+
+const handleRenameRoutine = async (input: RoutineInput) => {
+  if (!routine.value) return;
+  await updateRoutine(routine.value.id, input);
+  showRoutineForm.value = false;
+};
+
+// --- Delete routine ---
+const showConfirm = ref(false);
+
+const deleteMessage = computed(() =>
+  routine.value
+    ? `Delete "${routine.value.name}" and its exercise configuration? This cannot be undone.`
+    : "",
+);
+
+const confirmDeleteRoutine = async () => {
+  if (!routine.value) return;
+  await deleteRoutine(routine.value.id);
+  goBack();
+};
 
 // --- Exercise Picker Sheet ---
 const showPicker = ref(false);
@@ -156,12 +191,58 @@ const getSummary = (config?: RoutineExerciseConfig) => {
         Back
       </button>
 
-      <div v-if="routine" class="mt-2">
+      <div v-if="routine" class="mt-2 flex items-start justify-between gap-3">
         <h1
           class="text-3xl font-bold tracking-tight text-text-h-light dark:text-text-h-dark"
         >
           {{ routine.name }}
         </h1>
+        <div class="flex shrink-0 items-center gap-2">
+          <button
+            class="p-2.5 rounded-lg border border-border-light dark:border-border-dark text-text-light dark:text-text-dark hover:text-accent hover:bg-surface-light-hover dark:hover:bg-surface-dark-hover cursor-pointer transition-colors duration-150"
+            title="Rename routine"
+            @click="showRoutineForm = true"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M12 20h9"></path>
+              <path
+                d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"
+              ></path>
+            </svg>
+          </button>
+          <button
+            class="p-2.5 rounded-lg border border-border-light dark:border-border-dark text-text-light dark:text-text-dark hover:text-red-500 hover:bg-surface-light-hover dark:hover:bg-surface-dark-hover cursor-pointer transition-colors duration-150"
+            title="Delete routine"
+            @click="showConfirm = true"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <polyline points="3 6 5 6 21 6"></polyline>
+              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path>
+              <path d="M10 11v6M14 11v6"></path>
+              <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path>
+            </svg>
+          </button>
+        </div>
       </div>
       <div
         v-else-if="loading"
@@ -355,5 +436,20 @@ const getSummary = (config?: RoutineExerciseConfig) => {
     :is-editing="editingIndex !== null"
     :initial-config="initialConfig"
     @save="handleSaveConfig"
+  />
+
+  <RoutineFormSheet
+    v-model:open="showRoutineForm"
+    :is-editing="true"
+    :initial="routineFormInitial"
+    @save="handleRenameRoutine"
+  />
+
+  <ConfirmDialog
+    v-model:open="showConfirm"
+    title="Delete routine?"
+    :message="deleteMessage"
+    confirm-label="Delete"
+    @confirm="confirmDeleteRoutine"
   />
 </template>

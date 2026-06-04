@@ -1,10 +1,23 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from "vue";
+import { ref, computed, onMounted, onUnmounted } from "vue";
 import { useRouter } from "vue-router";
 import { liveQuery } from "dexie";
 import { db } from "../db/db";
 import type { Plan, Routine, Exercise } from "../db/types";
+import {
+  setPlanActive,
+  updatePlan,
+  deletePlan,
+  createRoutine,
+  updateRoutine,
+  deleteRoutine,
+  type PlanInput,
+  type RoutineInput,
+} from "../db/repository";
 import AppFab from "./AppFab.vue";
+import PlanFormSheet from "./PlanFormSheet.vue";
+import RoutineFormSheet from "./RoutineFormSheet.vue";
+import ConfirmDialog from "./ConfirmDialog.vue";
 
 const props = defineProps<{
   id: string;
@@ -70,20 +83,7 @@ const goBack = () => {
 
 const toggleActiveState = async () => {
   if (!plan.value) return;
-  const nextActiveState = !plan.value.active;
-
-  await db.transaction("rw", db.plans, async () => {
-    if (nextActiveState) {
-      // Set all other plans active to false
-      const allPlans = await db.plans.toArray();
-      for (const p of allPlans) {
-        await db.plans.update(p.id, { active: p.id === props.id });
-      }
-    } else {
-      // Just deactivate this plan
-      await db.plans.update(props.id, { active: false });
-    }
-  });
+  await setPlanActive(props.id, !plan.value.active);
 };
 
 const getProgressionType = (config?: any) => {
@@ -117,8 +117,95 @@ const handleRoutineClick = (routine: Routine) => {
   router.push({ name: "routine-details", params: { id: routine.id } });
 };
 
+// --- Plan edit / delete ---
+const showPlanForm = ref(false);
+
+const planFormInitial = computed(() =>
+  plan.value
+    ? { name: plan.value.name, description: plan.value.description }
+    : undefined,
+);
+
+const openEditPlan = () => {
+  showPlanForm.value = true;
+};
+
+const handleSavePlan = async (input: PlanInput) => {
+  await updatePlan(props.id, input);
+  showPlanForm.value = false;
+};
+
+// --- Routine create / edit ---
+const showRoutineForm = ref(false);
+const editingRoutine = ref<Routine | null>(null);
+
+const routineFormInitial = computed(() =>
+  editingRoutine.value ? { name: editingRoutine.value.name } : undefined,
+);
+
 const handleAddRoutine = () => {
-  console.log("New Routine FAB clicked");
+  editingRoutine.value = null;
+  showRoutineForm.value = true;
+};
+
+const openEditRoutine = (routine: Routine) => {
+  editingRoutine.value = routine;
+  showRoutineForm.value = true;
+};
+
+const handleSaveRoutine = async (input: RoutineInput) => {
+  if (editingRoutine.value) {
+    await updateRoutine(editingRoutine.value.id, input);
+    showRoutineForm.value = false;
+  } else {
+    const id = await createRoutine(input, props.id);
+    showRoutineForm.value = false;
+    // Open the new routine so the user can configure its exercises.
+    router.push({ name: "routine-details", params: { id } });
+  }
+};
+
+// --- Shared delete confirmation (plan + routines) ---
+const confirmOpen = ref(false);
+const confirmTitle = ref("");
+const confirmMessage = ref("");
+let confirmAction: (() => void | Promise<void>) | null = null;
+
+const requestConfirm = (
+  title: string,
+  message: string,
+  action: () => void | Promise<void>,
+) => {
+  confirmTitle.value = title;
+  confirmMessage.value = message;
+  confirmAction = action;
+  confirmOpen.value = true;
+};
+
+const onConfirm = () => {
+  const action = confirmAction;
+  confirmAction = null;
+  action?.();
+};
+
+const requestDeletePlan = () => {
+  if (!plan.value) return;
+  requestConfirm(
+    "Delete plan?",
+    `Delete "${plan.value.name}"? Routines used only by this plan will also be removed. This cannot be undone.`,
+    async () => {
+      await deletePlan(props.id);
+      router.push({ name: "plans" });
+    },
+  );
+};
+
+const requestDeleteRoutine = (routine: Routine) => {
+  requestConfirm(
+    "Delete routine?",
+    `Delete "${routine.name}" and its exercise configuration? This cannot be undone.`,
+    () => deleteRoutine(routine.id),
+  );
 };
 </script>
 
@@ -168,13 +255,57 @@ const handleAddRoutine = () => {
           class="h-10 w-48 bg-black/5 dark:bg-white/5 animate-pulse rounded-lg"
         ></div>
 
-        <div v-if="plan" class="flex items-center gap-3">
+        <div v-if="plan" class="flex flex-wrap items-center gap-2">
           <span
             v-if="plan.active"
             class="px-2.5 py-1 text-xs font-bold bg-accent/20 text-accent rounded-md uppercase tracking-wider"
           >
             Active Plan
           </span>
+          <button
+            class="p-2.5 rounded-lg border border-border-light dark:border-border-dark text-text-light dark:text-text-dark hover:text-accent hover:bg-surface-light-hover dark:hover:bg-surface-dark-hover cursor-pointer transition-colors duration-150"
+            title="Edit plan"
+            @click="openEditPlan"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M12 20h9"></path>
+              <path
+                d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"
+              ></path>
+            </svg>
+          </button>
+          <button
+            class="p-2.5 rounded-lg border border-border-light dark:border-border-dark text-text-light dark:text-text-dark hover:text-red-500 hover:bg-surface-light-hover dark:hover:bg-surface-dark-hover cursor-pointer transition-colors duration-150"
+            title="Delete plan"
+            @click="requestDeletePlan"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <polyline points="3 6 5 6 21 6"></polyline>
+              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path>
+              <path d="M10 11v6M14 11v6"></path>
+              <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path>
+            </svg>
+          </button>
           <button
             class="px-4 py-2 text-xs font-bold rounded-lg cursor-pointer transition-colors duration-150 tracking-wider uppercase border"
             :class="
@@ -225,13 +356,61 @@ const handleAddRoutine = () => {
           >
             <!-- Routine Title -->
             <div
-              class="bg-black/5 dark:bg-white/5 px-5 py-4 border-b border-border-light dark:border-border-dark"
+              class="bg-black/5 dark:bg-white/5 px-5 py-4 border-b border-border-light dark:border-border-dark flex items-center justify-between gap-3"
             >
               <h3
-                class="text-lg font-bold text-text-h-light dark:text-text-h-dark"
+                class="text-lg font-bold text-text-h-light dark:text-text-h-dark truncate"
               >
                 {{ routine.name }}
               </h3>
+              <div class="flex items-center gap-1 shrink-0">
+                <button
+                  class="p-1.5 rounded-md text-text-light dark:text-text-dark hover:text-accent cursor-pointer transition-colors duration-150"
+                  title="Rename routine"
+                  @click.stop="openEditRoutine(routine)"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="15"
+                    height="15"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <path d="M12 20h9"></path>
+                    <path
+                      d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"
+                    ></path>
+                  </svg>
+                </button>
+                <button
+                  class="p-1.5 rounded-md text-text-light dark:text-text-dark hover:text-red-500 cursor-pointer transition-colors duration-150"
+                  title="Delete routine"
+                  @click.stop="requestDeleteRoutine(routine)"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="15"
+                    height="15"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <polyline points="3 6 5 6 21 6"></polyline>
+                    <path
+                      d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"
+                    ></path>
+                    <path d="M10 11v6M14 11v6"></path>
+                    <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path>
+                  </svg>
+                </button>
+              </div>
             </div>
 
             <!-- Exercises List -->
@@ -325,5 +504,26 @@ const handleAddRoutine = () => {
 
     <!-- FAB Button -->
     <AppFab v-if="plan" label="New Routine" @click="handleAddRoutine" />
+
+    <PlanFormSheet
+      v-model:open="showPlanForm"
+      :is-editing="true"
+      :initial="planFormInitial"
+      @save="handleSavePlan"
+    />
+
+    <RoutineFormSheet
+      v-model:open="showRoutineForm"
+      :is-editing="editingRoutine !== null"
+      :initial="routineFormInitial"
+      @save="handleSaveRoutine"
+    />
+
+    <ConfirmDialog
+      v-model:open="confirmOpen"
+      :title="confirmTitle"
+      :message="confirmMessage"
+      @confirm="onConfirm"
+    />
   </div>
 </template>

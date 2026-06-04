@@ -6,7 +6,7 @@ export class YafaDatabase extends Dexie {
   routines!: Table<Routine, string>;
   plans!: Table<Plan, string>;
   workouts!: Table<Workout, string>;
-  appState!: Table<AppState, string>; // IndexedDB stores a single appState doc keyed by 'settings'
+  appState!: Table<AppState & { id: string }, string>; // IndexedDB stores a single appState doc keyed by 'settings'
 
   constructor() {
     super("YafaDatabase");

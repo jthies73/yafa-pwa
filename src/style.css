@@ -20,7 +20,6 @@
 }
 
 @layer base {
-
   html,
   body {
     margin: 0;
@@ -54,8 +53,6 @@
     flex-direction: column;
     box-sizing: border-box;
   }
-
-
 }
 
 /* Custom Tailwind Utility Animations */

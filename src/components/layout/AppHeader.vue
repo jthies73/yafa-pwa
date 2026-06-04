@@ -154,7 +154,7 @@ onMounted(() => {
                     'flex items-center gap-3 font-medium text-lg transition-colors cursor-pointer group',
                     route.name === 'dashboard'
                       ? 'text-accent'
-                      : 'text-text-h-light dark:text-text-h-dark hover:text-accent',
+                      : 'text-text-light dark:text-text-dark hover:text-accent',
                   ]"
                 >
                   <svg
@@ -222,7 +222,13 @@ onMounted(() => {
                 <!-- Configure Exercises -->
                 <a
                   href="#"
-                  class="flex items-center gap-3 text-text-light dark:text-text-dark font-medium text-lg hover:text-accent transition-colors cursor-pointer group"
+                  @click.prevent="navigateTo('exercises')"
+                  :class="[
+                    'flex items-center gap-3 font-medium text-lg transition-colors cursor-pointer group',
+                    route.name === 'exercises'
+                      ? 'text-accent'
+                      : 'text-text-light dark:text-text-dark hover:text-accent',
+                  ]"
                 >
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
@@ -234,7 +240,12 @@ onMounted(() => {
                     stroke-width="2"
                     stroke-linecap="round"
                     stroke-linejoin="round"
-                    class="w-5 h-5 text-text-light/70 dark:text-text-dark/70 group-hover:text-accent transition-colors"
+                    :class="[
+                      'w-5 h-5 transition-colors',
+                      route.name === 'exercises'
+                        ? 'text-accent'
+                        : 'text-text-light/70 dark:text-text-dark/70 group-hover:text-accent',
+                    ]"
                   >
                     <path d="M18 8h2a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1h-2" />
                     <path d="M6 8H4a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2" />
@@ -248,7 +259,13 @@ onMounted(() => {
                 <!-- App Settings -->
                 <a
                   href="#"
-                  class="flex items-center gap-3 text-text-light dark:text-text-dark font-medium text-lg hover:text-accent transition-colors cursor-pointer group"
+                  @click.prevent="navigateTo('settings')"
+                  :class="[
+                    'flex items-center gap-3 font-medium text-lg transition-colors cursor-pointer group',
+                    route.name === 'settings'
+                      ? 'text-accent'
+                      : 'text-text-light dark:text-text-dark hover:text-accent',
+                  ]"
                 >
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
@@ -260,7 +277,12 @@ onMounted(() => {
                     stroke-width="2"
                     stroke-linecap="round"
                     stroke-linejoin="round"
-                    class="w-5 h-5 text-text-light/70 dark:text-text-dark/70 group-hover:text-accent transition-colors"
+                    :class="[
+                      'w-5 h-5 transition-colors',
+                      route.name === 'settings'
+                        ? 'text-accent'
+                        : 'text-text-light/70 dark:text-text-dark/70 group-hover:text-accent',
+                    ]"
                   >
                     <path
                       d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.1a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"

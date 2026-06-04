@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from "vue";
+import { useRouter } from "vue-router";
 import { liveQuery } from "dexie";
 import { db } from "../db/db";
 import type { Plan, Routine } from "../db/types";
 import PlanCard from "./PlanCard.vue";
 import AppFab from "./AppFab.vue";
 
+const router = useRouter();
 const plans = ref<Plan[]>([]);
 const routinesMap = ref<Record<string, Routine>>({});
 
@@ -38,7 +40,7 @@ const getRoutinesForPlan = (plan: Plan) => {
 };
 
 const handlePlanClick = (plan: Plan) => {
-  console.log("Plan clicked:", plan.name);
+  router.push({ name: "plan-details", params: { id: plan.id } });
 };
 
 const handleCreatePlan = () => {

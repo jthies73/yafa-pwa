@@ -14,6 +14,7 @@ This file contains base instructions and technical guidelines for Google Gemini 
 * **Asset Integrity**: Never use generic image placeholders. Prefer inline SVGs or clean programmatic graphics styled with Tailwind utility classes.
 * **Interactive Cursor**: Explicitly apply the `cursor-pointer` utility class (or `cursor: pointer` in CSS) to all clickable elements (buttons, links, triggers, interactive controls) to ensure clear visual feedback.
 * **Interactive Feedback**: Clickable elements must change color slightly on hover to indicate clickability (in addition to having `cursor-pointer`). There should be no animation (such as scale or translate transitions) on hover.
+* **Navigation Highlighting**: Navigation links in headers or menus must remain highlighted (using the active/accent style) when navigating into subroutes or details pages corresponding to that section (e.g., keeping "Plans" highlighted when on `/plans/:id`).
 
 ---
 

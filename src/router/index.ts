@@ -24,6 +24,12 @@ const router = createRouter({
       name: "settings",
       component: () => import("../components/SettingsPage.vue"),
     },
+    {
+      path: "/plans/:id",
+      name: "plan-details",
+      component: () => import("../components/PlanDetailsPage.vue"),
+      props: true,
+    },
   ],
 });
 

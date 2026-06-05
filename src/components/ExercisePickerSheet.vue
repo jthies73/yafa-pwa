@@ -50,7 +50,6 @@ const select = (exercise: Exercise) => {
 const createNew = () => {
   emit("create");
 };
-
 </script>
 
 <template>

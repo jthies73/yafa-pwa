@@ -139,7 +139,9 @@ const save = () => {
   <AppBottomSheet v-model:open="open">
     <template #title>
       <div class="flex items-center justify-between gap-4">
-        <h2 class="text-lg font-bold text-text-h-light dark:text-text-h-dark truncate">
+        <h2
+          class="text-lg font-bold text-text-h-light dark:text-text-h-dark truncate"
+        >
           {{ isEditing ? "Edit Exercise" : "New Exercise" }}
         </h2>
         <button

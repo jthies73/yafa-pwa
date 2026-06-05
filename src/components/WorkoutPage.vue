@@ -55,10 +55,14 @@ const handleDiscard = () => {
     <!-- Header -->
     <div class="flex items-start justify-between gap-4">
       <div class="flex-grow min-w-0">
-        <p class="text-xs font-semibold uppercase tracking-wider text-text-light dark:text-text-dark opacity-50 mb-0.5">
+        <p
+          class="text-xs font-semibold uppercase tracking-wider text-text-light dark:text-text-dark opacity-50 mb-0.5"
+        >
           Active Session
         </p>
-        <h1 class="text-3xl font-bold tracking-tight text-text-h-light dark:text-text-h-dark">
+        <h1
+          class="text-3xl font-bold tracking-tight text-text-h-light dark:text-text-h-dark"
+        >
           {{ loading ? "Loading..." : sessionLabel }}
         </h1>
       </div>
@@ -79,10 +83,19 @@ const handleDiscard = () => {
         class="bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-xl p-4 shadow-sm flex items-center justify-between gap-3"
       >
         <div>
-          <span class="text-xs text-text-light dark:text-text-dark opacity-40 mr-2">{{ idx + 1 }}.</span>
-          <span class="font-bold text-text-h-light dark:text-text-h-dark text-sm">Exercise</span>
+          <span
+            class="text-xs text-text-light dark:text-text-dark opacity-40 mr-2"
+            >{{ idx + 1 }}.</span
+          >
+          <span
+            class="font-bold text-text-h-light dark:text-text-h-dark text-sm"
+            >Exercise</span
+          >
         </div>
-        <span class="text-xs text-text-light dark:text-text-dark opacity-40 font-mono">— sets coming soon</span>
+        <span
+          class="text-xs text-text-light dark:text-text-dark opacity-40 font-mono"
+          >— sets coming soon</span
+        >
       </div>
 
       <div
@@ -90,7 +103,11 @@ const handleDiscard = () => {
         class="bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-xl p-10 shadow-sm flex flex-col items-center justify-center text-center gap-2"
       >
         <p class="text-sm text-text-light dark:text-text-dark opacity-50">
-          {{ routine ? "No exercises configured for this routine." : "Log your exercises freely." }}
+          {{
+            routine
+              ? "No exercises configured for this routine."
+              : "Log your exercises freely."
+          }}
         </p>
         <p class="text-xs text-text-light dark:text-text-dark opacity-30">
           Exercise logging coming soon.

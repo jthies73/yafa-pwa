@@ -60,12 +60,12 @@ onMounted(() => {
   >
     <!-- Logo on the left -->
     <a
-      href="/"
-      class="flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-accent rounded"
+      @click.prevent="navigateTo('dashboard')"
+      class="flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-accent rounded cursor-pointer"
     >
       <img
         src="/src/assets/Logo_Full.svg"
-        alt="Yafa Logo"
+        alt="YAFA Logo"
         class="h-8 w-8 object-contain"
       />
       <span
@@ -221,6 +221,39 @@ onMounted(() => {
                     <path d="m9 16 2 2 4-4" />
                   </svg>
                   <span>Plans</span>
+                </a>
+
+                <!-- Analytics -->
+                <a
+                  href="#"
+                  @click.prevent="navigateTo('analytics')"
+                  :class="[
+                    'flex items-center gap-3 font-medium text-lg transition-colors cursor-pointer group',
+                    route.name === 'analytics'
+                      ? 'text-accent'
+                      : 'text-text-light dark:text-text-dark hover:text-accent',
+                  ]"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="20"
+                    height="20"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    :class="[
+                      'w-5 h-5 transition-colors',
+                      route.name === 'analytics'
+                        ? 'text-accent'
+                        : 'text-text-light/70 dark:text-text-dark/70 group-hover:text-accent',
+                    ]"
+                  >
+                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+                  </svg>
+                  <span>Analytics</span>
                 </a>
 
                 <!-- Configure Exercises -->

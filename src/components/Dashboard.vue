@@ -1,272 +1,223 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { ref, computed, onMounted, onUnmounted } from "vue";
 import { useRouter } from "vue-router";
-import AppBottomSheet from "./AppBottomSheet.vue";
+import { liveQuery } from "dexie";
+import { db } from "../db/db";
+import type { Plan, Routine } from "../db/types";
 
 const router = useRouter();
-const showActiveWorkoutSheet = ref(false);
 
-const today = computed(() => {
-  return new Date().toLocaleDateString("en-US", {
-    weekday: "long",
-    month: "short",
-    day: "numeric",
+const activePlan = ref<Plan | null>(null);
+const planRoutines = ref<Routine[]>([]);
+const loading = ref(true);
+let subscription: any;
+
+onMounted(() => {
+  subscription = liveQuery(async () => {
+    const plans = await db.plans.toArray();
+    const plan = plans.find((p) => p.active) ?? null;
+    if (!plan) return { plan: null, routines: [] };
+    const routines = (
+      await Promise.all(plan.routineIds.map((id) => db.routines.get(id)))
+    ).filter((r): r is Routine => !!r);
+    return { plan, routines };
+  }).subscribe({
+    next: (result) => {
+      loading.value = false;
+      activePlan.value = result.plan;
+      planRoutines.value = result.routines;
+    },
+    error: () => {
+      loading.value = false;
+    },
   });
 });
 
-const quickStats = [
-  {
-    label: "Active Plan",
-    value: "Powerbuilding Split",
-    icon: "M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z",
-    colorClass: "text-accent bg-accent/10",
-  },
-  {
-    label: "Workouts Logged",
-    value: "18 sessions",
-    icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4",
-    colorClass: "text-blue-500 bg-blue-500/10",
-  },
-  {
-    label: "Workout Streak",
-    value: "4 days",
-    icon: "M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0zM15 11a3 3 0 11-6 0 3 3 0 016 0z",
-    colorClass: "text-red-500 bg-red-500/10",
-  },
-  {
-    label: "Active Routines",
-    value: "3 routines",
-    icon: "M4 6h16M4 10h16M4 14h16M4 18h16",
-    colorClass: "text-yellow-500 bg-yellow-500/10",
-  },
-];
+onUnmounted(() => subscription?.unsubscribe());
+
+const today = computed(() =>
+  new Date().toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "short",
+    day: "numeric",
+  }),
+);
+
+const startRoutine = (routineId: string) => {
+  router.push({ name: "workout", query: { routineId } });
+};
+
+const startEmptyWorkout = () => {
+  router.push({ name: "workout" });
+};
 
 const recentWorkouts = [
-  {
-    name: "Push Day A",
-    plan: "Powerbuilding Split",
-    date: "Yesterday",
-    duration: "45m",
-    status: "Completed",
-  },
-  {
-    name: "Pull Day B",
-    plan: "Powerbuilding Split",
-    date: "3 days ago",
-    duration: "52m",
-    status: "Completed",
-  },
-  {
-    name: "Legs Day C",
-    plan: "Powerbuilding Split",
-    date: "5 days ago",
-    duration: "58m",
-    status: "Completed",
-  },
+  { name: "Push Day A", plan: "Powerbuilding Split", date: "Yesterday", duration: "45m" },
+  { name: "Pull Day B", plan: "Powerbuilding Split", date: "3 days ago", duration: "52m" },
+  { name: "Legs Day C", plan: "Powerbuilding Split", date: "5 days ago", duration: "58m" },
 ];
-
-const navigateTo = (routeName: string) => {
-  router.push({ name: routeName });
-};
 </script>
 
 <template>
-  <div class="p-6 relative min-h-full flex flex-col animate-fade-in gap-6">
-    <!-- Welcome Header -->
-    <div
-      class="flex flex-col md:flex-row md:items-center md:justify-between gap-4"
-    >
-      <div>
-        <h1
-          class="text-3xl font-bold tracking-tight text-text-h-light dark:text-text-h-dark"
-        >
-          Dashboard
-        </h1>
-        <p class="text-sm text-text-light dark:text-text-dark opacity-70 mt-1">
-          Welcome back! Here is your training progression overview.
-        </p>
-      </div>
-      <div
-        class="text-sm font-semibold py-1.5 px-3 bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-lg self-start text-text-h-light dark:text-text-h-dark"
-      >
+  <div class="p-6 relative min-h-full flex flex-col gap-6">
+    <!-- Page header -->
+    <div class="flex items-center justify-between gap-4">
+      <h1 class="text-3xl font-bold tracking-tight text-text-h-light dark:text-text-h-dark">
+        Dashboard
+      </h1>
+      <div class="text-sm font-semibold py-1.5 px-3 bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-lg text-text-h-light dark:text-text-h-dark shrink-0">
         {{ today }}
       </div>
     </div>
 
-    <!-- Quick Stats Grid -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-      <div
-        v-for="stat in quickStats"
-        :key="stat.label"
-        class="bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark p-5 rounded-xl flex items-center gap-4 shadow-sm"
-      >
+    <!-- 1) START WORKOUT — hero card -->
+    <div class="bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-xl p-5 shadow-sm flex flex-col gap-4">
+      <div class="flex items-start justify-between gap-3">
+        <div>
+          <h2 class="text-lg font-bold text-text-h-light dark:text-text-h-dark">
+            Start a Workout
+          </h2>
+          <p class="text-xs text-text-light dark:text-text-dark opacity-55 mt-0.5">
+            Pick a routine from your active plan or start fresh.
+          </p>
+        </div>
         <div
-          class="w-12 h-12 rounded-lg flex items-center justify-center shrink-0"
-          :class="stat.colorClass"
+          v-if="!loading && activePlan"
+          class="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-accent/15 text-accent text-xs font-bold uppercase tracking-wider shrink-0"
         >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
+          <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="currentColor">
+            <circle cx="12" cy="12" r="10" />
+          </svg>
+          Active
+        </div>
+      </div>
+
+      <!-- Active plan routines -->
+      <div v-if="!loading && activePlan" class="flex flex-col gap-2">
+        <p class="text-xs font-bold uppercase tracking-wider text-text-light dark:text-text-dark opacity-45">
+          {{ activePlan.name }}
+        </p>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <button
+            v-for="routine in planRoutines"
+            :key="routine.id"
+            class="flex items-center justify-between px-4 py-3 bg-black/5 dark:bg-white/5 border border-border-light dark:border-border-dark rounded-lg hover:bg-surface-light-hover dark:hover:bg-surface-dark-hover cursor-pointer transition-colors duration-150 text-left"
+            @click="startRoutine(routine.id)"
           >
-            <path :d="stat.icon" />
+            <div class="min-w-0">
+              <span class="font-bold text-sm text-text-h-light dark:text-text-h-dark truncate block">
+                {{ routine.name }}
+              </span>
+              <span class="text-xs text-text-light dark:text-text-dark opacity-50">
+                {{ routine.exercises.length }} exercise{{ routine.exercises.length !== 1 ? 's' : '' }}
+              </span>
+            </div>
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-accent shrink-0 ml-3">
+              <polygon points="5 3 19 12 5 21 5 3" />
+            </svg>
+          </button>
+          <p
+            v-if="planRoutines.length === 0"
+            class="text-sm italic text-text-light dark:text-text-dark opacity-50 col-span-full px-1"
+          >
+            No routines in this plan yet.
+          </p>
+        </div>
+      </div>
+
+      <!-- No active plan state -->
+      <div v-else-if="!loading" class="flex items-center gap-3 px-4 py-3 bg-black/5 dark:bg-white/5 border border-border-light dark:border-border-dark rounded-lg">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-text-light dark:text-text-dark opacity-40 shrink-0">
+          <circle cx="12" cy="12" r="10" />
+          <line x1="12" y1="8" x2="12" y2="12" />
+          <line x1="12" y1="16" x2="12.01" y2="16" />
+        </svg>
+        <p class="text-sm text-text-light dark:text-text-dark opacity-60">
+          No active plan.
+          <button class="text-accent hover:text-accent/80 cursor-pointer transition-colors duration-150 font-semibold" @click="router.push({ name: 'plans' })">Set one in Plans →</button>
+        </p>
+      </div>
+
+      <div v-else class="h-10 bg-black/5 dark:bg-white/5 rounded-lg animate-pulse" />
+
+      <!-- Divider + empty workout -->
+      <div class="border-t border-border-light dark:border-border-dark pt-3">
+        <button
+          class="w-full py-2.5 text-sm font-semibold text-text-light dark:text-text-dark border border-border-light dark:border-border-dark rounded-lg hover:bg-surface-light dark:hover:bg-surface-dark cursor-pointer transition-colors duration-150"
+          @click="startEmptyWorkout"
+        >
+          + Empty Workout
+        </button>
+      </div>
+    </div>
+
+    <!-- 2 + 3) Analytics & Active Plan nav cards -->
+    <div class="grid grid-cols-2 gap-4">
+      <!-- Analytics -->
+      <button
+        class="bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-xl p-4 shadow-sm flex flex-col gap-2.5 text-left hover:bg-surface-light-hover dark:hover:bg-surface-dark-hover cursor-pointer transition-colors duration-150"
+        @click="router.push({ name: 'analytics' })"
+      >
+        <div class="w-9 h-9 rounded-lg bg-blue-500/10 text-blue-500 flex items-center justify-center">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
           </svg>
         </div>
         <div>
-          <div
-            class="text-xs text-text-light dark:text-text-dark opacity-60 uppercase tracking-wider"
-          >
-            {{ stat.label }}
-          </div>
-          <div
-            class="text-lg font-bold text-text-h-light dark:text-text-h-dark mt-0.5"
-          >
-            {{ stat.value }}
+          <div class="font-bold text-sm text-text-h-light dark:text-text-h-dark">Analytics</div>
+          <div class="text-xs text-text-light dark:text-text-dark opacity-55 mt-0.5">Track progress</div>
+        </div>
+      </button>
+
+      <!-- Active Plan -->
+      <button
+        class="bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-xl p-4 shadow-sm flex flex-col gap-2.5 text-left hover:bg-surface-light-hover dark:hover:bg-surface-dark-hover cursor-pointer transition-colors duration-150"
+        @click="activePlan ? router.push({ name: 'plan-details', params: { id: activePlan.id } }) : router.push({ name: 'plans' })"
+      >
+        <div class="w-9 h-9 rounded-lg bg-accent/10 text-accent flex items-center justify-center">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect width="18" height="18" x="3" y="4" rx="2" ry="2" />
+            <line x1="16" x2="16" y1="2" y2="6" />
+            <line x1="8" x2="8" y1="2" y2="6" />
+            <line x1="3" x2="21" y1="10" y2="10" />
+            <path d="m9 16 2 2 4-4" />
+          </svg>
+        </div>
+        <div class="min-w-0">
+          <div class="font-bold text-sm text-text-h-light dark:text-text-h-dark">Active Plan</div>
+          <div class="text-xs text-text-light dark:text-text-dark opacity-55 mt-0.5 truncate">
+            {{ loading ? '—' : (activePlan?.name ?? 'None set') }}
           </div>
         </div>
-      </div>
+      </button>
     </div>
 
-    <!-- Main Content Section: Quick Actions & Recent Activity -->
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      <!-- Quick Actions (Left Column) -->
-      <div
-        class="bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-xl p-6 shadow-sm flex flex-col gap-4"
-      >
-        <h2
-          class="text-lg font-bold text-text-h-light dark:text-text-h-dark flex items-center gap-2"
+    <!-- 4) Recent Workouts -->
+    <div class="flex flex-col gap-3">
+      <h2 class="text-base font-bold text-text-h-light dark:text-text-h-dark">Recent Workouts</h2>
+      <div class="flex flex-col gap-2">
+        <div
+          v-for="workout in recentWorkouts"
+          :key="workout.name"
+          class="bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-xl px-4 py-3.5 shadow-sm flex items-center justify-between gap-3"
         >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            class="text-accent"
-          >
-            <polygon points="5 3 19 12 5 21 5 3" />
-          </svg>
-          Quick Actions
-        </h2>
-
-        <div class="flex flex-col gap-3">
-          <button
-            class="w-full bg-accent hover:bg-accent/90 text-bg-dark font-bold py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 cursor-pointer transition-colors duration-150 text-sm tracking-wide uppercase"
-            @click="showActiveWorkoutSheet = true"
-          >
-            Start Active Workout
-          </button>
-          <button
-            class="w-full bg-black/5 dark:bg-white/5 border border-border-light dark:border-border-dark hover:bg-surface-light-hover dark:hover:bg-surface-dark-hover text-text-h-light dark:text-text-h-dark font-semibold py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 cursor-pointer transition-colors duration-150 text-sm"
-            @click="navigateTo('plans')"
-          >
-            Configure Training Plans
-          </button>
-          <button
-            class="w-full bg-black/5 dark:bg-white/5 border border-border-light dark:border-border-dark hover:bg-surface-light-hover dark:hover:bg-surface-dark-hover text-text-h-light dark:text-text-h-dark font-semibold py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 cursor-pointer transition-colors duration-150 text-sm"
-            @click="navigateTo('exercises')"
-          >
-            Browse Exercise Library
-          </button>
-        </div>
-      </div>
-
-      <!-- Recent Workout History (Right Column) -->
-      <div
-        class="bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-xl p-6 shadow-sm flex flex-col gap-4 lg:col-span-2"
-      >
-        <h2
-          class="text-lg font-bold text-text-h-light dark:text-text-h-dark flex items-center gap-2"
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            class="text-accent"
-          >
-            <circle cx="12" cy="12" r="10" />
-            <polyline points="12 6 12 12 16 14" />
-          </svg>
-          Recent Activity
-        </h2>
-
-        <div class="flex flex-col gap-3">
-          <div
-            v-for="workout in recentWorkouts"
-            :key="workout.name"
-            class="flex items-center justify-between p-3.5 bg-black/5 dark:bg-white/5 border border-border-light dark:border-border-dark rounded-lg"
-          >
-            <div class="flex items-center gap-3">
-              <div
-                class="w-8 h-8 rounded-full bg-green-500/10 text-green-500 flex items-center justify-center shrink-0"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="18"
-                  height="18"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-                  <polyline points="22 4 12 14.01 9 11.01" />
-                </svg>
-              </div>
-              <div>
-                <div
-                  class="font-bold text-text-h-light dark:text-text-h-dark text-sm sm:text-base"
-                >
-                  {{ workout.name }}
-                </div>
-                <div
-                  class="text-xs text-text-light dark:text-text-dark opacity-60"
-                >
-                  {{ workout.plan }} • {{ workout.duration }}
-                </div>
-              </div>
+          <div class="flex items-center gap-3 min-w-0">
+            <div class="w-8 h-8 rounded-full bg-green-500/10 text-green-500 flex items-center justify-center shrink-0">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
             </div>
-            <div class="text-right">
-              <div
-                class="text-xs font-semibold text-text-h-light dark:text-text-h-dark"
-              >
-                {{ workout.status }}
-              </div>
-              <div
-                class="text-[10px] text-text-light dark:text-text-dark opacity-50 mt-0.5"
-              >
-                {{ workout.date }}
-              </div>
+            <div class="min-w-0">
+              <div class="font-bold text-sm text-text-h-light dark:text-text-h-dark truncate">{{ workout.name }}</div>
+              <div class="text-xs text-text-light dark:text-text-dark opacity-55 truncate">{{ workout.plan }} · {{ workout.duration }}</div>
             </div>
           </div>
+          <span class="text-xs text-text-light dark:text-text-dark opacity-40 shrink-0">{{ workout.date }}</span>
         </div>
+        <p class="text-xs text-text-light dark:text-text-dark opacity-35 text-center pt-1">
+          Real workout history coming soon.
+        </p>
       </div>
     </div>
   </div>
-
-  <AppBottomSheet v-model:open="showActiveWorkoutSheet" title="Active Workout">
-    <div
-      class="h-64 flex items-center justify-center text-text-light dark:text-text-dark"
-    >
-      <p class="text-sm opacity-60">Active workout session will appear here</p>
-    </div>
-  </AppBottomSheet>
 </template>

@@ -36,6 +36,16 @@ const router = createRouter({
       component: () => import("../components/RoutineDetailsPage.vue"),
       props: true,
     },
+    {
+      path: "/analytics",
+      name: "analytics",
+      component: () => import("../components/AnalyticsPage.vue"),
+    },
+    {
+      path: "/workout",
+      name: "workout",
+      component: () => import("../components/WorkoutPage.vue"),
+    },
   ],
 });
 

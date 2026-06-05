@@ -221,7 +221,10 @@ const requestDeletePlan = () => {
       </button>
 
       <!-- Plan Header with Title and Action Buttons -->
-      <div v-if="plan" class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+      <div
+        v-if="plan"
+        class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between"
+      >
         <div class="min-w-0 flex flex-col gap-3 mb-3">
           <div class="flex flex-wrap items-center gap-3">
             <h1
@@ -351,8 +354,11 @@ const requestDeletePlan = () => {
               >
                 {{ routine.name }}
               </h3>
-              <span class="text-xs font-mono text-text-light dark:text-text-dark opacity-50 shrink-0">
-                {{ routineStats(routine).exercises }}ex · {{ routineStats(routine).sets }}sets
+              <span
+                class="text-xs font-mono text-text-light dark:text-text-dark opacity-50 shrink-0"
+              >
+                {{ routineStats(routine).exercises }}ex ·
+                {{ routineStats(routine).sets }}sets
               </span>
             </div>
 

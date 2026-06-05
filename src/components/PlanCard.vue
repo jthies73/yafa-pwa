@@ -66,10 +66,15 @@ const routineStats = (routine: Routine) => {
         >
           <div class="flex items-center gap-2 min-w-0">
             <span class="w-1.5 h-1.5 rounded-full bg-accent shrink-0"></span>
-            <span class="text-text-h-light dark:text-text-h-dark truncate">{{ routine.name }}</span>
+            <span class="text-text-h-light dark:text-text-h-dark truncate">{{
+              routine.name
+            }}</span>
           </div>
-          <span class="text-xs font-mono text-text-light dark:text-text-dark opacity-50 shrink-0">
-            {{ routineStats(routine).exercises }}ex · {{ routineStats(routine).sets }}sets
+          <span
+            class="text-xs font-mono text-text-light dark:text-text-dark opacity-50 shrink-0"
+          >
+            {{ routineStats(routine).exercises }}ex ·
+            {{ routineStats(routine).sets }}sets
           </span>
         </li>
         <li

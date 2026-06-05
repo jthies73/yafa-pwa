@@ -79,9 +79,9 @@ const goBack = () => {
   router.push({ name: "plans" });
 };
 
-const toggleActiveState = async () => {
+const setActiveState = async () => {
   if (!plan.value) return;
-  await setPlanActive(props.id, !plan.value.active);
+  await setPlanActive(props.id, true);
 };
 
 const getProgressionType = (config?: any) => {
@@ -208,34 +208,39 @@ const requestDeletePlan = () => {
         Back to Plans
       </button>
 
-      <div
-        class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mt-2"
-      >
-        <div v-if="plan">
-          <h1
-            class="text-3xl font-bold tracking-tight text-text-h-light dark:text-text-h-dark"
-          >
-            {{ plan.name }}
-          </h1>
+      <!-- Plan Header with Title and Action Buttons -->
+      <div v-if="plan" class="flex items-start justify-between gap-4">
+        <div class="flex-grow min-w-0">
+          <div class="flex items-center gap-3 mb-3">
+            <h1
+              class="text-3xl font-bold tracking-tight text-text-h-light dark:text-text-h-dark"
+            >
+              {{ plan.name }}
+            </h1>
+            <span
+              v-if="plan.active"
+              class="px-2.5 py-1.5 text-xs font-bold bg-accent/20 text-accent rounded-md uppercase tracking-wider shrink-0"
+            >
+              Active Plan
+            </span>
+          </div>
           <p
             v-if="plan.description"
-            class="text-sm text-text-light dark:text-text-dark opacity-85 mt-2"
+            class="text-sm text-text-light dark:text-text-dark opacity-85"
           >
             {{ plan.description }}
           </p>
-        </div>
-        <div
-          v-else-if="loading"
-          class="h-10 w-48 bg-black/5 dark:bg-white/5 animate-pulse rounded-lg"
-        ></div>
-
-        <div v-if="plan" class="flex flex-wrap items-center gap-2">
-          <span
-            v-if="plan.active"
-            class="px-2.5 py-1 text-xs font-bold bg-accent/20 text-accent rounded-md uppercase tracking-wider"
+          <button
+            v-if="!plan.active"
+            class="mt-3 px-4 py-2 text-xs font-bold rounded-lg cursor-pointer transition-colors duration-150 tracking-wider uppercase border bg-accent hover:bg-accent/90 text-bg-dark border-transparent"
+            @click="setActiveState"
           >
-            Active Plan
-          </span>
+            Set as Active Plan
+          </button>
+        </div>
+
+        <!-- Action Buttons (Edit & Delete) -->
+        <div class="flex items-center gap-2 shrink-0">
           <button
             class="p-2.5 rounded-lg border border-border-light dark:border-border-dark text-text-light dark:text-text-dark hover:text-accent hover:bg-surface-light-hover dark:hover:bg-surface-dark-hover cursor-pointer transition-colors duration-150"
             title="Edit plan"
@@ -280,19 +285,13 @@ const requestDeletePlan = () => {
               <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path>
             </svg>
           </button>
-          <button
-            class="px-4 py-2 text-xs font-bold rounded-lg cursor-pointer transition-colors duration-150 tracking-wider uppercase border"
-            :class="
-              plan.active
-                ? 'bg-red-500/10 text-red-500 hover:bg-red-500/20 border-red-500/30'
-                : 'bg-accent hover:bg-accent/90 text-bg-dark border-transparent'
-            "
-            @click="toggleActiveState"
-          >
-            {{ plan.active ? "Deactivate" : "Set as Active Plan" }}
-          </button>
         </div>
       </div>
+
+      <div
+        v-else-if="loading"
+        class="h-10 w-48 bg-black/5 dark:bg-white/5 animate-pulse rounded-lg"
+      ></div>
     </div>
 
     <div

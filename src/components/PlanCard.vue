@@ -59,7 +59,7 @@ defineEmits<{
           v-if="routines.length === 0"
           class="text-sm italic opacity-50 text-text-light dark:text-text-dark"
         >
-          No routines added yet
+          No routines configured for this plan.
         </li>
       </ul>
     </div>

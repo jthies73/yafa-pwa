@@ -242,7 +242,7 @@ const getProgressionLabel = (config?: RoutineExerciseConfig) => {
   if (!config) return "Not configured";
   if (config.progressionModel === "linear") return "Linear Progression";
   if (config.progressionModel === "double") return "Double Progression";
-  if (config.progressionModel === "topset_backoff") return "Top Set + Back-Off";
+  if (config.progressionModel === "topset_backoff") return "Top Set + Back-Off Progression";
   return "Custom";
 };
 

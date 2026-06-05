@@ -10,6 +10,7 @@ This file contains base instructions and technical guidelines for Google Gemini 
 * **Minimalistic, Flat, & Technical Style**: Always maintain a highly polished, minimalistic, flat, and technical/clean aesthetic across the entire application. Avoid unnecessary gradients, heavy skeuomorphism, or bloated decorations. 
 * **Harmonious Palette**: Use `#1fc7b9` (turquoise) as the primary accent color. Support dark/light mode configurations smoothly using Tailwind v4 theme variables.
 * **Mobile-First Design**: Design all layouts, user experiences, and screen components primarily optimized for mobile viewports, ensuring a seamless phone interface before scaling upwards.
+* **Responsive Breakpoints**: Use exactly three breakpoint tiers — mobile (default), tablet (`md:`), desktop (`lg:`). Do not use `sm:`, `xl:`, `2xl:`, or any other intermediate breakpoints.
 * **Alignment & Consistency**: When creating new components or populating pages, align the new designs seamlessly with existing stylings, typography, and spacing.
 * **Asset Integrity**: Never use generic image placeholders. Prefer inline SVGs or clean programmatic graphics styled with Tailwind utility classes.
 * **Interactive Cursor**: Explicitly apply the `cursor-pointer` utility class (or `cursor: pointer` in CSS) to all clickable elements (buttons, links, triggers, interactive controls) to ensure clear visual feedback.

@@ -7,6 +7,7 @@
 - **Minimalistic, flat, technical style**: Maintain a polished, minimalistic, flat, and clean aesthetic. Avoid unnecessary gradients, heavy skeuomorphism, or decorative bloat.
 - **Primary accent color**: `#1fc7b9` (turquoise). Support dark/light mode using Tailwind v4 theme variables.
 - **Mobile-first approach**: Design all layouts, interactions, and media screens primarily for mobile viewports, ensuring a seamless phone interface before scaling to larger screens.
+- **Responsive breakpoints**: Use exactly three breakpoint tiers — mobile (default), tablet (`md:`), desktop (`lg:`). Do not use `sm:`, `xl:`, `2xl:`, or any other intermediate breakpoints.
 - **Consistency**: Align new components with existing styles, typography, and spacing.
 - **Assets**: Never use generic image placeholders. Prefer inline SVGs or programmatic graphics styled with Tailwind utility classes.
 - **Interactive Cursor**: Explicitly apply the `cursor-pointer` utility class (or `cursor: pointer` in CSS) to all clickable elements (buttons, links, triggers, interactive controls) to ensure clear visual feedback.

@@ -379,7 +379,7 @@ const getSummary = (config?: RoutineExerciseConfig) => {
           <div
             v-for="(rEx, idx) in routine.exercises"
             :key="rEx.exerciseId + '-' + idx"
-            class="flex items-center gap-3 px-5 py-4 border-b border-border-light dark:border-border-dark last:border-0 cursor-grab active:cursor-grabbing hover:bg-surface-light-hover dark:hover:bg-surface-dark-hover transition-colors duration-150"
+            class="flex items-center gap-4 px-4 py-3 border-b border-border-light dark:border-border-dark last:border-0 cursor-grab active:cursor-grabbing hover:bg-surface-light-hover dark:hover:bg-surface-dark-hover transition-colors duration-150"
             @click="editExercise(idx)"
           >
             <!-- Drag handle -->
@@ -401,13 +401,6 @@ const getSummary = (config?: RoutineExerciseConfig) => {
                 <circle cx="9" cy="19" r="1.5" />
                 <circle cx="15" cy="19" r="1.5" />
               </svg>
-            </span>
-
-            <!-- Index -->
-            <span
-              class="text-sm font-semibold text-text-light dark:text-text-dark opacity-35 w-6 text-center shrink-0 tabular-nums"
-            >
-              {{ idx + 1 }}.
             </span>
 
             <!-- Name + progression type -->

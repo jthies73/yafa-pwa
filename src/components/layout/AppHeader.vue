@@ -184,15 +184,27 @@ onUnmounted(() => {
       @click.prevent="navigateTo('dashboard')"
       class="flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-accent rounded cursor-pointer"
     >
-      <img
-        src="/src/assets/Logo_Full.svg"
-        alt="YAFA Logo"
-        class="h-8 w-8 object-contain"
-      />
-      <span
-        class="font-bold text-text-h-light dark:text-text-h-dark tracking-widest uppercase text-sm hidden sm:inline-block"
-        >Y A F A</span
+      <svg
+        viewBox="0 0 108 30"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+        class="h-8 w-auto"
       >
+        <g clip-path="url(#clip0_1665_5096)">
+          <path
+            d="M15 30L30 0L0 0L15 30Z"
+            :fill="isDark ? '#1FC7B9' : '#373737'"
+          />
+          <path
+            d="M10.3613 3.19995L15.0143 12.5056L19.6673 3.19995H23.2674L12.4335 24.867L10.6335 21.2669L13.2143 16.1056L6.76123 3.19995H10.3613Z"
+            :fill="isDark ? '#373737' : '#1FC7B9'"
+          />
+        </g>
+        <path
+          d="M35.6102 22L41.9102 8H44.4702L50.7902 22H48.0702L42.6502 9.38H43.6902L38.2902 22H35.6102ZM38.5102 18.76L39.2102 16.72H46.7702L47.4702 18.76H38.5102ZM69.5506 14.44H76.5306V16.64H69.5506V14.44ZM69.7706 22H67.1706V8H77.3906V10.18H69.7706V22ZM91.9195 22L98.2195 8H100.78L107.1 22H104.38L98.9595 9.38H99.9995L94.5995 22H91.9195ZM94.8195 18.76L95.5195 16.72H103.08L103.78 18.76H94.8195Z"
+          :fill="isDark ? '#e5e7eb' : '#373737'"
+        />
+      </svg>
     </a>
 
     <!-- Burger Menu -->
@@ -246,7 +258,7 @@ onUnmounted(() => {
     :class="sidebarOpen ? 'translate-x-0' : 'translate-x-full'"
     :style="contentStyle"
     @pointerdown="onPanelPointerDown"
-  >
+  >Y A F A
     <div class="flex flex-col gap-6">
       <div class="flex items-center justify-between">
         <h2 class="text-lg font-bold tracking-wider text-accent uppercase">

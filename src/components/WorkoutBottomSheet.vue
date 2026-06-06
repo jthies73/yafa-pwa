@@ -1,5 +1,7 @@
 <script setup lang="ts">
+import { ref } from "vue";
 import AppBottomSheet from "./AppBottomSheet.vue";
+import ConfirmDialog from "./ConfirmDialog.vue";
 import { useActiveWorkout } from "../composables/useActiveWorkout";
 import { useWorkoutTimer } from "../composables/useWorkoutTimer";
 
@@ -14,6 +16,8 @@ const {
 } = useActiveWorkout();
 
 const { timerString } = useWorkoutTimer(() => activeWorkout.value?.startTime);
+
+const confirmingDiscard = ref(false);
 </script>
 
 <template>
@@ -44,7 +48,7 @@ const { timerString } = useWorkoutTimer(() => activeWorkout.value?.startTime);
         <div class="flex items-center gap-3 shrink-0">
           <button
             class="px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-red-500/10 text-red-500 hover:bg-red-500/20 dark:bg-red-500/15 dark:text-red-400 dark:hover:bg-red-500/25 transition-colors duration-150 cursor-pointer shrink-0"
-            @click.stop="discardWorkout"
+            @click.stop="confirmingDiscard = true"
           >
             Discard
           </button>
@@ -109,4 +113,12 @@ const { timerString } = useWorkoutTimer(() => activeWorkout.value?.startTime);
       </button>
     </template>
   </AppBottomSheet>
+
+  <ConfirmDialog
+    v-model:open="confirmingDiscard"
+    title="Discard Workout?"
+    message="Are you sure you want to discard this workout? All progress will be lost."
+    confirm-label="Discard"
+    @confirm="discardWorkout"
+  />
 </template>

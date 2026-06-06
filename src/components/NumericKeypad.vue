@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted, nextTick } from "vue";
+import { ref } from "vue";
 import { useNumericKeypad } from "../composables/useNumericKeypad";
+import { useSwipeDownToDismiss } from "../composables/useSwipeDownToDismiss";
 
 const {
   visible,
@@ -44,170 +45,17 @@ const onKey = (k: Key) => {
   else if (k.act === "enter") pressEnter();
 };
 
-// ── Drag-to-dismiss (mirrors AppSidebar's absolute/relative gesture modes) ─────
-
-const INTENT_THRESHOLD = 6;
-const VELOCITY_THRESHOLD = 0.4;
-
-const keypadEl = ref<HTMLElement | null>(null);
-const keypadHeight = ref(240);
-const isDragging = ref(false);
-const dragOffset = ref(0); // px translated down from the open position
-
-let pointerId: number | null = null;
-let startY = 0;
-let startX = 0;
-let lastY = 0;
-let lastT = 0;
-let velocity = 0;
-let intent: "none" | "horizontal" | "vertical" = "none";
-let dragMode: "absolute" | "relative" = "relative";
-let suppressNextClick = false;
-
-const measureHeight = () =>
-  keypadEl.value?.offsetHeight || keypadHeight.value || 240;
-
-const beginDrag = (
-  e: PointerEvent,
-  mode: "absolute" | "relative" = "relative",
-) => {
-  if (e.pointerType === "mouse" && e.button !== 0) return;
-  pointerId = e.pointerId;
-  startX = e.clientX;
-  startY = lastY = e.clientY;
-  lastT = e.timeStamp;
-  velocity = 0;
-  intent = "none";
-  dragMode = mode;
-  keypadHeight.value = measureHeight();
-  window.addEventListener("pointermove", onMove, { passive: false });
-  window.addEventListener("pointerup", endDrag);
-  window.addEventListener("pointercancel", endDrag);
-};
-
-const onMove = (e: PointerEvent) => {
-  if (e.pointerId !== pointerId) return;
-  const dx = e.clientX - startX;
-  const dy = e.clientY - startY;
-
-  if (intent === "none") {
-    if (Math.abs(dx) < INTENT_THRESHOLD && Math.abs(dy) < INTENT_THRESHOLD)
-      return;
-    intent = Math.abs(dy) > Math.abs(dx) ? "vertical" : "horizontal";
-    if (intent === "horizontal") {
-      teardown();
-      return;
-    }
-    isDragging.value = true;
-  }
-
-  e.preventDefault();
-  const h = keypadHeight.value;
-  if (dragMode === "absolute") {
-    // Snap the panel's top edge to the finger once it enters the keypad area.
-    dragOffset.value = Math.max(
-      0,
-      Math.min(h, e.clientY - (window.innerHeight - h)),
-    );
-  } else {
-    // Move relative to where the drag started — downward only, no jump.
-    dragOffset.value = Math.max(0, Math.min(h, dy));
-  }
-
-  const dt = e.timeStamp - lastT;
-  if (dt > 0) velocity = (e.clientY - lastY) / dt;
-  lastY = e.clientY;
-  lastT = e.timeStamp;
-};
-
-const endDrag = () => {
-  if (intent === "vertical" && isDragging.value) {
-    const h = keypadHeight.value;
-    const shouldDismiss =
-      velocity > VELOCITY_THRESHOLD ||
-      (velocity >= -VELOCITY_THRESHOLD && dragOffset.value > h / 2);
-    suppressNextClick = true;
-    if (shouldDismiss) {
-      // Hold the mid-drag position (isDragging stays true) while dismiss()
-      // queues the visibility change via rAF. watch(visible) below releases
-      // the drag once visible flips, so the CSS transition slides out from
-      // the current position instead of snapping to 0 first.
-      removeListeners();
-      pointerId = null;
-      intent = "none";
-      dismiss();
-      return;
-    }
-  }
-  teardown();
-};
-
-watch(visible, (v) => {
-  if (!v && isDragging.value) teardown();
-});
-
-const onHandleClick = () => {
-  if (suppressNextClick) {
-    suppressNextClick = false;
-    return;
-  }
-  dismiss();
-};
-
-const removeListeners = () => {
-  window.removeEventListener("pointermove", onMove);
-  window.removeEventListener("pointerup", endDrag);
-  window.removeEventListener("pointercancel", endDrag);
-};
-
-const teardown = () => {
-  removeListeners();
-  isDragging.value = false;
-  dragOffset.value = 0;
-  intent = "none";
-  pointerId = null;
-};
-
-const panelStyle = computed(() => {
-  if (isDragging.value) {
-    return {
-      transform: `translateY(${dragOffset.value}px)`,
-      transition: "none",
-    };
-  }
-  return {
-    transform: visible.value ? "translateY(0)" : "translateY(100%)",
-    transition: "transform 0.2s ease",
-  };
-});
-
-const measure = () => {
-  keypadHeight.value = measureHeight();
-};
-
-onMounted(() => {
-  nextTick(measure);
-  window.addEventListener("resize", measure);
-});
-
-onUnmounted(() => {
-  removeListeners();
-  window.removeEventListener("resize", measure);
+const panelEl = ref<HTMLElement | null>(null);
+const { panelStyle, beginHandleDrag, onHandleClick } = useSwipeDownToDismiss({
+  panelEl,
+  visible,
+  dismiss,
 });
 </script>
 
 <template>
-  <!-- Outside catch zone: a downward drag started just above the keypad makes
-       the panel follow the finger (absolute mode). -->
   <div
-    v-show="visible && !isDragging"
-    class="fixed inset-x-0 z-[69] h-8 touch-none"
-    :style="{ bottom: keypadHeight + 'px' }"
-    @pointerdown.prevent="beginDrag($event, 'absolute')"
-  />
-
-  <div
-    ref="keypadEl"
+    ref="panelEl"
     class="fixed inset-x-0 bottom-0 z-[70] border-t border-border-light dark:border-border-dark bg-bg-light dark:bg-bg-dark shadow-[0_-8px_24px_rgba(0,0,0,0.12)] select-none touch-none"
     :style="panelStyle"
   >
@@ -216,7 +64,7 @@ onUnmounted(() => {
       class="flex justify-center py-1.5 cursor-pointer"
       role="button"
       aria-label="Hide keypad"
-      @pointerdown.prevent="beginDrag($event, 'relative')"
+      @pointerdown.prevent="beginHandleDrag($event)"
       @click="onHandleClick"
     >
       <div

@@ -276,7 +276,6 @@ onUnmounted(() => {
     :style="contentStyle"
     @pointerdown="onPanelPointerDown"
   >
-    Y A F A
     <div class="flex flex-col gap-6">
       <div class="flex items-center justify-between">
         <h2 class="text-lg font-bold tracking-wider text-accent uppercase">

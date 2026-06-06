@@ -5,8 +5,6 @@ import RpeMatrixTable from "./RpeMatrixTable.vue";
 
 const isDark = ref(false);
 const weightUnit = ref("kg");
-const distanceUnit = ref("km");
-
 const rpeMatrix = DEFAULT_RPE_MATRIX;
 
 onMounted(() => {
@@ -16,7 +14,6 @@ onMounted(() => {
     (!savedTheme && window.matchMedia("(prefers-color-scheme: dark)").matches);
 
   weightUnit.value = localStorage.getItem("yafa:weightUnit") ?? "kg";
-  distanceUnit.value = localStorage.getItem("yafa:distanceUnit") ?? "km";
 });
 
 const toggleTheme = () => {
@@ -35,10 +32,6 @@ const setWeightUnit = (unit: string) => {
   localStorage.setItem("yafa:weightUnit", unit);
 };
 
-const setDistanceUnit = (unit: string) => {
-  distanceUnit.value = unit;
-  localStorage.setItem("yafa:distanceUnit", unit);
-};
 </script>
 
 <template>
@@ -113,9 +106,7 @@ const setDistanceUnit = (unit: string) => {
         </div>
 
         <!-- Weight Units -->
-        <div
-          class="flex items-center justify-between py-3 border-b border-border-light dark:border-border-dark"
-        >
+        <div class="flex items-center justify-between py-3">
           <div>
             <div
               class="font-semibold text-text-h-light dark:text-text-h-dark text-sm sm:text-base"
@@ -154,45 +145,6 @@ const setDistanceUnit = (unit: string) => {
           </div>
         </div>
 
-        <!-- Distance Units -->
-        <div class="flex items-center justify-between py-3">
-          <div>
-            <div
-              class="font-semibold text-text-h-light dark:text-text-h-dark text-sm sm:text-base"
-            >
-              Distance Units
-            </div>
-            <div class="text-xs text-text-light dark:text-text-dark opacity-60">
-              Preferred system for cardio
-            </div>
-          </div>
-          <div
-            class="flex items-center border border-border-light dark:border-border-dark rounded-lg overflow-hidden bg-black/5 dark:bg-white/5"
-          >
-            <button
-              class="px-3 py-1.5 text-xs font-semibold cursor-pointer transition-colors duration-150"
-              :class="
-                distanceUnit === 'km'
-                  ? 'bg-accent text-bg-dark'
-                  : 'text-text-h-light dark:text-text-h-dark hover:bg-surface-light-hover dark:hover:bg-surface-dark-hover'
-              "
-              @click="setDistanceUnit('km')"
-            >
-              km
-            </button>
-            <button
-              class="px-3 py-1.5 text-xs font-semibold cursor-pointer transition-colors duration-150"
-              :class="
-                distanceUnit === 'mi'
-                  ? 'bg-accent text-bg-dark'
-                  : 'text-text-h-light dark:text-text-h-dark hover:bg-surface-light-hover dark:hover:bg-surface-dark-hover'
-              "
-              @click="setDistanceUnit('mi')"
-            >
-              mi
-            </button>
-          </div>
-        </div>
       </div>
 
       <!-- Global RPE Matrix Card -->

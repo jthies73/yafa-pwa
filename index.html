@@ -232,10 +232,13 @@
     <div id="app"></div>
 
     <!-- Redirect script for static landing page -->
-    <script>
+    <script type="module">
+      import { useFeatureFlags } from "/src/config/features.ts";
+
       (function () {
         var startTime = Date.now();
-        var duration = 3000;
+        var flags = useFeatureFlags();
+        var duration = flags.fastStartAnimation ? 500 : 3000;
         var progressBar = document.getElementById("progress-fill");
         var timerText = document.getElementById("timer-count");
         var landing = document.getElementById("static-landing");

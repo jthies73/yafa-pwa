@@ -7,6 +7,7 @@
 export interface FeatureFlags {
   environment: 'development' | 'staging' | 'production'
   seedDatabase: boolean
+  fastStartAnimation: boolean
 }
 
 function parseEnvBoolean(value: string | undefined, defaultValue: boolean): boolean {
@@ -18,6 +19,7 @@ export function getFeatureFlags(): FeatureFlags {
   return {
     environment: import.meta.env.MODE as 'development' | 'staging' | 'production',
     seedDatabase: parseEnvBoolean(import.meta.env.VITE_SEED_DATABASE, true),
+    fastStartAnimation: parseEnvBoolean(import.meta.env.VITE_FAST_START_ANIMATION, false),
   }
 }
 

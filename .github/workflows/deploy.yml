@@ -1,0 +1,39 @@
+name: Deploy to VPS
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Build
+        run: yarn build
+
+      - name: Set up SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_rsa_deploy
+          chmod 600 ~/.ssh/id_rsa_deploy
+          ssh-keyscan -H ${{ secrets.VPS_IP }} >> ~/.ssh/known_hosts
+
+      - name: Sync dist to VPS
+        run: |
+          rsync -az --delete \
+            -e "ssh -i ~/.ssh/id_rsa_deploy -o StrictHostKeyChecking=no" \
+            dist/ \
+            ${{ secrets.VPS_USER }}@${{ secrets.VPS_IP }}:/opt/yafa-pwa/html/

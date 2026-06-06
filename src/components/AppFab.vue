@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useActiveWorkout } from "../composables/useActiveWorkout";
+
 defineProps<{
   label?: string;
 }>();
@@ -6,17 +8,19 @@ defineProps<{
 defineEmits<{
   (e: "click"): void;
 }>();
+
+const { activeWorkout } = useActiveWorkout();
 </script>
 
 <template>
   <button
-    class="fixed bottom-6 right-6 bg-accent hover:bg-accent/90 text-bg-dark font-bold px-5 py-3 rounded-full shadow-lg shadow-accent/10 flex items-center gap-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-accent z-40 cursor-pointer tracking-wide"
+    class="fixed right-6 bg-accent hover:bg-accent/90 text-bg-dark font-bold px-5 py-3 rounded-full shadow-lg shadow-accent/10 flex items-center gap-2 transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-accent z-40 cursor-pointer tracking-wide"
+    :class="activeWorkout ? 'bottom-28' : 'bottom-6'"
     :aria-label="label"
     @click="$emit('click')"
   >
-    <!-- Slot for icon -->
+    <!-- Default Plus Icon -->
     <slot name="icon">
-      <!-- Default Plus Icon -->
       <svg
         xmlns="http://www.w3.org/2000/svg"
         width="20"

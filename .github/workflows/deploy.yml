@@ -38,5 +38,7 @@ jobs:
         run: |
           rsync -az --delete \
             -e "ssh -i ~/.ssh/id_rsa_deploy -o StrictHostKeyChecking=no" \
+            --rsync-path="sudo rsync" \
             dist/ \
             ${{ secrets.VPS_USER }}@${{ secrets.VPS_IP }}:/opt/yafa-pwa/html/
+

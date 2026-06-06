@@ -11,9 +11,10 @@ node_modules
 dist
 dist-ssr
 *.local
+dev-dist
 
 # Editor directories and files
-.vscode
+.vscode/*
 !.vscode/extensions.json
 .idea
 .DS_Store
@@ -22,21 +23,3 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
-
-# test artifacts
-coverage
-
-# lint artifacts
-tsconfig.tsbuildinfo
-
-# yarn v4 
-.yarn*
-
-# shadcn 
-@components
-@lib
-
-*.env*
-
-# personal website
-public/jthies73.html

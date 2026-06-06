@@ -1,0 +1,79 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:is(.dark, .dark *));
+
+@theme {
+  /* Custom Tailwind Accent Palette */
+  --color-accent: #1fc7b9;
+  --color-accent-bg: rgba(31, 199, 185, 0.1);
+  --color-accent-border: rgba(31, 199, 185, 0.5);
+
+  --color-text-light: #6b6375;
+  --color-text-h-light: #08060d;
+  --color-bg-light: #ffffff;
+  --color-surface-light: #f9f9fb;
+  --color-surface-light-hover: #f0f0f3;
+  --color-border-light: #e5e4e7;
+
+  --color-text-dark: #9ca3af;
+  --color-text-h-dark: #f3f4f6;
+  --color-bg-dark: #16171d;
+  --color-surface-dark: #1d1e24;
+  --color-surface-dark-hover: #252730;
+  --color-border-dark: #2e303a;
+}
+
+@layer base {
+  html,
+  body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    font-family:
+      system-ui,
+      -apple-system,
+      BlinkMacSystemFont,
+      "Segoe UI",
+      Roboto,
+      sans-serif;
+    background-color: var(--color-bg-light);
+    color: var(--color-text-light);
+    transition:
+      background-color 0.3s ease,
+      color 0.3s ease;
+  }
+
+  .dark body,
+  .dark {
+    background-color: var(--color-bg-dark);
+    color: var(--color-text-dark);
+  }
+
+  #app {
+    width: 100%;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+  }
+}
+
+/* Custom Tailwind Utility Animations */
+@layer utilities {
+  .animate-fade-in-up {
+    animation: fade-in-up 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+}
+
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

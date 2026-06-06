@@ -1,118 +1,54 @@
 # YAFA - Yet Another Fitness App
 
-A gym companion tool designed to provide a flexible framework for tracking progress and managing training variables. The primary goal is to facilitate **progressive overload** through user-created plans that incorporate periodization and autoregulation.
+![Yafa Logo](./public/favicon.svg)
 
-## Tech Stack
+**YAFA** is a highly customizable workout companion designed to adapt to individual recovery constraints and training responses. YAFA prioritizes flexibility, autoregulation, and an evidence-based approach to fitness tracking.
 
-React 19 + TypeScript · Vite · Tailwind CSS · Zustand · Radix UI
-
----
-
-## Features
-
-### 🧮 Weight Calculator
-
-The core feature of YAFA is an intelligent weight calculator that determines the optimal load for any exercise based on your training parameters.
-
-**How it works:**
-
-1. **Select an Exercise** – Choose from your custom exercise library
-2. **View Your E1RM** – Your estimated one-rep max is displayed based on previous performance
-3. **Enter Target Reps** – Specify how many repetitions you plan to perform
-4. **Set Target RPE** – Choose your intended Rate of Perceived Exertion (6-10 scale)
-5. **Get Your Weight** – The calculator outputs the recommended weight, adjusted to your equipment's minimum increment
-
-**After completing a set:**
-
-- Log your **actual RPE** to capture real-world performance
-- The app calculates a new E1RM from the set you just performed
-- If your performance exceeded expectations (new E1RM > old E1RM), you're prompted to update your baseline
-
-**Supported 1RM formulas:**
-- Brzycki (default)
-- Epley, Lander, Lombardi, Mayhew, O'Conner, Wathan
-- Average of all formulas
-
-**RPE-based adjustments:**
-- The calculator automatically suggests appropriate target RPE based on rep ranges
-- Lower rep ranges (1–4) → RPE 7
-- Medium rep ranges (5–6) → RPE 8–9
-- Higher rep ranges (7+) → RPE 10
-
-**Bodyweight exercise support:**
-- Exercises can specify a bodyweight percentage (e.g., pull-ups use ~100% bodyweight, dips ~80%)
-- The calculator factors in your current bodyweight from measurements to compute accurate load recommendations
+For Version 1 (V1), our primary focus is on **strength and hypertrophy progression** (Powerbuilding).
 
 ---
 
-### 🏋️ Exercise Management
+## 🏋️ Core Philosophy
 
-Create and manage a personalized exercise library with exercise-specific configuration:
+Unlike traditional fitness apps that lock users into rigid percentage-based programs, **nothing in YAFA is fixed**. The system adapts to the user's current physical state using established principles of exercise science:
 
-- **Name** – Exercise identifier
-- **E1RM** – Estimated one-rep max, automatically updated as you train
-- **Minimum Weight Increment** – Matches your available equipment (e.g., 2.5 kg for barbell, 2 kg for dumbbells)
-- **Bodyweight Percentage** – For movements where bodyweight contributes to the load
+- **Progressive Overload**: Systematically increasing volume or intensity to drive neuromuscular and hypertrophic adaptations.
+- **Autoregulation**: Utilizing RPE (Rate of Perceived Exertion) and RIR (Reps in Reserve) to adjust daily loads based on immediate readiness and fatigue.
+- **Fatigue Management**: Structuring volume and progression to respect individual recovery capacities (e.g., sleep constraints, physiological stress).
+- **Flexible Calculations**: Dynamically generating sets, reps, and target weights based on user inputs, e1RM, and confgured progression models.
 
-Exercises can be created, edited, and deleted. Deleting an exercise also removes associated history entries.
+### 🎛️ Cell-Based RPE Matrix
 
----
+The RPE-to-percentage engine is a fully editable grid of reps (1–10) × RPE (10 → 6), where each cell holds a target % of 1RM:
 
-### 📊 Workout History
-
-A chronological log of all completed sets, grouped by day:
-
-| Data Point | Description |
-|------------|-------------|
-| **Exercise** | Which movement was performed |
-| **Sets** | Number of sets completed that day |
-| **Best Set** | The set with the highest calculated E1RM (reps × weight @ RPE) |
-| **E1RM** | Estimated one-rep max from the best set |
-
-You can manually add sets to the history for past workouts.
+- **Global Matrix**: A single global matrix is configured under **Settings** and persisted in the database (seeded once from the built-in evidence-based RTS defaults, then the source of truth). It can be reset to defaults at any time.
+- **Hierarchical Cascade**: Exercises inherit the global matrix by default. Toggling **"Overwrite RPE matrix"** in the exercise editor stores an exercise-specific grid; clearing the toggle reverts the exercise to inheriting global values.
+- **Granular Control**: When overriding, any single cell of the exercise-specific grid can be edited independently.
+- **Intelligent Smoothing** _(roadmap)_: A future smoothing pass (e.g., linear interpolation) will proportionally adjust surrounding cells when one is edited to maintain a logical progression curve.
 
 ---
 
-### 📏 Measurements Tracking
+## 📈 V1 Progression Models
 
-Track any measurable metric over time:
+YAFA V1 implements core progression engines designed for varying fatigue profiles and exercise types. Users assign a specific engine per exercise.
 
-- **Bodyweight** – Pre-configured, used by the calculator for bodyweight-adjusted exercises
-- **Custom Measurements** – Add any metric with a custom name and unit (e.g., arm circumference in cm, body fat %)
+### 1. Linear Progression (LP)
 
-Each measurement maintains a timestamped history of entries that can be viewed and edited.
+- **Application**: Main compound lifts during short-term strength peaking or re-sensitization phases.
+- **Logic**: Fixed weight increments applied session-to-session, provided target sets and reps are completed.
+- **Config Parameters**: `target_sets`, `target_reps`, `weight_increment`.
+- **Execution Rule**: Increase load by `weight_increment` for the next session if `actual_reps >= target_reps` across all sets.
 
----
+### 2. Double Progression
 
-## Data Persistence
+- **Application**: Hypertrophy-focused accessory movements and isolation exercises.
+- **Logic**: Repetitions are expanded within a defined range. Weight is increased only when the rep ceiling is achieved across all sets, resetting reps to the floor.
+- **Config Parameters**: `target_sets`, `min_reps`, `max_reps`, `weight_increment`.
+- **Execution Rule**: Increase load by `weight_increment` and reset target to `min_reps` if `actual_reps >= max_reps` across all sets.
 
-All data is stored locally in the browser using Zustand's persist middleware with localStorage:
+### 3. Top Set + Back-Off
 
-| Store | Purpose |
-|-------|---------|
-| `calculator-storage` | Current calculator state (selected exercise, reps, RPE, weight) |
-| `exercise-storage` | Exercise library with E1RM values |
-| `history-storage` | Complete workout history |
-| `measurement-storage` | Body measurements and custom metrics |
-
----
-
-## Development
-
-```bash
-# Install dependencies
-yarn
-
-# Start development server
-yarn dev
-
-# Run tests
-yarn test
-
-# Lint and format
-yarn lint
-yarn format
-
-# Type check
-yarn type-check
-```
+- **Application**: Primary strength lifts requiring high-intensity exposure without excessive systemic fatigue.
+- **Logic**: A heavy top set near maximal RPE is followed by back-off sets at a lower percentage to accumulate clean volume.
+- **Config Parameters**: `top_set_target_reps`, `top_set_target_rpe`, `back_off_sets`, `percentage_drop`, `weight_increment`.
+- **Execution Rule**: Increase top set load by `weight_increment` if performance targets are met at or below target RPE; dynamically recalculate back-off loads.

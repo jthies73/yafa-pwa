@@ -8,6 +8,7 @@ export interface FeatureFlags {
   environment: "development" | "staging" | "production";
   seedDatabase: boolean;
   fastStartAnimation: boolean;
+  showBuyMeACoffee: boolean;
 }
 
 function parseEnvBoolean(
@@ -29,6 +30,7 @@ export function getFeatureFlags(): FeatureFlags {
       import.meta.env.VITE_FAST_START_ANIMATION,
       false,
     ),
+    showBuyMeACoffee: import.meta.env.MODE === "development",
   };
 }
 

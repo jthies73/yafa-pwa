@@ -90,6 +90,7 @@
         text-align: center;
         max-width: 360px;
         width: 90%;
+        user-select: none;
       }
 
       .landing-logo-container {
@@ -104,17 +105,16 @@
         width: 100%;
         height: 100%;
         z-index: 2;
-        filter: drop-shadow(0 0 14px rgba(31, 199, 185, 0.45));
         animation: logo-glow-pulse 2s ease-in-out infinite alternate;
       }
 
       @keyframes logo-glow-pulse {
-        0% {
-          filter: drop-shadow(0 0 10px rgba(31, 199, 185, 0.1));
+        from {
+          filter: drop-shadow(0 0 6px rgba(31, 199, 185, 0.15));
         }
 
-        100% {
-          filter: drop-shadow(0 0 30px rgba(31, 199, 185, 0.5));
+        to {
+          filter: drop-shadow(0 0 28px rgba(31, 199, 185, 0.65));
         }
       }
 

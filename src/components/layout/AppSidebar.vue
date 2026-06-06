@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { ref, computed, watch, onUnmounted } from "vue";
 import { useRouter, useRoute } from "vue-router";
+import { useFeatureFlags } from "../../config/features";
 
 defineProps<{ isDark: boolean }>();
 defineEmits<{ (e: "toggle-theme"): void }>();
 
 const router = useRouter();
 const route = useRoute();
+const features = useFeatureFlags();
 
 const sidebarOpen = ref(false);
 const sidebarEl = ref<HTMLElement | null>(null);
@@ -372,59 +374,106 @@ const isActive = (names: readonly string[] | string) => {
       </nav>
     </div>
 
-    <!-- Theme toggle -->
+    <!-- Footer section -->
     <div
-      class="pt-6 border-t border-border-light dark:border-border-dark flex items-center justify-between mt-auto"
+      class="mt-auto pt-6 border-t border-border-light dark:border-border-dark flex flex-col gap-4"
     >
-      <span class="text-sm font-medium text-text-light dark:text-text-dark"
-        >Theme</span
+      <!-- Buy me a coffee -->
+      <a
+        v-if="features.showBuyMeACoffee"
+        href="https://buymeacoffee.com/jthies73"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="flex items-center justify-between px-4 py-2.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/15 border border-amber-500/20 dark:border-amber-500/15 text-amber-700 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-300 transition-all duration-300 group cursor-pointer shadow-sm hover:shadow-amber-500/5"
       >
-      <button
-        class="p-2 rounded-md hover:bg-black/5 dark:hover:bg-white/5 transition-colors focus:outline-none focus:ring-2 focus:ring-accent flex items-center justify-center cursor-pointer"
-        @click="$emit('toggle-theme')"
-      >
-        <!-- Sun (shown in dark mode) -->
+        <div class="flex items-center gap-3">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            class="w-5 h-5 text-amber-600 dark:text-amber-400 transition-transform group-hover:scale-110"
+          >
+            <path d="M17 8h1a4 4 0 1 1 0 8h-1" />
+            <path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z" />
+            <line x1="6" x2="14" y1="2" y2="2" />
+          </svg>
+          <span class="text-sm font-semibold tracking-wide">Buy me a coffee</span>
+        </div>
         <svg
-          v-if="isDark"
           xmlns="http://www.w3.org/2000/svg"
-          width="20"
-          height="20"
+          width="14"
+          height="14"
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"
-          stroke-width="2"
+          stroke-width="2.5"
           stroke-linecap="round"
           stroke-linejoin="round"
-          class="text-yellow-400"
+          class="w-3.5 h-3.5 text-amber-600/50 dark:text-amber-400/50 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform"
         >
-          <circle cx="12" cy="12" r="4" />
-          <path d="M12 2v2" />
-          <path d="M12 20v2" />
-          <path d="m4.93 4.93 1.41 1.41" />
-          <path d="m17.66 17.66 1.41 1.41" />
-          <path d="M2 12h2" />
-          <path d="M20 12h2" />
-          <path d="m6.34 17.66-1.41 1.41" />
-          <path d="m19.07 4.93-1.41 1.41" />
+          <path d="M7 7h10v10" />
+          <path d="M7 17 17 7" />
         </svg>
-        <!-- Moon (shown in light mode) -->
-        <svg
-          v-else
-          xmlns="http://www.w3.org/2000/svg"
-          width="20"
-          height="20"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          class="text-indigo-600"
+      </a>
+
+      <!-- Theme toggle -->
+      <div class="flex items-center justify-between px-1">
+        <span class="text-sm font-medium text-text-light/80 dark:text-text-dark/80"
+          >Theme</span
         >
-          <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
-        </svg>
-        <span class="sr-only">Toggle theme</span>
-      </button>
+        <button
+          class="p-2 rounded-md hover:bg-black/5 dark:hover:bg-white/5 transition-colors focus:outline-none focus:ring-2 focus:ring-accent flex items-center justify-center cursor-pointer group"
+          @click="$emit('toggle-theme')"
+        >
+          <!-- Sun (shown in dark mode) -->
+          <svg
+            v-if="isDark"
+            xmlns="http://www.w3.org/2000/svg"
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            class="text-text-light/70 dark:text-text-dark/70 group-hover:text-text-light dark:group-hover:text-text-dark transition-colors"
+          >
+            <circle cx="12" cy="12" r="4" />
+            <path d="M12 2v2" />
+            <path d="M12 20v2" />
+            <path d="m4.93 4.93 1.41 1.41" />
+            <path d="m17.66 17.66 1.41 1.41" />
+            <path d="M2 12h2" />
+            <path d="M20 12h2" />
+            <path d="m6.34 17.66-1.41 1.41" />
+            <path d="m19.07 4.93-1.41 1.41" />
+          </svg>
+          <!-- Moon (shown in light mode) -->
+          <svg
+            v-else
+            xmlns="http://www.w3.org/2000/svg"
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            class="text-text-light/70 dark:text-text-dark/70 group-hover:text-text-light dark:group-hover:text-text-dark transition-colors"
+          >
+            <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
+          </svg>
+          <span class="sr-only">Toggle theme</span>
+        </button>
+      </div>
     </div>
   </aside>
 </template>

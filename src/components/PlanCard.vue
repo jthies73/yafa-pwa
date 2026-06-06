@@ -23,7 +23,10 @@ const routineStats = (routine: Routine) => {
     const p = ex.config.progressionParams;
     if (ex.config.progressionModel === "topset_backoff")
       return sum + 1 + ((p as TopSetProgressionParams).backOffSets ?? 0);
-    return sum + ((p as LinearProgressionParams | DoubleProgressionParams).targetSets ?? 0);
+    return (
+      sum +
+      ((p as LinearProgressionParams | DoubleProgressionParams).targetSets ?? 0)
+    );
   }, 0);
   return { exercises, sets };
 };

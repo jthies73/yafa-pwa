@@ -167,7 +167,9 @@ const toPlainConfig = (
   if (!cfg) return undefined;
   return {
     progressionModel: cfg.progressionModel,
-    progressionParams: { ...cfg.progressionParams } as unknown as ProgressionParams,
+    progressionParams: {
+      ...cfg.progressionParams,
+    } as unknown as ProgressionParams,
     ...(cfg.notes ? { notes: cfg.notes } : {}),
   };
 };

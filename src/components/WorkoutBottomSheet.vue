@@ -78,7 +78,9 @@ watch(
 
     <!-- Tab selector -->
     <template #subheader>
-      <div class="flex border-b border-border-light dark:border-border-dark shrink-0">
+      <div
+        class="flex border-b border-border-light dark:border-border-dark shrink-0"
+      >
         <button
           v-for="(tab, index) in TABS"
           :key="tab"

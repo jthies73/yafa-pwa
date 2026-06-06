@@ -1,4 +1,4 @@
-import { ref, onUnmounted, type Ref } from 'vue';
+import { ref, onUnmounted, type Ref } from "vue";
 
 export interface BottomSheetGesturesOptions {
   sheetEl: Ref<HTMLElement | null>;
@@ -70,7 +70,7 @@ export function useBottomSheetGestures(options: BottomSheetGesturesOptions) {
     lastClientY = e.clientY;
     lastEventTime = now;
     options.translateY.value = clampTranslateY(
-      dragStartTranslateY + (e.clientY - dragStartClientY)
+      dragStartTranslateY + (e.clientY - dragStartClientY),
     );
   }
 

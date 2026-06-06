@@ -1,6 +1,10 @@
 <script setup lang="ts">
 import { ref, watch } from "vue";
-import type { RoutineExerciseConfig, ProgressionModelType, ProgressionParams } from "../db/types";
+import type {
+  RoutineExerciseConfig,
+  ProgressionModelType,
+  ProgressionParams,
+} from "../db/types";
 import AppBottomSheet from "./AppBottomSheet.vue";
 import ConfirmDialog from "./ConfirmDialog.vue";
 
@@ -76,7 +80,9 @@ const close = () => {
 const save = () => {
   const config: RoutineExerciseConfig = {
     progressionModel: configModel.value,
-    progressionParams: { ...configParams.value } as unknown as ProgressionParams,
+    progressionParams: {
+      ...configParams.value,
+    } as unknown as ProgressionParams,
     ...(configNotes.value ? { notes: configNotes.value } : {}),
   };
   emit("save", config);

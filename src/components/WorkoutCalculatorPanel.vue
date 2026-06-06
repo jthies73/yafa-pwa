@@ -45,7 +45,7 @@ const selectRpe = (value: number) => {
 </script>
 
 <template>
-  <div class="flex flex-col gap-6 p-5  select-none">
+  <div class="flex flex-col gap-6 p-5 select-none">
     <div>
       <p
         class="text-xs font-semibold uppercase tracking-wider text-text-light dark:text-text-dark opacity-50"

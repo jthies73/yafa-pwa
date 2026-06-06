@@ -5,35 +5,44 @@
  */
 
 export interface FeatureFlags {
-  environment: 'development' | 'staging' | 'production'
-  seedDatabase: boolean
-  fastStartAnimation: boolean
+  environment: "development" | "staging" | "production";
+  seedDatabase: boolean;
+  fastStartAnimation: boolean;
 }
 
-function parseEnvBoolean(value: string | undefined, defaultValue: boolean): boolean {
-  if (value === undefined) return defaultValue
-  return value !== 'false' && value !== '0' && value !== 'no'
+function parseEnvBoolean(
+  value: string | undefined,
+  defaultValue: boolean,
+): boolean {
+  if (value === undefined) return defaultValue;
+  return value !== "false" && value !== "0" && value !== "no";
 }
 
 export function getFeatureFlags(): FeatureFlags {
   return {
-    environment: import.meta.env.MODE as 'development' | 'staging' | 'production',
+    environment: import.meta.env.MODE as
+      | "development"
+      | "staging"
+      | "production",
     seedDatabase: parseEnvBoolean(import.meta.env.VITE_SEED_DATABASE, true),
-    fastStartAnimation: parseEnvBoolean(import.meta.env.VITE_FAST_START_ANIMATION, false),
-  }
+    fastStartAnimation: parseEnvBoolean(
+      import.meta.env.VITE_FAST_START_ANIMATION,
+      false,
+    ),
+  };
 }
 
 // Cached instance
-let _flags: FeatureFlags | null = null
+let _flags: FeatureFlags | null = null;
 
 export function initializeFeatures(): FeatureFlags {
-  _flags = getFeatureFlags()
-  return _flags
+  _flags = getFeatureFlags();
+  return _flags;
 }
 
 export function useFeatureFlags(): FeatureFlags {
   if (!_flags) {
-    _flags = getFeatureFlags()
+    _flags = getFeatureFlags();
   }
-  return _flags
+  return _flags;
 }

@@ -1,4 +1,4 @@
-import { ref, watch, onUnmounted } from 'vue';
+import { ref, watch, onUnmounted } from "vue";
 
 export function useWorkoutTimer(getStartTime: () => number | undefined) {
   const timerString = ref("00:00");
@@ -34,7 +34,7 @@ export function useWorkoutTimer(getStartTime: () => number | undefined) {
         timerString.value = "00:00";
       }
     },
-    { immediate: true }
+    { immediate: true },
   );
 
   onUnmounted(() => {
@@ -42,6 +42,6 @@ export function useWorkoutTimer(getStartTime: () => number | undefined) {
   });
 
   return {
-    timerString
+    timerString,
   };
 }

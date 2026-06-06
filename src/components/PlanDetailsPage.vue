@@ -96,7 +96,8 @@ const getProgressionType = (config?: RoutineExerciseConfig) => {
   if (!config) return "—";
   if (config.progressionModel === "linear") return "Linear Progression";
   if (config.progressionModel === "double") return "Double Progression";
-  if (config.progressionModel === "topset_backoff") return "Top Set + Back-Off Progression";
+  if (config.progressionModel === "topset_backoff")
+    return "Top Set + Back-Off Progression";
   return "Custom Progression";
 };
 
@@ -185,7 +186,10 @@ const routineStats = (routine: Routine) => {
     const p = ex.config.progressionParams;
     if (ex.config.progressionModel === "topset_backoff")
       return sum + 1 + ((p as TopSetProgressionParams).backOffSets ?? 0);
-    return sum + ((p as LinearProgressionParams | DoubleProgressionParams).targetSets ?? 0);
+    return (
+      sum +
+      ((p as LinearProgressionParams | DoubleProgressionParams).targetSets ?? 0)
+    );
   }, 0);
   return { exercises, sets };
 };

@@ -7,7 +7,12 @@ import type { Plan, Routine } from "../db/types";
 import { useActiveWorkout } from "../composables/useActiveWorkout";
 
 const router = useRouter();
-const { activeWorkout, routine: activeRoutine, startWorkout, maximize } = useActiveWorkout();
+const {
+  activeWorkout,
+  routine: activeRoutine,
+  startWorkout,
+  maximize,
+} = useActiveWorkout();
 
 const activePlan = ref<Plan | null>(null);
 const planRoutines = ref<Routine[]>([]);
@@ -136,17 +141,21 @@ const recentWorkouts = [
       <div v-if="activeWorkout" class="flex flex-col gap-4">
         <div class="flex items-start justify-between gap-3">
           <div>
-            <h2 class="text-lg font-bold text-accent">
-              Workout in Progress
-            </h2>
-            <p class="text-sm font-bold text-text-h-light dark:text-text-h-dark mt-1">
+            <h2 class="text-lg font-bold text-accent">Workout in Progress</h2>
+            <p
+              class="text-sm font-bold text-text-h-light dark:text-text-h-dark mt-1"
+            >
               Active Session: {{ activeRoutine?.name || "Empty Workout" }}
             </p>
-            <p class="text-xs text-text-light dark:text-text-dark opacity-55 mt-0.5 font-mono">
+            <p
+              class="text-xs text-text-light dark:text-text-dark opacity-55 mt-0.5 font-mono"
+            >
               Running time: {{ timerString }}
             </p>
           </div>
-          <span class="w-3.5 h-3.5 rounded-full bg-accent animate-pulse shrink-0 mt-1.5"></span>
+          <span
+            class="w-3.5 h-3.5 rounded-full bg-accent animate-pulse shrink-0 mt-1.5"
+          ></span>
         </div>
         <button
           class="w-full py-3 bg-accent hover:bg-accent/90 text-bg-dark font-bold rounded-xl cursor-pointer transition-colors duration-150 text-sm tracking-wide uppercase"
@@ -159,7 +168,9 @@ const recentWorkouts = [
       <div v-else class="flex flex-col gap-4">
         <div class="flex items-start justify-between gap-3">
           <div>
-            <h2 class="text-lg font-bold text-text-h-light dark:text-text-h-dark">
+            <h2
+              class="text-lg font-bold text-text-h-light dark:text-text-h-dark"
+            >
               Start a Workout
             </h2>
             <p

@@ -19,19 +19,15 @@ const dragZoneEl = ref<HTMLElement | null>(null);
 const visible = ref(false);
 const translateY = ref(0);
 
-const {
-  isDragging,
-  onDragStart,
-  getSheetHeight,
-  getDockTranslateY,
-} = useBottomSheetGestures({
-  sheetEl,
-  dragZoneEl,
-  translateY,
-  minimized,
-  open,
-  minimizable: () => props.minimizable ?? false,
-});
+const { isDragging, onDragStart, getSheetHeight, getDockTranslateY } =
+  useBottomSheetGestures({
+    sheetEl,
+    dragZoneEl,
+    translateY,
+    minimized,
+    open,
+    minimizable: () => props.minimizable ?? false,
+  });
 
 const duration = computed(() => props.duration ?? 300);
 const transition = computed(() => `${duration.value}ms ease`);
@@ -164,7 +160,9 @@ onUnmounted(() => {
         :style="sheetStyle"
         class="absolute bottom-0 left-0 right-0 flex flex-col w-full rounded-t-2xl bg-bg-light dark:bg-bg-dark shadow-2xl"
         :class="[
-          minimized && minimizable ? 'pointer-events-none' : 'pointer-events-auto',
+          minimized && minimizable
+            ? 'pointer-events-none'
+            : 'pointer-events-auto',
           minimizable ? 'h-[100dvh]' : 'max-h-[92vh]',
         ]"
       >

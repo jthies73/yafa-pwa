@@ -19,7 +19,7 @@ export default defineConfig(({ mode }) => ({
           console.log("Removing robots meta tag for mode:", mode);
           return html.replace(
             '<meta name="robots" content="index, follow" />',
-            '<meta name="robots" content="noindex, nofollow" />'
+            '<meta name="robots" content="noindex, nofollow" />',
           );
         }
         return html;

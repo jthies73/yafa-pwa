@@ -11,13 +11,11 @@ import { useSwipePager } from "../composables/useSwipePager";
 const {
   activeWorkout,
   routine,
-  exercisesMap,
   isMinimized,
   showSheet,
   finishWorkout,
   discardWorkout,
 } = useActiveWorkout();
-
 const { timerString } = useWorkoutTimer(() => activeWorkout.value?.startTime);
 
 const confirmingDiscard = ref(false);
@@ -33,7 +31,6 @@ const { onSwipeStart, trackStyle } = useSwipePager({
   container: pagerEl,
 });
 
-// Always start a fresh workout on the tracker.
 watch(
   () => activeWorkout.value?.id,
   () => (page.value = 0),
@@ -65,18 +62,15 @@ watch(
             {{ timerString }}
           </div>
         </div>
-        <div class="flex items-center gap-3 shrink-0">
-          <button
-            class="px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-red-500/10 text-red-500 hover:bg-red-500/20 dark:bg-red-500/15 dark:text-red-400 dark:hover:bg-red-500/25 transition-colors duration-150 cursor-pointer shrink-0"
-            @click.stop="confirmingDiscard = true"
-          >
-            Discard
-          </button>
-        </div>
+        <button
+          class="px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-red-500/10 text-red-500 hover:bg-red-500/20 dark:bg-red-500/15 dark:text-red-400 dark:hover:bg-red-500/25 transition-colors duration-150 cursor-pointer shrink-0"
+          @click.stop="confirmingDiscard = true"
+        >
+          Discard
+        </button>
       </div>
     </template>
 
-    <!-- Tab selector -->
     <template #subheader>
       <div
         class="flex border-b border-border-light dark:border-border-dark shrink-0"
@@ -106,11 +100,7 @@ watch(
     >
       <div class="flex h-full will-change-transform" :style="trackStyle">
         <div class="w-full h-full shrink-0 overflow-y-auto">
-          <WorkoutTrackerPanel
-            :routine="routine"
-            :active-workout="activeWorkout"
-            :exercises-map="exercisesMap"
-          />
+          <WorkoutTrackerPanel />
         </div>
         <div class="w-full h-full shrink-0 overflow-y-auto">
           <WorkoutCalculatorPanel />

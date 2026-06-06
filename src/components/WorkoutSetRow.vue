@@ -1,5 +1,11 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
+import {
+  guardRepsKey,
+  guardWeightKey,
+  sanitizeReps,
+  sanitizeWeight,
+} from "../utils/numericInput";
 
 defineProps<{
   index: number;
@@ -22,30 +28,30 @@ function focusReps() {
 }
 defineExpose({ focusReps });
 
-// ── Validity ─────────────────────────────────────────────────────────────────
-
 const repsValid = computed(() => parseInt(reps.value, 10) >= 1);
 const weightValid = computed(() => parseFloat(weight.value) > 0);
 const canComplete = computed(() => repsValid.value && weightValid.value);
 
-// Error flash state — set briefly when attempting to complete with invalid fields.
 const repsError = ref(false);
 const weightError = ref(false);
-let repsTimer: ReturnType<typeof setTimeout> | null = null;
-let weightTimer: ReturnType<typeof setTimeout> | null = null;
+let repsTimer = 0;
+let weightTimer = 0;
 
 function flashErrors() {
   if (!repsValid.value) {
+    clearTimeout(repsTimer);
     repsError.value = true;
-    if (repsTimer) clearTimeout(repsTimer);
-    repsTimer = setTimeout(() => { repsError.value = false; }, 600);
+    repsTimer = window.setTimeout(() => {
+      repsError.value = false;
+    }, 600);
   }
   if (!weightValid.value) {
+    clearTimeout(weightTimer);
     weightError.value = true;
-    if (weightTimer) clearTimeout(weightTimer);
-    weightTimer = setTimeout(() => { weightError.value = false; }, 600);
+    weightTimer = window.setTimeout(() => {
+      weightError.value = false;
+    }, 600);
   }
-  // Focus the first invalid field so the user knows where to go.
   if (!repsValid.value) repsInput.value?.focus();
   else weightInput.value?.focus();
 }
@@ -60,33 +66,22 @@ function tryToggle() {
   else flashErrors();
 }
 
-// ── Input validation ─────────────────────────────────────────────────────────
-
-const PASS = ["Backspace", "Delete", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Tab"];
-
 function onRepsKeydown(e: KeyboardEvent) {
-  if (e.key === "Enter") { e.preventDefault(); weightInput.value?.focus(); return; }
-  if (e.ctrlKey || e.metaKey) return;
-  if (PASS.includes(e.key)) return;
-  if (!/^\d$/.test(e.key)) e.preventDefault();
+  if (e.key === "Enter") {
+    e.preventDefault();
+    weightInput.value?.focus();
+    return;
+  }
+  guardRepsKey(e);
 }
 
 function onWeightKeydown(e: KeyboardEvent) {
-  if (e.key === "Enter") { e.preventDefault(); tryComplete(); return; }
-  if (e.ctrlKey || e.metaKey) return;
-  if (PASS.includes(e.key)) return;
-  if (e.key === "." && !(e.target as HTMLInputElement).value.includes(".")) return;
-  if (!/^\d$/.test(e.key)) e.preventDefault();
-}
-
-function onRepsBlur() {
-  const n = parseInt(reps.value, 10);
-  reps.value = n >= 1 ? String(Math.min(n, 999)) : "";
-}
-
-function onWeightBlur() {
-  const n = parseFloat(weight.value);
-  weight.value = n > 0 ? String(Math.round(n * 100) / 100) : "";
+  if (e.key === "Enter") {
+    e.preventDefault();
+    tryComplete();
+    return;
+  }
+  guardWeightKey(e);
 }
 </script>
 
@@ -113,10 +108,12 @@ function onWeightBlur() {
           : 'border-border-light dark:border-border-dark focus:border-accent/50 focus:ring-accent/40'
       "
       @keydown="onRepsKeydown"
-      @blur="onRepsBlur"
+      @blur="reps = sanitizeReps(reps)"
     />
 
-    <span class="text-xs text-text-light dark:text-text-dark opacity-30">×</span>
+    <span class="text-xs text-text-light dark:text-text-dark opacity-30"
+      >×</span
+    >
 
     <!-- Weight -->
     <input
@@ -132,7 +129,7 @@ function onWeightBlur() {
           : 'border-border-light dark:border-border-dark focus:border-accent/50 focus:ring-accent/40'
       "
       @keydown="onWeightKeydown"
-      @blur="onWeightBlur"
+      @blur="weight = sanitizeWeight(weight)"
     />
 
     <!-- Checkmark -->
@@ -150,7 +147,17 @@ function onWeightBlur() {
         title="Mark set complete"
         @click="tryToggle"
       >
-        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="3"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
           <polyline points="20 6 9 17 4 12" />
         </svg>
       </button>
@@ -163,7 +170,17 @@ function onWeightBlur() {
         title="Undo set"
         @click="$emit('toggle')"
       >
-        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
           <polyline points="20 6 9 17 4 12" />
         </svg>
       </button>

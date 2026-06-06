@@ -8,6 +8,14 @@ const exercisesMap = ref<Record<string, Exercise>>({});
 const isMinimized = ref(false);
 const showSheet = ref(false);
 
+function reset() {
+  activeWorkout.value = null;
+  routine.value = null;
+  exercisesMap.value = {};
+  isMinimized.value = false;
+  showSheet.value = false;
+}
+
 export function useActiveWorkout() {
   const startWorkout = async (routineId?: string) => {
     let r: Routine | null = null;
@@ -16,31 +24,23 @@ export function useActiveWorkout() {
     if (routineId) {
       r = (await db.routines.get(routineId)) ?? null;
       if (r) {
-        const exerciseIds = new Set<string>();
-        for (const e of r.exercises) {
-          exerciseIds.add(e.exerciseId);
-        }
-        const eList = await Promise.all(
-          Array.from(exerciseIds).map((id) => db.exercises.get(id)),
+        const ids = new Set(r.exercises.map((e) => e.exerciseId));
+        const list = await Promise.all(
+          [...ids].map((id) => db.exercises.get(id)),
         );
-        for (const e of eList) {
-          if (e) eMap[e.id] = e;
-        }
+        for (const e of list) if (e) eMap[e.id] = e;
       }
     }
 
-    const workoutExercises = (r?.exercises || []).map((ex) => ({
-      exerciseId: ex.exerciseId,
-      sets: [],
-    }));
-
     activeWorkout.value = {
       id: crypto.randomUUID(),
-      routineId: routineId || "",
+      routineId: routineId ?? "",
       startTime: Date.now(),
-      exercises: workoutExercises,
+      exercises: (r?.exercises ?? []).map((ex) => ({
+        exerciseId: ex.exerciseId,
+        sets: [],
+      })),
     };
-
     routine.value = r;
     exercisesMap.value = eMap;
     isMinimized.value = false;
@@ -49,36 +49,11 @@ export function useActiveWorkout() {
 
   const finishWorkout = async () => {
     if (!activeWorkout.value) return;
-
-    const completedWorkout: Workout = {
-      ...activeWorkout.value,
-      endTime: Date.now(),
-    };
-
-    await db.workouts.add(completedWorkout);
-
-    activeWorkout.value = null;
-    routine.value = null;
-    exercisesMap.value = {};
-    isMinimized.value = false;
-    showSheet.value = false;
-  };
-
-  const discardWorkout = () => {
-    activeWorkout.value = null;
-    routine.value = null;
-    exercisesMap.value = {};
-    isMinimized.value = false;
-    showSheet.value = false;
-  };
-
-  const minimize = () => {
-    isMinimized.value = true;
+    await db.workouts.add({ ...activeWorkout.value, endTime: Date.now() });
+    reset();
   };
 
   const maximize = () => {
-    // Reliably reopen, even if the sheet was previously dragged closed
-    // while a workout was still active.
     showSheet.value = true;
     isMinimized.value = false;
   };
@@ -101,8 +76,7 @@ export function useActiveWorkout() {
     }),
     startWorkout,
     finishWorkout,
-    discardWorkout,
-    minimize,
+    discardWorkout: reset,
     maximize,
   };
 }

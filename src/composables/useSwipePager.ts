@@ -1,27 +1,23 @@
 import { ref, computed, onUnmounted, type Ref } from "vue";
 
 export interface SwipePagerOptions {
-  /** Currently visible page index (two-way). */
   page: Ref<number>;
-  /** Number of pages in the pager. */
   pageCount: () => number;
-  /** The element that clips the track — used to measure page width. */
   container: Ref<HTMLElement | null>;
 }
 
-/**
- * Horizontal pager gesture: lets the user swipe left/right between full-width
- * pages. Detects gesture axis first so vertical scrolling (and the bottom
- * sheet's own vertical drag) is never hijacked.
- */
-export function useSwipePager(options: SwipePagerOptions) {
+export function useSwipePager({
+  page,
+  pageCount,
+  container,
+}: SwipePagerOptions) {
   const isSwiping = ref(false);
-  const dragDx = ref(0); // live horizontal offset in px during a drag
+  const dragDx = ref(0);
 
-  const INTENT = 8; // px of travel before we commit to an axis
-  const VELOCITY = 0.4; // px/ms flick speed that forces a page change
-  const DISTANCE = 0.25; // fraction of width dragged that forces a page change
-  const EDGE_RESISTANCE = 0.35; // rubber-banding past the first/last page
+  const INTENT = 8;
+  const VELOCITY = 0.4;
+  const DISTANCE = 0.25;
+  const EDGE_RESISTANCE = 0.35;
 
   let pointerId: number | null = null;
   let startX = 0;
@@ -31,12 +27,9 @@ export function useSwipePager(options: SwipePagerOptions) {
   let velocity = 0;
   let axis: "none" | "horizontal" | "vertical" = "none";
 
-  function width(): number {
-    return options.container.value?.offsetWidth ?? window.innerWidth;
-  }
+  const width = () => container.value?.offsetWidth ?? window.innerWidth;
 
   function onSwipeStart(e: PointerEvent) {
-    // Let interactive controls keep their own pointer behaviour.
     if ((e.target as HTMLElement).closest("input, textarea, select, button, a"))
       return;
     if (e.pointerType === "mouse" && e.button !== 0) return;
@@ -62,7 +55,6 @@ export function useSwipePager(options: SwipePagerOptions) {
       if (Math.abs(dx) < INTENT && Math.abs(dy) < INTENT) return;
       axis = Math.abs(dx) > Math.abs(dy) ? "horizontal" : "vertical";
       if (axis === "vertical") {
-        // Hand the gesture back to native vertical scrolling.
         teardown();
         return;
       }
@@ -70,11 +62,9 @@ export function useSwipePager(options: SwipePagerOptions) {
     }
 
     e.preventDefault();
-
-    const max = options.pageCount() - 1;
+    const max = pageCount() - 1;
     const atEdge =
-      (options.page.value === 0 && dx > 0) ||
-      (options.page.value === max && dx < 0);
+      (page.value === 0 && dx > 0) || (page.value === max && dx < 0);
     dragDx.value = atEdge ? dx * EDGE_RESISTANCE : dx;
 
     const dt = e.timeStamp - lastT;
@@ -86,13 +76,13 @@ export function useSwipePager(options: SwipePagerOptions) {
   function onEnd() {
     if (axis === "horizontal") {
       const w = width() || 1;
-      const max = options.pageCount() - 1;
-      let target = options.page.value;
+      const max = pageCount() - 1;
+      let target = page.value;
       if (velocity < -VELOCITY || dragDx.value < -w * DISTANCE)
         target = Math.min(max, target + 1);
       else if (velocity > VELOCITY || dragDx.value > w * DISTANCE)
         target = Math.max(0, target - 1);
-      options.page.value = target;
+      page.value = target;
     }
     teardown();
   }
@@ -108,11 +98,11 @@ export function useSwipePager(options: SwipePagerOptions) {
   }
 
   const trackStyle = computed(() => ({
-    transform: `translateX(calc(${-options.page.value * 100}% + ${dragDx.value}px))`,
+    transform: `translateX(calc(${-page.value * 100}% + ${dragDx.value}px))`,
     transition: isSwiping.value ? "none" : "transform 300ms ease",
   }));
 
   onUnmounted(teardown);
 
-  return { isSwiping, dragDx, onSwipeStart, trackStyle };
+  return { onSwipeStart, trackStyle };
 }

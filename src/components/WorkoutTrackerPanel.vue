@@ -1,24 +1,15 @@
 <script setup lang="ts">
 import { ref, watch } from "vue";
 import type {
-  Workout,
-  Routine,
-  Exercise,
   LinearProgressionParams,
   DoubleProgressionParams,
   TopSetProgressionParams,
 } from "../db/types";
+import { useActiveWorkout } from "../composables/useActiveWorkout";
 import WorkoutSetRow from "./WorkoutSetRow.vue";
 
-const props = defineProps<{
-  routine: Routine | null;
-  activeWorkout: Workout | null;
-  exercisesMap: Record<string, Exercise>;
-}>();
+const { activeWorkout, routine, exercisesMap } = useActiveWorkout();
 
-// ── UI scaffold state ────────────────────────────────────────────────────────
-// Set values and completion are tracked locally for now. Real generation /
-// persistence of sets lands with the execution layer.
 interface SetEntry {
   reps: string;
   weight: string;
@@ -26,35 +17,31 @@ interface SetEntry {
 interface ExerciseCard {
   exerciseId: string;
   sets: SetEntry[];
-  completed: number; // number of sets marked done (sequential)
+  completed: number;
 }
 
 const cards = ref<ExerciseCard[]>([]);
 
-// Number of planned sets for the exercise at the given index, derived from its
-// routine progression config (falls back to 3 when no config is present).
 function plannedSetCount(index: number): number {
-  const config = props.routine?.exercises[index]?.config;
+  const config = routine.value?.exercises[index]?.config;
   if (!config) return 3;
-  const params = config.progressionParams;
+  const p = config.progressionParams;
   if (config.progressionModel === "topset_backoff") {
-    return 1 + ((params as TopSetProgressionParams).backOffSets ?? 0);
+    return 1 + ((p as TopSetProgressionParams).backOffSets ?? 0);
   }
   return (
-    (params as LinearProgressionParams | DoubleProgressionParams).targetSets ??
-    3
+    (p as LinearProgressionParams | DoubleProgressionParams).targetSets ?? 3
   );
 }
 
 function rebuild() {
-  const workout = props.activeWorkout;
-  if (!workout) {
+  if (!activeWorkout.value) {
     cards.value = [];
     return;
   }
-  cards.value = workout.exercises.map((we, index) => ({
+  cards.value = activeWorkout.value.exercises.map((we, i) => ({
     exerciseId: we.exerciseId,
-    sets: Array.from({ length: plannedSetCount(index) }, () => ({
+    sets: Array.from({ length: plannedSetCount(i) }, () => ({
       reps: "",
       weight: "",
     })),
@@ -62,26 +49,24 @@ function rebuild() {
   }));
 }
 
-// Rebuild whenever a different workout becomes active.
-watch(() => props.activeWorkout?.id, rebuild, { immediate: true });
+watch(() => activeWorkout.value?.id, rebuild, { immediate: true });
 
-const exerciseName = (id: string) => props.exercisesMap[id]?.name || "Exercise";
+const exerciseName = (id: string) => exercisesMap.value[id]?.name || "Exercise";
 
 const setState = (
   card: ExerciseCard,
-  setIndex: number,
-): "finished" | "current" | "upcoming" => {
-  if (setIndex < card.completed) return "finished";
-  if (setIndex === card.completed) return "current";
-  return "upcoming";
+  i: number,
+): "finished" | "current" | "upcoming" =>
+  i < card.completed
+    ? "finished"
+    : i === card.completed
+      ? "current"
+      : "upcoming";
+
+const toggleSet = (card: ExerciseCard, i: number) => {
+  card.completed = i < card.completed ? i : i + 1;
 };
 
-// Toggling the current set completes it; toggling a finished set reverts to it.
-const toggleSet = (card: ExerciseCard, setIndex: number) => {
-  card.completed = setIndex < card.completed ? setIndex : setIndex + 1;
-};
-
-// Row ref registry keyed by "cardIndex-setIndex" for Enter-key navigation.
 const rowRefs = ref<Record<string, InstanceType<typeof WorkoutSetRow> | null>>(
   {},
 );
@@ -89,8 +74,6 @@ const setRowRef = (key: string) => (el: unknown) => {
   rowRefs.value[key] = el as InstanceType<typeof WorkoutSetRow> | null;
 };
 
-// Called when Enter is pressed on the weight field of a set row.
-// Marks the set complete then focuses the reps field of the next set.
 const onComplete = (cardIndex: number, setIndex: number) => {
   const card = cards.value[cardIndex];
   if (!card) return;
@@ -105,24 +88,6 @@ const onComplete = (cardIndex: number, setIndex: number) => {
 
 <template>
   <div class="flex flex-col gap-4 p-5 select-none">
-    <!-- Active routine summary -->
-    <div class="flex items-baseline justify-between gap-3">
-      <div class="min-w-0">
-        <p
-          class="text-xs font-semibold uppercase tracking-wider text-text-light dark:text-text-dark opacity-50"
-        >
-          Tracking
-        </p>
-      </div>
-      <span
-        v-if="cards.length"
-        class="shrink-0 text-xs font-mono text-text-light dark:text-text-dark opacity-50"
-      >
-        {{ cards.length }} exercise{{ cards.length !== 1 ? "s" : "" }}
-      </span>
-    </div>
-
-    <!-- Exercise cards -->
     <div v-if="cards.length" class="flex flex-col gap-3">
       <div
         v-for="(card, cardIndex) in cards"
@@ -131,13 +96,11 @@ const onComplete = (cardIndex: number, setIndex: number) => {
       >
         <!-- Card header -->
         <div class="flex items-center justify-between gap-3">
-          <div class="flex items-center min-w-0">
-            <span
-              class="font-bold text-sm text-text-h-light dark:text-text-h-dark truncate"
-            >
-              {{ exerciseName(card.exerciseId) }}
-            </span>
-          </div>
+          <span
+            class="font-bold text-sm text-text-h-light dark:text-text-h-dark truncate"
+          >
+            {{ exerciseName(card.exerciseId) }}
+          </span>
           <span
             class="shrink-0 text-xs font-mono text-text-light dark:text-text-dark opacity-50"
           >

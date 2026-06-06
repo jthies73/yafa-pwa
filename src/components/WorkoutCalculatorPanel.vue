@@ -22,6 +22,34 @@ const RPE_VALUES = [6, 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10];
 
 const weightInput = ref<HTMLInputElement | null>(null);
 
+// ── Input validation ─────────────────────────────────────────────────────────
+
+const PASS = ["Backspace", "Delete", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Tab"];
+
+function onRepsKeydown(e: KeyboardEvent) {
+  if (e.key === "Enter") { e.preventDefault(); weightInput.value?.focus(); return; }
+  if (e.ctrlKey || e.metaKey) return;
+  if (PASS.includes(e.key)) return;
+  if (!/^\d$/.test(e.key)) e.preventDefault();
+}
+
+function onWeightKeydown(e: KeyboardEvent) {
+  if (e.ctrlKey || e.metaKey) return;
+  if (PASS.includes(e.key)) return;
+  if (e.key === "." && !(e.target as HTMLInputElement).value.includes(".")) return;
+  if (!/^\d$/.test(e.key)) e.preventDefault();
+}
+
+function onRepsBlur() {
+  const n = parseInt(reps.value, 10);
+  reps.value = n >= 1 ? String(Math.min(n, 999)) : "";
+}
+
+function onWeightBlur() {
+  const n = parseFloat(weight.value);
+  weight.value = n > 0 ? String(Math.round(n * 100) / 100) : "";
+}
+
 const onSelect = (exercise: Exercise) => {
   selected.value = exercise;
   showPicker.value = false;
@@ -110,7 +138,8 @@ const selectRpe = (value: number) => {
           inputmode="numeric"
           placeholder="—"
           class="bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-lg px-3 py-2.5 text-sm font-mono text-text-h-light dark:text-text-h-dark placeholder-text-light/40 dark:placeholder-text-dark/40 focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent/50"
-          @keydown.enter.prevent="weightInput?.focus()"
+          @keydown="onRepsKeydown"
+          @blur="onRepsBlur"
         />
       </div>
       <div class="flex flex-col gap-1.5">
@@ -126,6 +155,8 @@ const selectRpe = (value: number) => {
           inputmode="decimal"
           placeholder="—"
           class="bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-lg px-3 py-2.5 text-sm font-mono text-text-h-light dark:text-text-h-dark placeholder-text-light/40 dark:placeholder-text-dark/40 focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent/50"
+          @keydown="onWeightKeydown"
+          @blur="onWeightBlur"
         />
       </div>
     </div>

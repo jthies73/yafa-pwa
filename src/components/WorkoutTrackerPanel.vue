@@ -113,11 +113,6 @@ const onComplete = (cardIndex: number, setIndex: number) => {
         >
           Tracking
         </p>
-        <h3
-          class="text-lg font-bold text-text-h-light dark:text-text-h-dark truncate"
-        >
-          {{ routine?.name || "Empty Workout" }}
-        </h3>
       </div>
       <span
         v-if="cards.length"

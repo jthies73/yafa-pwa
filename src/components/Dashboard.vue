@@ -96,26 +96,6 @@ watch(
   { immediate: true },
 );
 
-const recentWorkouts = [
-  {
-    name: "Push Day A",
-    plan: "Powerbuilding Split",
-    date: "Yesterday",
-    duration: "45m",
-  },
-  {
-    name: "Pull Day B",
-    plan: "Powerbuilding Split",
-    date: "3 days ago",
-    duration: "52m",
-  },
-  {
-    name: "Legs Day C",
-    plan: "Powerbuilding Split",
-    date: "5 days ago",
-    duration: "58m",
-  },
-];
 </script>
 
 <template>

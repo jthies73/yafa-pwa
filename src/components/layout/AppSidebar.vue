@@ -46,17 +46,14 @@ let lastX = 0;
 let lastT = 0;
 let velocity = 0;
 let intent: "none" | "horizontal" | "vertical" = "none";
+let dragMode: "absolute" | "relative" = "relative";
+let initialOffset = 0;
 let suppressNextClick = false;
 
 const measureWidth = () =>
   sidebarEl.value?.offsetWidth ?? Math.min(window.innerWidth * 0.75, 320);
 
-const offsetFromPointer = (clientX: number) => {
-  const w = sidebarWidth.value;
-  return Math.max(0, Math.min(w, clientX - (window.innerWidth - w)));
-};
-
-const beginDrag = (e: PointerEvent) => {
+const beginDrag = (e: PointerEvent, mode: "absolute" | "relative" = "relative") => {
   if (e.pointerType === "mouse" && e.button !== 0) return;
   pointerId = e.pointerId;
   startX = lastX = e.clientX;
@@ -64,7 +61,9 @@ const beginDrag = (e: PointerEvent) => {
   lastT = e.timeStamp;
   velocity = 0;
   intent = "none";
+  dragMode = mode;
   sidebarWidth.value = measureWidth();
+  initialOffset = sidebarOpen.value ? 0 : sidebarWidth.value;
   window.addEventListener("pointermove", onMove, { passive: false });
   window.addEventListener("pointerup", endDrag);
   window.addEventListener("pointercancel", endDrag);
@@ -72,11 +71,11 @@ const beginDrag = (e: PointerEvent) => {
 
 const onEdgePointerDown = (e: PointerEvent) => {
   if (window.innerWidth - e.clientX > EDGE_ZONE) return;
-  beginDrag(e);
+  beginDrag(e, "absolute");
 };
 
 const onOverlayPointerDown = (e: PointerEvent) => {
-  if (sidebarOpen.value) beginDrag(e);
+  if (sidebarOpen.value) beginDrag(e, "absolute");
 };
 
 const onOverlayClick = () => {
@@ -104,7 +103,14 @@ const onMove = (e: PointerEvent) => {
   }
 
   e.preventDefault();
-  dragOffset.value = offsetFromPointer(e.clientX);
+  const w = sidebarWidth.value;
+  if (dragMode === "absolute") {
+    // Snap the panel's left edge to the finger once it enters the sidebar area.
+    dragOffset.value = Math.max(0, Math.min(w, e.clientX - (window.innerWidth - w)));
+  } else {
+    // Move relative to where the drag started — no jump.
+    dragOffset.value = Math.max(0, Math.min(w, initialOffset + dx));
+  }
 
   const dt = e.timeStamp - lastT;
   if (dt > 0) velocity = (e.clientX - lastX) / dt;

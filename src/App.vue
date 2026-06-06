@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import AppHeader from "./components/layout/AppHeader.vue";
+import WorkoutBottomSheet from "./components/WorkoutBottomSheet.vue";
 </script>
 
 <template>
@@ -10,5 +11,6 @@ import AppHeader from "./components/layout/AppHeader.vue";
     <main class="grow flex flex-col w-full relative">
       <router-view />
     </main>
+    <WorkoutBottomSheet />
   </div>
 </template>

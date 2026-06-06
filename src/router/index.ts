@@ -41,11 +41,6 @@ const router = createRouter({
       name: "analytics",
       component: () => import("../components/AnalyticsPage.vue"),
     },
-    {
-      path: "/workout",
-      name: "workout",
-      component: () => import("../components/WorkoutPage.vue"),
-    },
   ],
 });
 

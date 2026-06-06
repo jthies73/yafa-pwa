@@ -259,7 +259,7 @@ onUnmounted(() => {
 
   <!-- Overlay -->
   <div
-    class="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm transition-opacity duration-300"
+    class="fixed inset-0 z-[60] bg-black/40 backdrop-blur-sm transition-opacity duration-300"
     :class="sidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'"
     :style="overlayStyle"
     @click="closeSidebar"
@@ -271,7 +271,7 @@ onUnmounted(() => {
     role="dialog"
     aria-modal="true"
     aria-label="Main navigation menu"
-    class="fixed right-0 top-0 bottom-0 z-50 w-3/4 max-w-xs bg-bg-light dark:bg-bg-dark text-text-light dark:text-text-dark shadow-2xl p-6 focus:outline-none border-l border-border-light dark:border-border-dark flex flex-col justify-between h-full transition-transform duration-300 touch-pan-y"
+    class="fixed right-0 top-0 bottom-0 z-[60] w-3/4 max-w-xs bg-bg-light dark:bg-bg-dark text-text-light dark:text-text-dark shadow-2xl p-6 focus:outline-none border-l border-border-light dark:border-border-dark flex flex-col justify-between h-full transition-transform duration-300 touch-pan-y"
     :class="sidebarOpen ? 'translate-x-0' : 'translate-x-full'"
     :style="contentStyle"
     @pointerdown="onPanelPointerDown"

@@ -1,23 +1,37 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from "vue";
+import { useBottomSheetGestures } from "../composables/useBottomSheetGestures";
 
 const props = defineProps<{
   title?: string;
   duration?: number; // animation duration in ms, default 300
+  // When true the sheet opens full-height and drag-down docks it as a
+  // persistent minimized header instead of dismissing it (e.g. a running
+  // workout). When false the sheet drags down to close.
+  minimizable?: boolean;
 }>();
 
 const open = defineModel<boolean>("open", { required: true });
+const minimized = defineModel<boolean>("minimized", { default: false });
 
 const sheetEl = ref<HTMLElement | null>(null);
+const dragZoneEl = ref<HTMLElement | null>(null);
 const visible = ref(false);
 const translateY = ref(0);
-const isDragging = ref(false);
 
-let dragStartClientY = 0;
-let dragStartTranslateY = 0;
-let lastClientY = 0;
-let lastEventTime = 0;
-let releaseVelocity = 0; // px/ms, positive = downward
+const {
+  isDragging,
+  onDragStart,
+  getSheetHeight,
+  getDockTranslateY,
+} = useBottomSheetGestures({
+  sheetEl,
+  dragZoneEl,
+  translateY,
+  minimized,
+  open,
+  minimizable: () => props.minimizable ?? false,
+});
 
 const duration = computed(() => props.duration ?? 300);
 const transition = computed(() => `${duration.value}ms ease`);
@@ -31,16 +45,25 @@ const backdropStyle = computed(() => {
   const h = sheetEl.value?.offsetHeight ?? 0;
   const ratio = h > 0 ? 1 - translateY.value / h : visible.value ? 1 : 0;
   return {
-    opacity: 0.6 * Math.max(0, Math.min(1, ratio)),
+    opacity: minimized.value ? 0 : 0.6 * Math.max(0, Math.min(1, ratio)),
     transition: isDragging.value ? "none" : `opacity ${transition.value}`,
+    pointerEvents: (minimized.value ? "none" : "auto") as any,
   };
 });
 
-function getSheetHeight(): number {
-  return sheetEl.value?.offsetHeight ?? window.innerHeight;
-}
-
 async function animateIn() {
+  if (minimized.value) {
+    translateY.value = window.innerHeight;
+    visible.value = true;
+    await nextTick();
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        translateY.value = getDockTranslateY();
+      }),
+    );
+    return;
+  }
+
   // Push off-screen before the sheet is visible so there's no position flash
   translateY.value = window.innerHeight;
   visible.value = true;
@@ -71,18 +94,33 @@ function animateOut() {
 watch(
   open,
   (isOpen) => {
-    document.body.style.overflow = isOpen ? "hidden" : "";
+    document.body.style.overflow = isOpen && !minimized.value ? "hidden" : "";
     if (isOpen) animateIn();
     else animateOut();
   },
   { immediate: true },
 );
 
+watch(
+  () => minimized.value,
+  async (isMini) => {
+    document.body.style.overflow = open.value && !isMini ? "hidden" : "";
+    await nextTick();
+    if (open.value) {
+      translateY.value = isMini ? getDockTranslateY() : 0;
+    }
+  },
+);
+
 function handleKeydown(e: KeyboardEvent) {
-  // ESC to close
+  // ESC minimizes a minimizable sheet (never loses the workout); otherwise closes.
   if (e.key === "Escape") {
     e.preventDefault();
-    open.value = false;
+    if (props.minimizable) {
+      if (!minimized.value) minimized.value = true;
+    } else {
+      open.value = false;
+    }
   }
   // ENTER to submit (click the primary/accent button in footer)
   if (e.key === "Enter") {
@@ -103,98 +141,54 @@ onMounted(() => {
 onUnmounted(() => {
   document.body.style.overflow = "";
   window.removeEventListener("keydown", handleKeydown);
-  cleanupListeners();
 });
-
-// ── Drag (Pointer Events) ─────────────────────────────────────────────────────
-
-let activePointerId: number | null = null;
-
-function onDragStart(e: PointerEvent) {
-  // Let buttons and inputs handle their own events.
-  if ((e.target as HTMLElement).closest("button, a, input, select, textarea"))
-    return;
-  if (e.pointerType === "mouse" && e.button !== 0) return;
-
-  activePointerId = e.pointerId;
-  isDragging.value = true;
-  dragStartClientY = e.clientY;
-  dragStartTranslateY = translateY.value;
-  lastClientY = e.clientY;
-  lastEventTime = Date.now();
-  releaseVelocity = 0;
-
-  window.addEventListener("pointermove", onPointerMove, { passive: false });
-  window.addEventListener("pointerup", onDragEnd);
-  window.addEventListener("pointercancel", onDragEnd);
-}
-
-function onPointerMove(e: PointerEvent) {
-  if (e.pointerId !== activePointerId) return;
-  e.preventDefault();
-
-  const now = Date.now();
-  const dt = now - lastEventTime;
-  if (dt > 0) releaseVelocity = (e.clientY - lastClientY) / dt;
-  lastClientY = e.clientY;
-  lastEventTime = now;
-  translateY.value = Math.max(
-    0,
-    dragStartTranslateY + (e.clientY - dragStartClientY),
-  );
-}
-
-function onDragEnd() {
-  isDragging.value = false;
-  activePointerId = null;
-  cleanupListeners();
-
-  const DISTANCE_THRESHOLD = getSheetHeight() * 0.35;
-  const VELOCITY_THRESHOLD = 0.5; // px/ms
-
-  if (
-    translateY.value > DISTANCE_THRESHOLD ||
-    releaseVelocity > VELOCITY_THRESHOLD
-  ) {
-    open.value = false;
-  } else {
-    translateY.value = 0; // snap back
-  }
-}
-
-function cleanupListeners() {
-  window.removeEventListener("pointermove", onPointerMove);
-  window.removeEventListener("pointerup", onDragEnd);
-  window.removeEventListener("pointercancel", onDragEnd);
-}
 </script>
 
 <template>
   <Teleport to="body">
-    <div v-if="visible" class="fixed inset-0 z-50">
+    <div
+      v-if="visible"
+      class="fixed inset-0 z-50 animate-fade-in"
+      :class="{ 'pointer-events-none': minimized }"
+    >
       <!-- Backdrop -->
       <div
         class="absolute inset-0 bg-black"
         :style="backdropStyle"
-        @click="open = false"
+        @click="minimizable ? (minimized = true) : (open = false)"
       />
 
       <!-- Sheet -->
       <div
         ref="sheetEl"
         :style="sheetStyle"
-        class="absolute bottom-0 left-0 right-0 flex flex-col w-full max-h-[92vh] rounded-t-2xl bg-bg-light dark:bg-bg-dark"
+        class="absolute bottom-0 left-0 right-0 flex flex-col w-full rounded-t-2xl bg-bg-light dark:bg-bg-dark shadow-2xl"
+        :class="[
+          minimized && minimizable ? 'pointer-events-none' : 'pointer-events-auto',
+          minimizable ? 'h-[100dvh]' : 'max-h-[92vh]',
+        ]"
       >
         <!-- Drag zone: handle bar + header -->
         <div
-          :class="isDragging ? 'cursor-grabbing' : 'cursor-grab'"
-          class="shrink-0 touch-none select-none"
+          ref="dragZoneEl"
+          :class="[
+            isDragging
+              ? 'cursor-grabbing'
+              : minimized
+                ? 'cursor-pointer'
+                : 'cursor-grab',
+            minimized && minimizable
+              ? 'rounded-t-2xl bg-black/10 dark:bg-white/10'
+              : '',
+            minimized && minimizable ? 'pointer-events-auto' : '',
+          ]"
+          class="shrink-0 touch-none select-none transition-colors duration-150"
           @pointerdown="onDragStart"
         >
           <!-- Handle bar -->
           <div class="flex justify-center pt-3 pb-1">
             <div
-              class="w-10 h-1 rounded-full bg-border-light dark:bg-border-dark"
+              class="w-10 h-1 rounded-full bg-border-light dark:bg-white/20"
             />
           </div>
 

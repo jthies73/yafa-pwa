@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from "vue";
+import { ref, computed, onMounted, onUnmounted, watch } from "vue";
 import { useRouter } from "vue-router";
 import { liveQuery } from "dexie";
 import { db } from "../db/db";
 import type { Plan, Routine } from "../db/types";
+import { useActiveWorkout } from "../composables/useActiveWorkout";
 
 const router = useRouter();
+const { activeWorkout, routine: activeRoutine, startWorkout, maximize } = useActiveWorkout();
 
 const activePlan = ref<Plan | null>(null);
 const planRoutines = ref<Routine[]>([]);
@@ -33,7 +35,10 @@ onMounted(() => {
   });
 });
 
-onUnmounted(() => subscription?.unsubscribe());
+onUnmounted(() => {
+  subscription?.unsubscribe();
+  if (intervalId) clearInterval(intervalId);
+});
 
 const today = computed(() =>
   new Date().toLocaleDateString("en-US", {
@@ -44,12 +49,47 @@ const today = computed(() =>
 );
 
 const startRoutine = (routineId: string) => {
-  router.push({ name: "workout", query: { routineId } });
+  startWorkout(routineId);
 };
 
 const startEmptyWorkout = () => {
-  router.push({ name: "workout" });
+  startWorkout();
 };
+
+const timerString = ref("00:00");
+let intervalId: any = null;
+
+const updateTimer = () => {
+  if (!activeWorkout.value) {
+    timerString.value = "00:00";
+    return;
+  }
+  const diff = Date.now() - activeWorkout.value.startTime;
+  const totalSeconds = Math.floor(diff / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  if (hours > 0) {
+    timerString.value = `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
+  } else {
+    timerString.value = `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
+  }
+};
+
+watch(
+  () => activeWorkout.value?.startTime,
+  (newStartTime) => {
+    if (intervalId) clearInterval(intervalId);
+    if (newStartTime) {
+      updateTimer();
+      intervalId = setInterval(updateTimer, 1000);
+    } else {
+      timerString.value = "00:00";
+    }
+  },
+  { immediate: true },
+);
 
 const recentWorkouts = [
   {
@@ -93,131 +133,156 @@ const recentWorkouts = [
     <div
       class="bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-xl p-5 shadow-sm flex flex-col gap-4"
     >
-      <div class="flex items-start justify-between gap-3">
-        <div>
-          <h2 class="text-lg font-bold text-text-h-light dark:text-text-h-dark">
-            Start a Workout
-          </h2>
-          <p
-            class="text-xs text-text-light dark:text-text-dark opacity-55 mt-0.5"
-          >
-            Pick a routine from your active plan or start fresh.
-          </p>
+      <div v-if="activeWorkout" class="flex flex-col gap-4">
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <h2 class="text-lg font-bold text-accent">
+              Workout in Progress
+            </h2>
+            <p class="text-sm font-bold text-text-h-light dark:text-text-h-dark mt-1">
+              Active Session: {{ activeRoutine?.name || "Empty Workout" }}
+            </p>
+            <p class="text-xs text-text-light dark:text-text-dark opacity-55 mt-0.5 font-mono">
+              Running time: {{ timerString }}
+            </p>
+          </div>
+          <span class="w-3.5 h-3.5 rounded-full bg-accent animate-pulse shrink-0 mt-1.5"></span>
         </div>
+        <button
+          class="w-full py-3 bg-accent hover:bg-accent/90 text-bg-dark font-bold rounded-xl cursor-pointer transition-colors duration-150 text-sm tracking-wide uppercase"
+          @click="maximize"
+        >
+          Resume Workout
+        </button>
+      </div>
+
+      <div v-else class="flex flex-col gap-4">
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <h2 class="text-lg font-bold text-text-h-light dark:text-text-h-dark">
+              Start a Workout
+            </h2>
+            <p
+              class="text-xs text-text-light dark:text-text-dark opacity-55 mt-0.5"
+            >
+              Pick a routine from your active plan or start fresh.
+            </p>
+          </div>
+          <div
+            v-if="!loading && activePlan"
+            class="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-accent/15 text-accent text-xs font-bold uppercase tracking-wider shrink-0"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="11"
+              height="11"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+            >
+              <circle cx="12" cy="12" r="10" />
+            </svg>
+            Active
+          </div>
+        </div>
+
+        <!-- Active plan routines -->
+        <div v-if="!loading && activePlan" class="flex flex-col gap-2">
+          <p
+            class="text-xs font-bold uppercase tracking-wider text-text-light dark:text-text-dark opacity-45"
+          >
+            {{ activePlan.name }}
+          </p>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <button
+              v-for="routine in planRoutines"
+              :key="routine.id"
+              class="flex items-center justify-between px-4 py-3 bg-black/5 dark:bg-white/5 border border-border-light dark:border-border-dark rounded-lg hover:bg-surface-light-hover dark:hover:bg-surface-dark-hover cursor-pointer transition-colors duration-150 text-left"
+              @click="startRoutine(routine.id)"
+            >
+              <div class="min-w-0">
+                <span
+                  class="font-bold text-sm text-text-h-light dark:text-text-h-dark truncate block"
+                >
+                  {{ routine.name }}
+                </span>
+                <span
+                  class="text-xs text-text-light dark:text-text-dark opacity-50"
+                >
+                  {{ routine.exercises.length }} exercise{{
+                    routine.exercises.length !== 1 ? "s" : ""
+                  }}
+                </span>
+              </div>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                class="text-accent shrink-0 ml-3"
+              >
+                <polygon points="5 3 19 12 5 21 5 3" />
+              </svg>
+            </button>
+            <p
+              v-if="planRoutines.length === 0"
+              class="text-sm italic text-text-light dark:text-text-dark opacity-50 col-span-full px-1"
+            >
+              No routines in this plan yet.
+            </p>
+          </div>
+        </div>
+
+        <!-- No active plan state -->
         <div
-          v-if="!loading && activePlan"
-          class="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-accent/15 text-accent text-xs font-bold uppercase tracking-wider shrink-0"
+          v-else-if="!loading"
+          class="flex items-center gap-3 px-4 py-3 bg-black/5 dark:bg-white/5 border border-border-light dark:border-border-dark rounded-lg"
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
-            width="11"
-            height="11"
+            width="16"
+            height="16"
             viewBox="0 0 24 24"
-            fill="currentColor"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            class="text-text-light dark:text-text-dark opacity-40 shrink-0"
           >
             <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="8" x2="12" y2="12" />
+            <line x1="12" y1="16" x2="12.01" y2="16" />
           </svg>
-          Active
-        </div>
-      </div>
-
-      <!-- Active plan routines -->
-      <div v-if="!loading && activePlan" class="flex flex-col gap-2">
-        <p
-          class="text-xs font-bold uppercase tracking-wider text-text-light dark:text-text-dark opacity-45"
-        >
-          {{ activePlan.name }}
-        </p>
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          <button
-            v-for="routine in planRoutines"
-            :key="routine.id"
-            class="flex items-center justify-between px-4 py-3 bg-black/5 dark:bg-white/5 border border-border-light dark:border-border-dark rounded-lg hover:bg-surface-light-hover dark:hover:bg-surface-dark-hover cursor-pointer transition-colors duration-150 text-left"
-            @click="startRoutine(routine.id)"
-          >
-            <div class="min-w-0">
-              <span
-                class="font-bold text-sm text-text-h-light dark:text-text-h-dark truncate block"
-              >
-                {{ routine.name }}
-              </span>
-              <span
-                class="text-xs text-text-light dark:text-text-dark opacity-50"
-              >
-                {{ routine.exercises.length }} exercise{{
-                  routine.exercises.length !== 1 ? "s" : ""
-                }}
-              </span>
-            </div>
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2.5"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              class="text-accent shrink-0 ml-3"
+          <p class="text-sm text-text-light dark:text-text-dark opacity-60">
+            No active plan.
+            <button
+              class="text-accent hover:text-accent/80 cursor-pointer transition-colors duration-150 font-semibold"
+              @click="router.push({ name: 'plans' })"
             >
-              <polygon points="5 3 19 12 5 21 5 3" />
-            </svg>
-          </button>
-          <p
-            v-if="planRoutines.length === 0"
-            class="text-sm italic text-text-light dark:text-text-dark opacity-50 col-span-full px-1"
-          >
-            No routines in this plan yet.
+              Set one in Plans →
+            </button>
           </p>
         </div>
-      </div>
 
-      <!-- No active plan state -->
-      <div
-        v-else-if="!loading"
-        class="flex items-center gap-3 px-4 py-3 bg-black/5 dark:bg-white/5 border border-border-light dark:border-border-dark rounded-lg"
-      >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          width="16"
-          height="16"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          class="text-text-light dark:text-text-dark opacity-40 shrink-0"
-        >
-          <circle cx="12" cy="12" r="10" />
-          <line x1="12" y1="8" x2="12" y2="12" />
-          <line x1="12" y1="16" x2="12.01" y2="16" />
-        </svg>
-        <p class="text-sm text-text-light dark:text-text-dark opacity-60">
-          No active plan.
+        <div
+          v-else
+          class="h-10 bg-black/5 dark:bg-white/5 rounded-lg animate-pulse"
+        />
+
+        <!-- Divider + empty workout -->
+        <div class="border-t border-border-light dark:border-border-dark pt-3">
           <button
-            class="text-accent hover:text-accent/80 cursor-pointer transition-colors duration-150 font-semibold"
-            @click="router.push({ name: 'plans' })"
+            class="w-full py-2.5 text-sm font-semibold text-text-light dark:text-text-dark border border-border-light dark:border-border-dark rounded-lg hover:bg-surface-light dark:hover:bg-surface-dark cursor-pointer transition-colors duration-150"
+            @click="startEmptyWorkout"
           >
-            Set one in Plans →
+            + Empty Workout
           </button>
-        </p>
-      </div>
-
-      <div
-        v-else
-        class="h-10 bg-black/5 dark:bg-white/5 rounded-lg animate-pulse"
-      />
-
-      <!-- Divider + empty workout -->
-      <div class="border-t border-border-light dark:border-border-dark pt-3">
-        <button
-          class="w-full py-2.5 text-sm font-semibold text-text-light dark:text-text-dark border border-border-light dark:border-border-dark rounded-lg hover:bg-surface-light dark:hover:bg-surface-dark cursor-pointer transition-colors duration-150"
-          @click="startEmptyWorkout"
-        >
-          + Empty Workout
-        </button>
+        </div>
       </div>
     </div>
 

@@ -76,27 +76,28 @@ const handleDiscard = () => {
 
     <!-- Exercise list placeholder -->
     <div v-if="!loading" class="flex flex-col gap-3">
-      <div
-        v-if="routine && routine.exercises.length > 0"
-        v-for="(ex, idx) in routine.exercises"
-        :key="ex.exerciseId + idx"
-        class="bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-xl p-4 shadow-sm flex items-center justify-between gap-3"
-      >
-        <div>
+      <template v-if="routine && routine.exercises.length > 0">
+        <div
+          v-for="(ex, idx) in routine.exercises"
+          :key="ex.exerciseId + idx"
+          class="bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-xl p-4 shadow-sm flex items-center justify-between gap-3"
+        >
+          <div>
+            <span
+              class="text-xs text-text-light dark:text-text-dark opacity-40 mr-2"
+              >{{ idx + 1 }}.</span
+            >
+            <span
+              class="font-bold text-text-h-light dark:text-text-h-dark text-sm"
+              >Exercise</span
+            >
+          </div>
           <span
-            class="text-xs text-text-light dark:text-text-dark opacity-40 mr-2"
-            >{{ idx + 1 }}.</span
-          >
-          <span
-            class="font-bold text-text-h-light dark:text-text-h-dark text-sm"
-            >Exercise</span
+            class="text-xs text-text-light dark:text-text-dark opacity-40 font-mono"
+            >— sets coming soon</span
           >
         </div>
-        <span
-          class="text-xs text-text-light dark:text-text-dark opacity-40 font-mono"
-          >— sets coming soon</span
-        >
-      </div>
+      </template>
 
       <div
         v-else

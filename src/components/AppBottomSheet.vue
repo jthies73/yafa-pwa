@@ -72,7 +72,8 @@ watch(
   open,
   (isOpen) => {
     document.body.style.overflow = isOpen ? "hidden" : "";
-    isOpen ? animateIn() : animateOut();
+    if (isOpen) animateIn();
+    else animateOut();
   },
   { immediate: true },
 );

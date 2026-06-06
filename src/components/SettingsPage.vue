@@ -102,8 +102,8 @@ const setDistanceUnit = (unit: string) => {
             :class="
               isDark ? 'bg-accent' : 'bg-border-light dark:bg-border-dark'
             "
-            @click="toggleTheme"
             aria-label="Toggle dark mode"
+            @click="toggleTheme"
           >
             <span
               class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"

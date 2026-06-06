@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
+import { useRouter } from "vue-router";
 import { useFeatureFlags } from "../../config/features";
 import AppSidebar from "./AppSidebar.vue";
+
+const router = useRouter();
 
 const features = useFeatureFlags();
 const isStaging = computed(() => features.environment === "staging");
@@ -38,7 +41,7 @@ const sidebar = ref<InstanceType<typeof AppSidebar> | null>(null);
     <!-- Logo -->
     <a
       class="flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-accent rounded cursor-pointer"
-      @click.prevent="sidebar?.open()"
+      @click.prevent="router.push({ name: 'dashboard' })"
     >
       <svg
         viewBox="0 0 108 30"

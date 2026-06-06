@@ -95,7 +95,7 @@ const onComplete = (cardIndex: number, setIndex: number) => {
         class="bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-xl p-4 shadow-sm flex flex-col gap-3"
       >
         <!-- Card header -->
-        <div class="flex items-center justify-between gap-3">
+        <div class="mb-3 flex items-center justify-between gap-3">
           <span
             class="font-bold text-sm text-text-h-light dark:text-text-h-dark truncate"
           >
@@ -110,6 +110,21 @@ const onComplete = (cardIndex: number, setIndex: number) => {
 
         <!-- Sets -->
         <div class="flex flex-col gap-2">
+          <!-- Column labels -->
+          <div class="flex items-center gap-2.5 px-0.5">
+            <span class="w-5 shrink-0" />
+            <span
+              class="flex-1 text-center text-xs font-bold uppercase tracking-wider text-text-light dark:text-text-dark opacity-40"
+              >Reps</span
+            >
+            <span class="text-xs opacity-0">×</span>
+            <span
+              class="flex-1 text-center text-xs font-bold uppercase tracking-wider text-text-light dark:text-text-dark opacity-40"
+              >Weight</span
+            >
+            <span class="w-9 shrink-0" />
+          </div>
+
           <WorkoutSetRow
             v-for="(set, setIndex) in card.sets"
             :key="setIndex"

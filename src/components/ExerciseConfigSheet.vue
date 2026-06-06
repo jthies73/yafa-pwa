@@ -154,6 +154,8 @@ const save = () => {
             </label>
             <input
               v-model.number="configParams.targetSets"
+              v-numpad
+              v-keynav
               type="number"
               min="1"
               max="20"
@@ -169,6 +171,8 @@ const save = () => {
             </label>
             <input
               v-model.number="configParams.targetReps"
+              v-numpad
+              v-keynav
               type="number"
               min="1"
               max="100"
@@ -185,6 +189,8 @@ const save = () => {
           </label>
           <input
             v-model.number="configParams.weightIncrement"
+            v-numpad
+            v-keynav
             type="number"
             min="0.25"
             max="20"
@@ -205,6 +211,8 @@ const save = () => {
             </label>
             <input
               v-model.number="configParams.targetSets"
+              v-numpad
+              v-keynav
               type="number"
               min="1"
               max="20"
@@ -220,6 +228,8 @@ const save = () => {
             </label>
             <input
               v-model.number="configParams.minReps"
+              v-numpad
+              v-keynav
               type="number"
               min="1"
               max="100"
@@ -235,6 +245,8 @@ const save = () => {
             </label>
             <input
               v-model.number="configParams.maxReps"
+              v-numpad
+              v-keynav
               type="number"
               min="1"
               max="100"
@@ -251,6 +263,8 @@ const save = () => {
           </label>
           <input
             v-model.number="configParams.weightIncrement"
+            v-numpad
+            v-keynav
             type="number"
             min="0.25"
             max="20"
@@ -274,6 +288,8 @@ const save = () => {
             </label>
             <input
               v-model.number="configParams.topSetTargetReps"
+              v-numpad
+              v-keynav
               type="number"
               min="1"
               max="30"
@@ -289,6 +305,8 @@ const save = () => {
             </label>
             <input
               v-model.number="configParams.topSetTargetRpe"
+              v-numpad
+              v-keynav
               type="number"
               min="5"
               max="10"
@@ -306,6 +324,8 @@ const save = () => {
             </label>
             <input
               v-model.number="configParams.backOffSets"
+              v-numpad
+              v-keynav
               type="number"
               min="0"
               max="10"
@@ -321,6 +341,8 @@ const save = () => {
             </label>
             <input
               v-model.number="configParams.percentageDrop"
+              v-numpad
+              v-keynav
               type="number"
               min="1"
               max="50"
@@ -337,6 +359,8 @@ const save = () => {
           </label>
           <input
             v-model.number="configParams.weightIncrement"
+            v-numpad
+            v-keynav
             type="number"
             min="0.25"
             max="20"

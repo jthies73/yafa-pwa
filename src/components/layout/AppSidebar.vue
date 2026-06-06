@@ -53,7 +53,10 @@ let suppressNextClick = false;
 const measureWidth = () =>
   sidebarEl.value?.offsetWidth ?? Math.min(window.innerWidth * 0.75, 320);
 
-const beginDrag = (e: PointerEvent, mode: "absolute" | "relative" = "relative") => {
+const beginDrag = (
+  e: PointerEvent,
+  mode: "absolute" | "relative" = "relative",
+) => {
   if (e.pointerType === "mouse" && e.button !== 0) return;
   pointerId = e.pointerId;
   startX = lastX = e.clientX;
@@ -106,7 +109,10 @@ const onMove = (e: PointerEvent) => {
   const w = sidebarWidth.value;
   if (dragMode === "absolute") {
     // Snap the panel's left edge to the finger once it enters the sidebar area.
-    dragOffset.value = Math.max(0, Math.min(w, e.clientX - (window.innerWidth - w)));
+    dragOffset.value = Math.max(
+      0,
+      Math.min(w, e.clientX - (window.innerWidth - w)),
+    );
   } else {
     // Move relative to where the drag started — no jump.
     dragOffset.value = Math.max(0, Math.min(w, initialOffset + dx));

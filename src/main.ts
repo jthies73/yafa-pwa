@@ -4,6 +4,8 @@ import App from "./App.vue";
 import { seedDatabase } from "./db/seed";
 import router from "./router";
 import { initializeFeatures, useFeatureFlags } from "./config/features";
+import { vNumpad } from "./directives/numpad";
+import { vKeynav } from "./directives/keynav";
 
 const ACTIVE_PAGE_KEY = "yafa:activePage";
 
@@ -43,7 +45,11 @@ async function bootstrap() {
     console.error("YAFA: Bootstrap failed", err);
   }
 
-  createApp(App).use(router).mount("#app");
+  createApp(App)
+    .use(router)
+    .directive("numpad", vNumpad)
+    .directive("keynav", vKeynav)
+    .mount("#app");
 }
 
 bootstrap();

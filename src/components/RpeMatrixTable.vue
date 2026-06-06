@@ -23,11 +23,12 @@ const tint = (v: number | undefined) => {
 };
 
 const onInput = (reps: number, rpe: number, raw: string) => {
-  const n = parseFloat(raw);
+  const n = parseInt(raw, 10);
   emit("update:modelValue", {
     ...props.modelValue,
     [reps]: {
       ...props.modelValue[reps],
+      // Whole percentages only — the matrix does not accept fractional %.
       [rpe]: Number.isNaN(n) ? 0 : Math.max(0, Math.min(100, n)) / 100,
     },
   });
@@ -81,11 +82,11 @@ const onInput = (reps: number, rpe: number, raw: string) => {
             >
               <input
                 v-if="editable"
+                v-numpad="'integer'"
                 type="number"
                 min="0"
                 max="100"
-                step="0.5"
-                inputmode="decimal"
+                step="1"
                 :value="pct(modelValue[reps]?.[rpe])"
                 class="h-full w-full bg-transparent text-center text-text-h-light dark:text-text-h-dark caret-accent focus:bg-accent/10 focus:outline-none"
                 @input="

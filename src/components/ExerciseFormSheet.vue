@@ -198,6 +198,7 @@ const save = () => {
         </label>
         <input
           v-model="name"
+          v-keynav
           type="text"
           placeholder="e.g. Barbell Back Squat"
           class="rounded-lg border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2.5 text-sm text-text-h-light dark:text-text-h-dark placeholder-text-light/40 dark:placeholder-text-dark/40 focus:border-accent/50 focus:outline-none focus:ring-2 focus:ring-accent/40"
@@ -213,6 +214,7 @@ const save = () => {
         </label>
         <input
           v-model="primaryMuscleGroup"
+          v-keynav
           type="text"
           list="muscle-group-options"
           placeholder="e.g. Quads"
@@ -288,6 +290,8 @@ const save = () => {
         </label>
         <input
           v-model.number="bodyweightFactor"
+          v-numpad
+          v-keynav
           type="number"
           min="0"
           max="2"

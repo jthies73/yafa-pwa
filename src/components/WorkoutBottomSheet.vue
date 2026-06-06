@@ -1,9 +1,12 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, watch } from "vue";
 import AppBottomSheet from "./AppBottomSheet.vue";
 import ConfirmDialog from "./ConfirmDialog.vue";
+import WorkoutTrackerPanel from "./WorkoutTrackerPanel.vue";
+import WorkoutCalculatorPanel from "./WorkoutCalculatorPanel.vue";
 import { useActiveWorkout } from "../composables/useActiveWorkout";
 import { useWorkoutTimer } from "../composables/useWorkoutTimer";
+import { useSwipePager } from "../composables/useSwipePager";
 
 const {
   activeWorkout,
@@ -18,6 +21,23 @@ const {
 const { timerString } = useWorkoutTimer(() => activeWorkout.value?.startTime);
 
 const confirmingDiscard = ref(false);
+
+// ── Tracker / Calculator pager ───────────────────────────────────────────────
+const TABS = ["Tracker", "Calculator"] as const;
+const page = ref(0);
+const pagerEl = ref<HTMLElement | null>(null);
+
+const { onSwipeStart, trackStyle } = useSwipePager({
+  page,
+  pageCount: () => TABS.length,
+  container: pagerEl,
+});
+
+// Always start a fresh workout on the tracker.
+watch(
+  () => activeWorkout.value?.id,
+  () => (page.value = 0),
+);
 </script>
 
 <template>
@@ -56,60 +76,61 @@ const confirmingDiscard = ref(false);
       </div>
     </template>
 
-    <div v-if="activeWorkout" class="p-5 flex flex-col gap-4 flex-1">
-      <p
-        class="text-xs font-semibold uppercase tracking-wider text-text-light dark:text-text-dark opacity-50 mb-1"
-      >
-        Exercises
-      </p>
-
-      <div class="flex flex-col gap-3">
-        <template v-if="activeWorkout.exercises.length > 0">
-          <div
-            v-for="(ex, idx) in activeWorkout.exercises"
-            :key="ex.exerciseId + idx"
-            class="bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-xl p-4 shadow-sm flex items-center justify-between gap-3"
-          >
-            <div>
-              <span
-                class="text-xs text-text-light dark:text-text-dark opacity-40 mr-2"
-              >
-                {{ idx + 1 }}.
-              </span>
-              <span
-                class="font-bold text-text-h-light dark:text-text-h-dark text-sm"
-              >
-                {{ exercisesMap[ex.exerciseId]?.name || "Exercise" }}
-              </span>
-            </div>
-            <span
-              class="text-xs text-text-light dark:text-text-dark opacity-40 font-mono"
-            >
-              — sets coming soon
-            </span>
-          </div>
-        </template>
-
-        <div
-          v-else
-          class="bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-xl p-10 shadow-sm flex flex-col items-center justify-center text-center gap-2"
+    <!-- Tab selector -->
+    <template #subheader>
+      <div class="flex border-b border-border-light dark:border-border-dark shrink-0">
+        <button
+          v-for="(tab, index) in TABS"
+          :key="tab"
+          type="button"
+          :class="
+            page === index
+              ? 'text-accent border-b-2 border-accent -mb-px'
+              : 'text-text-light dark:text-text-dark opacity-50 hover:opacity-80'
+          "
+          class="flex-1 py-2.5 text-xs font-semibold cursor-pointer transition-colors duration-150"
+          @click="page = index"
         >
-          <p class="text-sm text-text-light dark:text-text-dark opacity-50">
-            Log your exercises freely.
-          </p>
-          <p class="text-xs text-text-light dark:text-text-dark opacity-30">
-            Exercise logging coming soon.
-          </p>
+          {{ tab }}
+        </button>
+      </div>
+    </template>
+
+    <!-- Swipeable pages -->
+    <div
+      ref="pagerEl"
+      class="absolute inset-0 overflow-hidden touch-pan-y"
+      @pointerdown="onSwipeStart"
+    >
+      <div class="flex h-full will-change-transform" :style="trackStyle">
+        <div class="w-full h-full shrink-0 overflow-y-auto">
+          <WorkoutTrackerPanel
+            :routine="routine"
+            :active-workout="activeWorkout"
+            :exercises-map="exercisesMap"
+          />
+        </div>
+        <div class="w-full h-full shrink-0 overflow-y-auto">
+          <WorkoutCalculatorPanel />
         </div>
       </div>
     </div>
 
     <template #footer>
       <button
+        v-if="page === 0"
         class="w-full py-3.5 bg-accent hover:bg-accent/90 text-bg-dark font-bold rounded-xl cursor-pointer transition-colors duration-150 text-sm tracking-wide uppercase"
         @click="finishWorkout"
       >
         Finish Workout
+      </button>
+      <button
+        v-else
+        disabled
+        class="w-full py-3.5 bg-accent/40 text-bg-dark font-bold rounded-xl text-sm tracking-wide uppercase cursor-not-allowed"
+        title="Calculation coming soon"
+      >
+        Calculate
       </button>
     </template>
   </AppBottomSheet>

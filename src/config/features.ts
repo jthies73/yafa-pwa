@@ -30,7 +30,7 @@ export function getFeatureFlags(): FeatureFlags {
       import.meta.env.VITE_FAST_START_ANIMATION,
       false,
     ),
-    showBuyMeACoffee: import.meta.env.MODE === "development",
+    showBuyMeACoffee: import.meta.env.VITE_SHOW_BUY_ME_A_COFFEE || false,
   };
 }
 

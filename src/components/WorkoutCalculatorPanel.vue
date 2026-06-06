@@ -113,8 +113,8 @@ const selectRpe = (value: number) => {
         </label>
         <input
           v-model="reps"
+          v-numpad="'integer'"
           type="text"
-          inputmode="numeric"
           placeholder="—"
           class="bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-lg px-3 py-2.5 text-sm font-mono text-text-h-light dark:text-text-h-dark placeholder-text-light/40 dark:placeholder-text-dark/40 focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent/50"
           @keydown="onRepsKeydown"
@@ -130,8 +130,8 @@ const selectRpe = (value: number) => {
         <input
           ref="weightInput"
           v-model="weight"
+          v-numpad="'decimal'"
           type="text"
-          inputmode="decimal"
           placeholder="—"
           class="bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-lg px-3 py-2.5 text-sm font-mono text-text-h-light dark:text-text-h-dark placeholder-text-light/40 dark:placeholder-text-dark/40 focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent/50"
           @keydown="guardWeightKey"

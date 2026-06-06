@@ -95,7 +95,7 @@ const onComplete = (cardIndex: number, setIndex: number) => {
         class="bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-xl p-4 shadow-sm flex flex-col gap-3"
       >
         <!-- Card header -->
-        <div class="flex items-center justify-between gap-3">
+        <div class="mb-3 flex items-center justify-between gap-3">
           <span
             class="font-bold text-sm text-text-h-light dark:text-text-h-dark truncate"
           >

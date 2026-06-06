@@ -138,12 +138,7 @@ function onWeightKeydown(e: KeyboardEvent) {
       <button
         v-if="state === 'current'"
         type="button"
-        class="flex h-9 w-9 items-center justify-center rounded-lg transition-colors duration-150 cursor-pointer"
-        :class="
-          canComplete
-            ? 'bg-accent text-bg-dark hover:bg-accent/90'
-            : 'bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark text-text-light dark:text-text-dark opacity-40'
-        "
+        class="flex h-9 w-9 items-center justify-center rounded-lg bg-accent text-bg-dark hover:bg-accent/90 transition-colors duration-150 cursor-pointer"
         title="Mark set complete"
         @click="tryToggle"
       >

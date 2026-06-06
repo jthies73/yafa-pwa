@@ -110,6 +110,21 @@ const onComplete = (cardIndex: number, setIndex: number) => {
 
         <!-- Sets -->
         <div class="flex flex-col gap-2">
+          <!-- Column labels -->
+          <div class="flex items-center gap-2.5 px-0.5">
+            <span class="w-5 shrink-0" />
+            <span
+              class="flex-1 text-center text-xs font-bold uppercase tracking-wider text-text-light dark:text-text-dark opacity-40"
+              >Reps</span
+            >
+            <span class="text-xs opacity-0">×</span>
+            <span
+              class="flex-1 text-center text-xs font-bold uppercase tracking-wider text-text-light dark:text-text-dark opacity-40"
+              >Weight</span
+            >
+            <span class="w-9 shrink-0" />
+          </div>
+
           <WorkoutSetRow
             v-for="(set, setIndex) in card.sets"
             :key="setIndex"

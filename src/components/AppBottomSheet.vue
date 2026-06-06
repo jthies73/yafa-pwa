@@ -68,13 +68,14 @@ async function animateIn() {
   requestAnimationFrame(() =>
     requestAnimationFrame(() => {
       translateY.value = 0;
-      // Focus the first editable element for accessibility
+      // Delay focus until the slide-in animation has finished so mobile
+      // browsers don't swallow the focus call on a transitioning element.
       setTimeout(() => {
         const firstEditable = sheetEl.value?.querySelector(
           "input, textarea, select",
         ) as HTMLElement;
         firstEditable?.focus();
-      }, 0);
+      }, duration.value);
     }),
   );
 }

@@ -6,6 +6,7 @@ on:
     branches: [main]
   release:
     types: [published]
+  workflow_dispatch:
 
 # Cancel superseded runs on the same ref, but never cancel a release run.
 concurrency:
@@ -45,7 +46,7 @@ jobs:
     name: Build (staging)
     runs-on: ubuntu-latest
     needs: [lint, test-unit]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -85,7 +86,7 @@ jobs:
     name: Deploy to Staging
     runs-on: ubuntu-latest
     needs: [build-staging]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch'
     environment: staging
     steps:
       - uses: actions/download-artifact@v4

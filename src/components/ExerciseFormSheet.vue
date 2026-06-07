@@ -2,14 +2,8 @@
 import { ref, computed, watch } from "vue";
 import type { ExerciseInput } from "../db/repository";
 import { countExerciseUsage } from "../db/repository";
-import type { RpeMatrix } from "../db/types";
-import { DEFAULT_RPE_MATRIX } from "../db/rpeMatrix";
 import AppBottomSheet from "./AppBottomSheet.vue";
 import ConfirmDialog from "./ConfirmDialog.vue";
-import RpeMatrixTable from "./RpeMatrixTable.vue";
-
-const clone = (m: RpeMatrix): RpeMatrix =>
-  JSON.parse(JSON.stringify(m)) as RpeMatrix;
 
 const props = defineProps<{
   isEditing: boolean;
@@ -80,25 +74,6 @@ const tagDraft = ref("");
 const bodyweightFactor = ref(0);
 const notes = ref("");
 
-// --- RPE matrix ---
-const globalMatrix = DEFAULT_RPE_MATRIX;
-const overrideRpe = ref(false);
-const customMatrix = ref<RpeMatrix | null>(null);
-
-// The table shows the editable custom copy when overriding, else the live global.
-const displayMatrix = computed<RpeMatrix>(() =>
-  overrideRpe.value && customMatrix.value ? customMatrix.value : globalMatrix,
-);
-
-// Enabling the override seeds the editable copy from the current global values;
-// disabling discards it (the exercise reverts to inheriting global on save).
-const toggleOverride = () => {
-  overrideRpe.value = !overrideRpe.value;
-  if (overrideRpe.value && !customMatrix.value) {
-    customMatrix.value = clone(globalMatrix);
-  }
-};
-
 watch(
   open,
   (isOpen) => {
@@ -109,10 +84,6 @@ watch(
     tagDraft.value = "";
     bodyweightFactor.value = props.initial?.bodyweightFactor ?? 0;
     notes.value = props.initial?.notes ?? "";
-    overrideRpe.value = !!props.initial?.rpeMatrix;
-    customMatrix.value = props.initial?.rpeMatrix
-      ? clone(props.initial.rpeMatrix)
-      : null;
   },
   { immediate: true },
 );
@@ -160,11 +131,6 @@ const save = () => {
     secondaryMuscleGroups: secondaryTags.value,
     notes: notes.value,
     bodyweightFactor: Number(bodyweightFactor.value) || 0,
-    // Persist a custom matrix only while overriding; otherwise inherit global.
-    rpeMatrix:
-      overrideRpe.value && customMatrix.value
-        ? clone(customMatrix.value)
-        : undefined,
   });
 };
 </script>
@@ -320,56 +286,6 @@ const save = () => {
           placeholder="Form cues, setup notes, variations…"
           class="resize-none rounded-lg border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2.5 text-sm text-text-h-light dark:text-text-h-dark placeholder-text-light/40 dark:placeholder-text-dark/40 focus:border-accent/50 focus:outline-none focus:ring-2 focus:ring-accent/40"
         ></textarea>
-      </div>
-
-      <!-- RPE Matrix -->
-      <div class="flex flex-col gap-2.5">
-        <button
-          type="button"
-          role="switch"
-          :aria-checked="overrideRpe"
-          class="flex items-center justify-between gap-4 text-left cursor-pointer group"
-          @click="toggleOverride"
-        >
-          <div class="min-w-0">
-            <span
-              class="text-xs font-bold uppercase tracking-wider text-text-light dark:text-text-dark opacity-60"
-            >
-              Overwrite RPE matrix
-            </span>
-            <p
-              class="mt-0.5 text-xs text-text-light dark:text-text-dark opacity-50"
-            >
-              {{
-                overrideRpe
-                  ? "Custom % of 1RM for this exercise."
-                  : "Inheriting the global matrix."
-              }}
-            </p>
-          </div>
-          <span
-            class="relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200"
-            :class="
-              overrideRpe ? 'bg-accent' : 'bg-border-light dark:bg-border-dark'
-            "
-          >
-            <span
-              class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow transition duration-200"
-              :class="overrideRpe ? 'translate-x-5' : 'translate-x-0'"
-            />
-          </span>
-        </button>
-
-        <div
-          class="transition-opacity duration-200"
-          :class="overrideRpe ? '' : 'opacity-60'"
-        >
-          <RpeMatrixTable
-            :model-value="displayMatrix"
-            :editable="overrideRpe"
-            @update:model-value="customMatrix = $event"
-          />
-        </div>
       </div>
 
       <div class="h-2"></div>

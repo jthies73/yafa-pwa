@@ -9,6 +9,13 @@ export interface SortableListOptions {
   threshold?: number;
   /** Class applied to the lifted row while dragging. */
   draggingClass?: string;
+  /**
+   * CSS selector for a drag handle within each row. When set, a drag only starts
+   * from a matching element and the container is left touch-scrollable (only the
+   * handle needs `touch-action: none`, applied in markup). When omitted, the row
+   * is draggable from anywhere and the whole container is made non-scrollable.
+   */
+  handle?: string;
 }
 
 /**
@@ -60,6 +67,12 @@ export function useSortableList(
       (c) => c === e.target || c.contains(e.target as Node),
     );
     if (!item) return;
+
+    // In handle mode, only a press that lands on a handle inside this row drags.
+    if (options.handle) {
+      const handleEl = (e.target as Element | null)?.closest(options.handle);
+      if (!handleEl || !item.contains(handleEl)) return;
+    }
 
     fromIndex = kids.indexOf(item);
     draggedEl = item;
@@ -184,15 +197,17 @@ export function useSortableList(
 
   const bind = (el: HTMLElement | null) => {
     if (!el) return;
-    // Keep native touch scrolling from stealing the drag gesture. Applies to
-    // child rows too (touch-action is intersected down the ancestor chain).
-    el.style.touchAction = "none";
+    // Without a handle, keep native touch scrolling from stealing the drag
+    // gesture across the whole list (touch-action is intersected down to rows).
+    // With a handle, only the handle suppresses scrolling (set in markup), so
+    // the rest of the list stays scrollable.
+    if (!options.handle) el.style.touchAction = "none";
     el.addEventListener("pointerdown", onPointerDown);
     el.addEventListener("click", onClickCapture, true);
   };
   const unbind = (el: HTMLElement | null) => {
     if (!el) return;
-    el.style.touchAction = "";
+    if (!options.handle) el.style.touchAction = "";
     el.removeEventListener("pointerdown", onPointerDown);
     el.removeEventListener("click", onClickCapture, true);
   };

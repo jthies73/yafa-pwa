@@ -8,10 +8,12 @@ import type {
 } from "../db/types";
 import { createExercise, type ExerciseInput } from "../db/repository";
 import { useActiveWorkout } from "../composables/useActiveWorkout";
+import { useSortableList } from "../composables/useSortableList";
 import WorkoutSetRow from "./WorkoutSetRow.vue";
 import ExercisePickerSheet from "./ExercisePickerSheet.vue";
 import ExerciseFormSheet from "./ExerciseFormSheet.vue";
 import RpeSheet from "./RpeSheet.vue";
+import ConfirmDialog from "./ConfirmDialog.vue";
 
 const { activeWorkout, routine, exercisesMap } = useActiveWorkout();
 
@@ -22,6 +24,7 @@ interface SetEntry {
   done: boolean;
 }
 interface ExerciseCard {
+  id: string; // stable key so reordering never re-creates the wrong card
   exerciseId: string;
   sets: SetEntry[];
 }
@@ -66,6 +69,7 @@ function rebuild() {
   }
   addedNames.value = {};
   cards.value = activeWorkout.value.exercises.map((we, i) => ({
+    id: crypto.randomUUID(),
     exerciseId: we.exerciseId,
     sets: Array.from({ length: plannedSetCount(i) }, newSet),
   }));
@@ -84,6 +88,49 @@ const deleteSet = (card: ExerciseCard, i: number) => {
   card.sets.splice(i, 1);
 };
 
+// ── Reorder exercises (drag by the card handle) ───────────────────────────────
+const cardsListEl = ref<HTMLElement | null>(null);
+
+useSortableList(cardsListEl, {
+  handle: ".drag-handle",
+  draggingClass: "shadow-lg",
+  onReorder: (from, to) => {
+    const list = cards.value.slice();
+    const [moved] = list.splice(from, 1);
+    list.splice(to, 0, moved);
+    cards.value = list;
+  },
+});
+
+const deleteExercise = (card: ExerciseCard) => {
+  cards.value = cards.value.filter((c) => c.id !== card.id);
+};
+
+// ── Delete confirmation (shared by set + exercise removal) ────────────────────
+const confirmOpen = ref(false);
+const confirmTitle = ref("");
+const confirmMessage = ref("");
+let pendingDelete: (() => void) | null = null;
+
+const requestDeleteSet = (card: ExerciseCard, i: number) => {
+  confirmTitle.value = "Delete set?";
+  confirmMessage.value = `Remove set ${i + 1} from ${exerciseName(card.exerciseId)}?`;
+  pendingDelete = () => deleteSet(card, i);
+  confirmOpen.value = true;
+};
+
+const requestDeleteExercise = (card: ExerciseCard) => {
+  confirmTitle.value = "Remove exercise?";
+  confirmMessage.value = `Remove ${exerciseName(card.exerciseId)} and its ${card.sets.length} set${card.sets.length === 1 ? "" : "s"} from this workout?`;
+  pendingDelete = () => deleteExercise(card);
+  confirmOpen.value = true;
+};
+
+const onConfirmDelete = () => {
+  pendingDelete?.();
+  pendingDelete = null;
+};
+
 const setState = (
   card: ExerciseCard,
   i: number,
@@ -98,7 +145,6 @@ const toggleSet = (card: ExerciseCard, i: number) => {
   card.sets[i].done = !card.sets[i].done;
 };
 
-const doneCount = (card: ExerciseCard) => card.sets.filter(isDone).length;
 
 const rowRefs = ref<Record<string, InstanceType<typeof WorkoutSetRow> | null>>(
   {},
@@ -126,7 +172,11 @@ const showExerciseForm = ref(false);
 
 const addCardFor = (id: string, name: string) => {
   addedNames.value[id] = name;
-  cards.value.push({ exerciseId: id, sets: [newSet()] });
+  cards.value.push({
+    id: crypto.randomUUID(),
+    exerciseId: id,
+    sets: [newSet()],
+  });
 };
 
 const handleSelectExercise = (exercise: Exercise) => {
@@ -179,24 +229,62 @@ const onSelectRpe = (rpe: string) => {
 
 <template>
   <div class="flex flex-col gap-4 p-5 select-none">
-    <div v-if="cards.length" class="flex flex-col gap-3">
+    <div v-if="cards.length" ref="cardsListEl" class="flex flex-col gap-3">
       <div
         v-for="(card, cardIndex) in cards"
-        :key="card.exerciseId + cardIndex"
+        :key="card.id"
         class="bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-xl p-4 shadow-sm flex flex-col gap-3"
       >
         <!-- Card header -->
-        <div class="mb-3 flex items-center justify-between gap-3">
+        <div class="mb-3 flex items-center gap-2.5">
+          <!-- Drag handle -->
           <span
-            class="font-bold text-sm text-text-h-light dark:text-text-h-dark truncate"
+            class="drag-handle shrink-0 touch-none cursor-grab active:cursor-grabbing text-text-light dark:text-text-dark opacity-30 hover:opacity-60 transition-opacity duration-150 inline-flex items-center justify-center h-5 w-3.5"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+            >
+              <circle cx="9" cy="5" r="1.5" />
+              <circle cx="15" cy="5" r="1.5" />
+              <circle cx="9" cy="12" r="1.5" />
+              <circle cx="15" cy="12" r="1.5" />
+              <circle cx="9" cy="19" r="1.5" />
+              <circle cx="15" cy="19" r="1.5" />
+            </svg>
+          </span>
+          <span
+            class="min-w-0 flex-1 font-bold text-sm text-text-h-light dark:text-text-h-dark truncate"
           >
             {{ exerciseName(card.exerciseId) }}
           </span>
-          <span
-            class="shrink-0 text-xs font-mono text-text-light dark:text-text-dark opacity-50"
+          <!-- Delete exercise -->
+          <button
+            type="button"
+            class="shrink-0 flex h-7 w-7 items-center justify-center rounded-lg text-text-light dark:text-text-dark opacity-40 hover:opacity-100 hover:text-red-500 dark:hover:text-red-400 cursor-pointer transition-colors duration-150"
+            title="Remove exercise"
+            @click="requestDeleteExercise(card)"
           >
-            {{ doneCount(card) }}/{{ card.sets.length }}
-          </span>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <polyline points="3 6 5 6 21 6" />
+              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+              <path d="M10 11v6M14 11v6" />
+              <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+            </svg>
+          </button>
         </div>
 
         <!-- Sets -->
@@ -233,7 +321,7 @@ const onSelectRpe = (rpe: string) => {
             @toggle="toggleSet(card, setIndex)"
             @complete="onComplete(cardIndex, setIndex)"
             @edit-rpe="editRpe(cardIndex, setIndex)"
-            @delete="deleteSet(card, setIndex)"
+            @delete="requestDeleteSet(card, setIndex)"
           />
 
           <!-- Add set -->
@@ -282,5 +370,13 @@ const onSelectRpe = (rpe: string) => {
     v-model:open="showRpeSheet"
     :current="rpeCurrent"
     @select="onSelectRpe"
+  />
+
+  <ConfirmDialog
+    v-model:open="confirmOpen"
+    :title="confirmTitle"
+    :message="confirmMessage"
+    confirm-label="Delete"
+    @confirm="onConfirmDelete"
   />
 </template>

@@ -379,7 +379,7 @@ const getSummary = (config?: RoutineExerciseConfig) => {
           >
             <!-- Drag handle -->
             <span
-              class="drag-handle shrink-0 cursor-grab active:cursor-grabbing text-text-light dark:text-text-dark opacity-30 hover:opacity-60 transition-opacity duration-150"
+              class="drag-handle shrink-0 cursor-grab active:cursor-grabbing text-text-light dark:text-text-dark opacity-30 hover:opacity-60 transition-opacity duration-150 self-start h-5 w-3.5 inline-flex items-center justify-center"
               @click.stop
             >
               <svg

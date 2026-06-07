@@ -239,6 +239,7 @@ const save = () => {
             :placeholder="secondaryTags.length ? '' : 'Add a muscle group…'"
             class="min-w-[7rem] flex-1 bg-transparent py-1 text-sm text-text-h-light dark:text-text-h-dark placeholder-text-light/40 dark:placeholder-text-dark/40 focus:outline-none"
             @keydown="onTagKeydown"
+            @change="addTag"
             @blur="addTag"
           />
         </div>

@@ -21,7 +21,45 @@ function register(el: HTMLInputElement, m: KeypadMode) {
   activeEl.value = el;
   mode.value = m;
   // Keep the focused field clear of the keypad once it has rendered.
-  requestAnimationFrame(() => el.scrollIntoView({ block: "nearest" }));
+  requestAnimationFrame(() => ensureVisible(el));
+}
+
+// The nearest ancestor that actually scrolls — where the field lives.
+function scrollParent(el: HTMLElement): HTMLElement | null {
+  let node = el.parentElement;
+  while (node) {
+    const oy = getComputedStyle(node).overflowY;
+    if (
+      (oy === "auto" || oy === "scroll") &&
+      node.scrollHeight > node.clientHeight
+    )
+      return node;
+    node = node.parentElement;
+  }
+  return null;
+}
+
+// Scroll the focused field clear of the on-screen keypad. Unlike a plain
+// scrollIntoView, the keypad overlays the bottom of the viewport, so a field
+// that is technically "visible" can still be hidden behind it.
+function ensureVisible(el: HTMLInputElement) {
+  const margin = 20;
+  const keypad = document.querySelector<HTMLElement>("[data-numeric-keypad]");
+  // offsetHeight ignores the slide-in transform, giving the resting top edge.
+  const keypadTop = keypad
+    ? window.innerHeight - keypad.offsetHeight
+    : window.innerHeight;
+  const rect = el.getBoundingClientRect();
+
+  let delta = 0;
+  if (rect.bottom + margin > keypadTop)
+    delta = rect.bottom + margin - keypadTop;
+  else if (rect.top < margin) delta = rect.top - margin;
+  if (delta === 0) return;
+
+  const scroller = scrollParent(el);
+  if (scroller) scroller.scrollBy({ top: delta, behavior: "smooth" });
+  else window.scrollBy({ top: delta, behavior: "smooth" });
 }
 
 // Deferred so that moving focus directly from one keypad input to another

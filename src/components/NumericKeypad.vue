@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, watch, onUnmounted } from "vue";
 import { useNumericKeypad } from "../composables/useNumericKeypad";
 import { useSwipeDownToDismiss } from "../composables/useSwipeDownToDismiss";
 
@@ -51,11 +51,33 @@ const { panelStyle, beginHandleDrag, onHandleClick } = useSwipeDownToDismiss({
   visible,
   dismiss,
 });
+
+watch(
+  visible,
+  (isVis) => {
+    if (isVis) {
+      requestAnimationFrame(() => {
+        if (panelEl.value) {
+          const h = panelEl.value.offsetHeight;
+          document.documentElement.style.setProperty("--keypad-h", `${h}px`);
+        }
+      });
+    } else {
+      document.documentElement.style.setProperty("--keypad-h", "0px");
+    }
+  },
+  { immediate: true },
+);
+
+onUnmounted(() => {
+  document.documentElement.style.setProperty("--keypad-h", "0px");
+});
 </script>
 
 <template>
   <div
     ref="panelEl"
+    data-numeric-keypad
     class="fixed inset-x-0 bottom-0 z-[70] border-t border-border-light dark:border-border-dark bg-bg-light dark:bg-bg-dark shadow-[0_-8px_24px_rgba(0,0,0,0.12)] select-none touch-none"
     :style="panelStyle"
   >

@@ -19,11 +19,11 @@ interface SetEntry {
   reps: string;
   weight: string;
   rpe: string;
+  done: boolean;
 }
 interface ExerciseCard {
   exerciseId: string;
   sets: SetEntry[];
-  completed: number;
 }
 
 const cards = ref<ExerciseCard[]>([]);
@@ -32,7 +32,20 @@ const cards = ref<ExerciseCard[]>([]);
 // card header can resolve them without round-tripping through the composable.
 const addedNames = ref<Record<string, string>>({});
 
-const newSet = (): SetEntry => ({ reps: "", weight: "", rpe: "" });
+const newSet = (): SetEntry => ({
+  reps: "",
+  weight: "",
+  rpe: "",
+  done: false,
+});
+
+// Mirror the row's own validity checks exactly (RPE is not required to complete).
+const setValid = (s: SetEntry) =>
+  parseInt(s.reps, 10) >= 1 && parseFloat(s.weight) > 0;
+
+// A set counts as completed only while its inputs remain valid, so clearing a
+// value auto-uncompletes the set and retyping a valid one restores it.
+const isDone = (s: SetEntry) => s.done && setValid(s);
 
 function plannedSetCount(index: number): number {
   const config = routine.value?.exercises[index]?.config;
@@ -55,7 +68,6 @@ function rebuild() {
   cards.value = activeWorkout.value.exercises.map((we, i) => ({
     exerciseId: we.exerciseId,
     sets: Array.from({ length: plannedSetCount(i) }, newSet),
-    completed: 0,
   }));
 }
 
@@ -68,19 +80,25 @@ const addSet = (card: ExerciseCard) => {
   card.sets.push(newSet());
 };
 
+const deleteSet = (card: ExerciseCard, i: number) => {
+  card.sets.splice(i, 1);
+};
+
 const setState = (
   card: ExerciseCard,
   i: number,
-): "finished" | "current" | "upcoming" =>
-  i < card.completed
-    ? "finished"
-    : i === card.completed
-      ? "current"
-      : "upcoming";
+): "finished" | "current" | "upcoming" => {
+  if (isDone(card.sets[i])) return "finished";
+  // The lowest set that isn't effectively done is the one to act on next.
+  const firstIncomplete = card.sets.findIndex((s) => !isDone(s));
+  return i === firstIncomplete ? "current" : "upcoming";
+};
 
 const toggleSet = (card: ExerciseCard, i: number) => {
-  card.completed = i < card.completed ? i : i + 1;
+  card.sets[i].done = !card.sets[i].done;
 };
+
+const doneCount = (card: ExerciseCard) => card.sets.filter(isDone).length;
 
 const rowRefs = ref<Record<string, InstanceType<typeof WorkoutSetRow> | null>>(
   {},
@@ -92,7 +110,9 @@ const setRowRef = (key: string) => (el: unknown) => {
 const onComplete = (cardIndex: number, setIndex: number) => {
   const card = cards.value[cardIndex];
   if (!card) return;
-  toggleSet(card, setIndex);
+  // The row only emits `complete` when valid, so just mark it done — no pointer
+  // math means editing a finished set never drags the "current" set backward.
+  card.sets[setIndex].done = true;
   const nextKey =
     setIndex + 1 < card.sets.length
       ? `${cardIndex}-${setIndex + 1}`
@@ -106,7 +126,7 @@ const showExerciseForm = ref(false);
 
 const addCardFor = (id: string, name: string) => {
   addedNames.value[id] = name;
-  cards.value.push({ exerciseId: id, sets: [newSet()], completed: 0 });
+  cards.value.push({ exerciseId: id, sets: [newSet()] });
 };
 
 const handleSelectExercise = (exercise: Exercise) => {
@@ -149,14 +169,9 @@ const onSelectRpe = (rpe: string) => {
 
   set.rpe = rpe;
 
-  // Auto-complete the set if all fields are now valid and it wasn't already completed.
-  const repsVal = parseInt(set.reps, 10);
-  const weightVal = parseFloat(set.weight);
-  const repsValid = !isNaN(repsVal) && repsVal >= 1;
-  const weightValid = !isNaN(weightVal) && weightVal > 0;
-  const rpeValid = rpe !== "";
-
-  if (t.setIndex >= card.completed && repsValid && weightValid && rpeValid) {
+  // Picking an RPE that leaves a not-yet-done set fully valid auto-advances it;
+  // changing a finished set's RPE leaves its completion (and the pointer) alone.
+  if (!set.done && setValid(set)) {
     onComplete(t.cardIndex, t.setIndex);
   }
 };
@@ -180,7 +195,7 @@ const onSelectRpe = (rpe: string) => {
           <span
             class="shrink-0 text-xs font-mono text-text-light dark:text-text-dark opacity-50"
           >
-            {{ card.completed }}/{{ card.sets.length }}
+            {{ doneCount(card) }}/{{ card.sets.length }}
           </span>
         </div>
 
@@ -218,6 +233,7 @@ const onSelectRpe = (rpe: string) => {
             @toggle="toggleSet(card, setIndex)"
             @complete="onComplete(cardIndex, setIndex)"
             @edit-rpe="editRpe(cardIndex, setIndex)"
+            @delete="deleteSet(card, setIndex)"
           />
 
           <!-- Add set -->

@@ -16,6 +16,7 @@ const emit = defineEmits<{
   (e: "toggle"): void;
   (e: "complete"): void;
   (e: "edit-rpe"): void;
+  (e: "delete"): void;
 }>();
 
 const reps = defineModel<string>("reps", { default: "" });
@@ -214,7 +215,31 @@ function onWeightKeydown(e: KeyboardEvent) {
         </svg>
       </button>
 
-      <div v-else class="h-9 w-9" />
+      <!-- Upcoming set: no completion state yet, so allow removal -->
+      <button
+        v-else
+        type="button"
+        class="flex h-9 w-9 items-center justify-center rounded-lg text-text-light dark:text-text-dark opacity-30 hover:opacity-100 hover:text-red-500 dark:hover:text-red-400 cursor-pointer transition-colors duration-150"
+        title="Delete set"
+        @click="$emit('delete')"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <polyline points="3 6 5 6 21 6" />
+          <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+          <path d="M10 11v6M14 11v6" />
+          <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+        </svg>
+      </button>
     </div>
   </div>
 </template>

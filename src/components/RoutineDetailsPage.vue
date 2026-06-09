@@ -219,6 +219,7 @@ const exerciseListEl = ref<HTMLElement | null>(null);
 
 useSortableList(exerciseListEl, {
   draggingClass: "shadow-lg",
+  handle: ".drag-handle",
   onReorder: async (from, to) => {
     const list = orderedExercises.value.slice();
     const [moved] = list.splice(from, 1);
@@ -374,12 +375,13 @@ const getSummary = (config?: RoutineExerciseConfig) => {
           <div
             v-for="(rEx, idx) in orderedExercises"
             :key="rEx.exerciseId + '-' + idx"
-            class="flex items-center gap-4 px-4 py-3 border-b border-border-light dark:border-border-dark last:border-0 cursor-grab active:cursor-grabbing hover:bg-surface-light-hover dark:hover:bg-surface-dark-hover transition-colors duration-150"
+            class="flex items-center gap-4 px-4 py-3 border-b border-border-light dark:border-border-dark last:border-0 cursor-pointer hover:bg-surface-light-hover dark:hover:bg-surface-dark-hover transition-colors duration-150"
             @click="editExercise(idx)"
           >
             <!-- Drag handle -->
             <span
               class="drag-handle shrink-0 cursor-grab active:cursor-grabbing text-text-light dark:text-text-dark opacity-30 hover:opacity-60 transition-opacity duration-150 self-start h-5 w-3.5 inline-flex items-center justify-center"
+              style="touch-action: none"
               @click.stop
             >
               <svg

@@ -64,7 +64,6 @@ const save = () => {
           type="text"
           placeholder="e.g. Powerbuilding Split"
           class="rounded-lg border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2.5 text-sm text-text-h-light dark:text-text-h-dark placeholder-text-light/40 dark:placeholder-text-dark/40 focus:border-accent/50 focus:outline-none focus:ring-2 focus:ring-accent/40"
-          @keyup.enter="save"
         />
       </div>
 

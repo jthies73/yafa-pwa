@@ -2,6 +2,7 @@
 import { ref, computed, watch, onUnmounted } from "vue";
 import { useRouter, useRoute } from "vue-router";
 import { useFeatureFlags } from "../../config/features";
+import { usePwaUpdate } from "../../composables/usePwaUpdate";
 
 defineProps<{ isDark: boolean }>();
 defineEmits<{ (e: "toggle-theme"): void }>();
@@ -9,6 +10,7 @@ defineEmits<{ (e: "toggle-theme"): void }>();
 const router = useRouter();
 const route = useRoute();
 const features = useFeatureFlags();
+const { needRefresh, update } = usePwaUpdate();
 
 const sidebarOpen = ref(false);
 const sidebarEl = ref<HTMLElement | null>(null);
@@ -381,6 +383,37 @@ const isActive = (names: readonly string[] | string) => {
     <div
       class="mt-auto pt-6 border-t border-border-light dark:border-border-dark flex flex-col gap-4"
     >
+      <!-- Update available -->
+      <button
+        v-if="needRefresh"
+        type="button"
+        class="flex items-center justify-between px-4 py-2.5 rounded-xl bg-accent/10 hover:bg-accent/15 border border-accent/20 text-accent transition-colors duration-150 cursor-pointer"
+        @click="update"
+      >
+        <div class="flex items-center gap-3">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            class="w-5 h-5"
+          >
+            <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
+            <path d="M21 3v5h-5" />
+            <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
+            <path d="M8 16H3v5" />
+          </svg>
+          <span class="text-sm font-semibold tracking-wide"
+            >Update available</span
+          >
+        </div>
+      </button>
+
       <!-- Buy me a coffee -->
       <a
         v-if="features.showBuyMeACoffee"

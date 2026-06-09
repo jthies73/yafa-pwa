@@ -26,8 +26,12 @@ export default defineConfig(({ mode }) => ({
       },
     },
     VitePWA({
-      registerType: "autoUpdate",
-      injectRegister: "auto",
+      // "prompt": a new service worker stays in "waiting" until the user
+      // explicitly triggers the update (the Update button in AppSidebar).
+      registerType: "prompt",
+      // Registration is driven by useRegisterSW() in usePwaUpdate.ts, so the
+      // plugin must not also inject its own registration call.
+      injectRegister: false,
       includeAssets: [
         "favicon.svg",
         "pwa-192x192.png",
@@ -35,23 +39,15 @@ export default defineConfig(({ mode }) => ({
         "icons.svg",
       ],
       workbox: {
+        // Everything is precached, so the app shell and assets are served
+        // cache-first after the initial fetch — no network round-trip on load.
+        // Navigation requests fall back to the precached index.html.
         globPatterns: ["**/*.{js,css,html,svg,png,ico}"],
-        runtimeCaching: [
-          {
-            urlPattern: ({ request }) => request.mode === "navigate",
-            handler: "NetworkFirst",
-            options: {
-              cacheName: "documents-cache",
-              networkTimeoutSeconds: 3,
-              expiration: {
-                maxEntries: 10,
-              },
-              cacheableResponse: {
-                statuses: [0, 200],
-              },
-            },
-          },
-        ],
+        navigateFallback: "index.html",
+        // Don't let a new worker take over until the user asks for it.
+        skipWaiting: false,
+        clientsClaim: false,
+
       },
       manifest: {
         name: "Y A F A",

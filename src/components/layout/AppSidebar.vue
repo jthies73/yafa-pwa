@@ -10,7 +10,7 @@ defineEmits<{ (e: "toggle-theme"): void }>();
 const router = useRouter();
 const route = useRoute();
 const features = useFeatureFlags();
-const { needRefresh, update } = usePwaUpdate();
+const { update } = usePwaUpdate();
 
 const sidebarOpen = ref(false);
 const sidebarEl = ref<HTMLElement | null>(null);
@@ -383,9 +383,8 @@ const isActive = (names: readonly string[] | string) => {
     <div
       class="mt-auto pt-6 border-t border-border-light dark:border-border-dark flex flex-col gap-4"
     >
-      <!-- Update available -->
+      <!-- Update App -->
       <button
-        v-if="needRefresh"
         type="button"
         class="flex items-center justify-between px-4 py-2.5 rounded-xl bg-accent/10 hover:bg-accent/15 border border-accent/20 text-accent transition-colors duration-150 cursor-pointer"
         @click="update"
@@ -409,7 +408,7 @@ const isActive = (names: readonly string[] | string) => {
             <path d="M8 16H3v5" />
           </svg>
           <span class="text-sm font-semibold tracking-wide"
-            >Update available</span
+            >Update App</span
           >
         </div>
       </button>

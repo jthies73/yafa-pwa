@@ -28,6 +28,12 @@ const close = () => {
 <template>
   <AppBottomSheet v-model:open="open" title="Update">
     <div class="flex flex-col gap-5 px-5 py-5">
+      <!-- Description -->
+      <p class="text-sm text-text-light dark:text-text-dark opacity-70">
+        YAFA is a fully offline PWA — it runs entirely on your device. Updating
+        fetches the latest app code and runs any pending data migrations.
+      </p>
+
       <!-- Version summary -->
       <div
         class="rounded-xl border border-border-light dark:border-border-dark divide-y divide-border-light dark:divide-border-dark overflow-hidden"

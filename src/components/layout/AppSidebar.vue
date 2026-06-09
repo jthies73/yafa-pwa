@@ -4,6 +4,7 @@ import { useRouter, useRoute } from "vue-router";
 import { useFeatureFlags } from "../../config/features";
 import { useAppUpdate } from "../../composables/useAppUpdate";
 import UpdateSheet from "../UpdateSheet.vue";
+import ImportExportSheet from "../ImportExportSheet.vue";
 
 defineProps<{ isDark: boolean }>();
 defineEmits<{ (e: "toggle-theme"): void }>();
@@ -17,12 +18,18 @@ const { currentVersion } = useAppUpdate();
 const sidebarOpen = ref(false);
 const sidebarEl = ref<HTMLElement | null>(null);
 const showUpdateSheet = ref(false);
+const showImportExportSheet = ref(false);
 
 const closeSidebar = () => (sidebarOpen.value = false);
 
 const openUpdateSheet = () => {
   closeSidebar();
   showUpdateSheet.value = true;
+};
+
+const openImportExportSheet = () => {
+  closeSidebar();
+  showImportExportSheet.value = true;
 };
 
 const navigateTo = (routeName: string) => {
@@ -417,6 +424,33 @@ const isActive = (names: readonly string[] | string) => {
           </svg>
           <span>Update</span>
         </button>
+
+        <!-- Import / Export (action styled as a nav item) -->
+        <button
+          type="button"
+          class="flex items-center gap-3 font-medium text-lg text-text-light dark:text-text-dark hover:text-accent transition-colors cursor-pointer group text-left"
+          @click="openImportExportSheet"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            class="w-5 h-5 text-text-light/70 dark:text-text-dark/70 group-hover:text-accent transition-colors"
+          >
+            <path d="M12 3v12" />
+            <path d="m8 11 4 4 4-4" />
+            <path
+              d="M8 5H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-3"
+            />
+          </svg>
+          <span>Import / Export</span>
+        </button>
       </nav>
     </div>
 
@@ -527,4 +561,5 @@ const isActive = (names: readonly string[] | string) => {
   </aside>
 
   <UpdateSheet v-model:open="showUpdateSheet" />
+  <ImportExportSheet v-model:open="showImportExportSheet" />
 </template>

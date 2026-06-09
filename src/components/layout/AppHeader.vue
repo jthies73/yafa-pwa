@@ -68,7 +68,7 @@ const sidebar = ref<InstanceType<typeof AppSidebar> | null>(null);
         v-if="isStaging"
         class="text-[10px] font-bold ml-5 px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 select-none uppercase tracking-wider"
       >
-        Staging
+        Staging :)
       </span>
       <span
         v-if="isDevelopment"

@@ -18,7 +18,15 @@ const sidebarEl = ref<HTMLElement | null>(null);
 const closeSidebar = () => (sidebarOpen.value = false);
 
 const navigateTo = (routeName: string) => {
-  router.push({ name: routeName });
+  closeSidebar();
+  if (route.name === routeName) return;
+
+  // Wait for the sidebar's close animation (300ms) to finish before navigating.
+  // This prevents iOS Safari from capturing a snapshot of the open sidebar 
+  // when pushing the new history state, which causes it to appear open during swipe-back.
+  setTimeout(() => {
+    router.push({ name: routeName });
+  }, 300);
 };
 
 defineExpose({ open: () => (sidebarOpen.value = true) });

@@ -1,11 +1,5 @@
 import { ref } from "vue";
-import {
-  fetchManifest,
-  getDataVersion,
-  pendingVersions,
-  runMigrations,
-  type MigrationManifest,
-} from "../db/migrations";
+import { APP_VERSION } from "../config/version";
 import { usePwaUpdate } from "./usePwaUpdate";
 
 export type UpdateStatus =
@@ -16,18 +10,37 @@ export type UpdateStatus =
   | "updating"
   | "error";
 
+export interface ReleaseInfo {
+  version: string;
+  notes: string;
+}
+
+export interface ReleaseManifest {
+  latest: string;
+  releases?: ReleaseInfo[];
+}
+
 // Shared, single-instance state so the sheet reflects the same status anywhere.
-const currentVersion = ref(getDataVersion());
+const currentVersion = ref(APP_VERSION);
 const latestVersion = ref<string | null>(null);
+const releases = ref<ReleaseInfo[]>([]);
 const status = ref<UpdateStatus>("idle");
-const applyingVersion = ref<string | null>(null);
 const errorMessage = ref<string | null>(null);
 
-let manifest: MigrationManifest | null = null;
+/** Compare two dotted versions ("1.2.0"). Returns <0, 0, or >0. */
+function compareVersions(a: string, b: string): number {
+  const pa = a.split(".").map((n) => parseInt(n, 10) || 0);
+  const pb = b.split(".").map((n) => parseInt(n, 10) || 0);
+  const len = Math.max(pa.length, pb.length);
+  for (let i = 0; i < len; i++) {
+    const diff = (pa[i] ?? 0) - (pb[i] ?? 0);
+    if (diff !== 0) return diff < 0 ? -1 : 1;
+  }
+  return 0;
+}
 
 export function useAppUpdate() {
-  // Importing this keeps the service worker registered and lets a completed
-  // update also pull the new app code.
+  // Importing this keeps the service worker registered and tracks if a new SW is waiting.
   const { needRefresh, update: applyCodeUpdate } = usePwaUpdate();
 
   async function check(): Promise<void> {
@@ -35,13 +48,19 @@ export function useAppUpdate() {
     status.value = "checking";
     errorMessage.value = null;
     try {
-      manifest = await fetchManifest();
-      currentVersion.value = getDataVersion();
-      latestVersion.value = manifest.latest;
-      const hasPending =
-        pendingVersions(currentVersion.value, manifest).length > 0;
-      status.value =
-        hasPending || needRefresh.value ? "available" : "up-to-date";
+      const res = await fetch(`/releases.json`, { cache: "no-store" });
+      if (!res.ok) throw new Error(`Could not load releases (HTTP ${res.status})`);
+      
+      const data = (await res.json()) as ReleaseManifest;
+      latestVersion.value = data.latest;
+      releases.value = (data.releases ?? []).filter(
+        (r) => compareVersions(r.version, currentVersion.value) > 0
+      );
+
+      const isNewer = compareVersions(data.latest, currentVersion.value) > 0;
+      
+      // An update is available if the server manifest is newer OR if the service worker has already downloaded a new bundle.
+      status.value = isNewer || needRefresh.value ? "available" : "up-to-date";
     } catch (err) {
       errorMessage.value = (err as Error).message;
       status.value = "error";
@@ -49,16 +68,12 @@ export function useAppUpdate() {
   }
 
   async function runUpdate(): Promise<void> {
-    if (!manifest || status.value === "updating") return;
+    if (status.value === "updating") return;
     status.value = "updating";
     errorMessage.value = null;
     try {
-      await runMigrations(currentVersion.value, manifest, (v) => {
-        applyingVersion.value = v;
-      });
-      currentVersion.value = getDataVersion();
-      // Pull the new app code too, then reload. updateServiceWorker reloads on
-      // activation; with no waiting worker we reload ourselves.
+      // Activating the new service worker automatically reloads the page.
+      // If needRefresh is false (e.g. dev environment), fallback to a manual reload.
       if (needRefresh.value) {
         await applyCodeUpdate();
       } else {
@@ -67,15 +82,14 @@ export function useAppUpdate() {
     } catch (err) {
       errorMessage.value = (err as Error).message;
       status.value = "error";
-      applyingVersion.value = null;
     }
   }
 
   return {
     currentVersion,
     latestVersion,
+    releases,
     status,
-    applyingVersion,
     errorMessage,
     check,
     runUpdate,

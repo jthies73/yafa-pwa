@@ -1,0 +1,13 @@
+{
+  "latest": "0.1.1",
+  "releases": [
+    {
+      "version": "0.1.1",
+      "notes": "- Streamlined app updates and data migrations using Dexie.\n- Added comprehensive progression model rulesets."
+    },
+    {
+      "version": "0.1.0",
+      "notes": "Baseline release.\n\n- Added periodization and mesocycle planning.\n- Implemented robust progression tracking models."
+    }
+  ]
+}

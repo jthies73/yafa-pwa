@@ -8,8 +8,8 @@ const open = defineModel<boolean>("open", { required: true });
 const {
   currentVersion,
   latestVersion,
+  releases,
   status,
-  applyingVersion,
   errorMessage,
   check,
   runUpdate,
@@ -61,6 +61,14 @@ const close = () => {
           >
             {{ latestVersion ?? "—" }}
           </span>
+        </div>
+        <div v-if="releases && releases.length > 0" class="divide-y divide-border-light dark:divide-border-dark border-t border-border-light dark:border-border-dark">
+          <div v-for="release in releases" :key="release.version" class="px-4 py-3 bg-surface-light-hover dark:bg-surface-dark-hover">
+            <span class="block text-xs font-bold uppercase tracking-wider text-text-light dark:text-text-dark opacity-60 mb-2">
+              Version {{ release.version }}
+            </span>
+            <p class="text-sm text-text-h-light dark:text-text-h-dark whitespace-pre-wrap">{{ release.notes }}</p>
+          </div>
         </div>
       </div>
 
@@ -126,7 +134,7 @@ const close = () => {
             class="w-4 h-4 rounded-full border-2 border-accent border-t-transparent animate-spin shrink-0"
           />
           <span class="text-sm text-text-light dark:text-text-dark">
-            {{ applyingVersion ? `Applying ${applyingVersion}…` : "Updating…" }}
+            Updating…
           </span>
         </template>
 

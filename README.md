@@ -55,10 +55,26 @@ YAFA V1 implements core progression engines designed for varying fatigue profile
 
 ### 🛑 Fatigue Management & Automated Resets
 
-To distinguish between an isolated bad training day and a true performance plateau, YAFA utilizes a 3-session trend threshold. 
+YAFA utilizes specific rulesets to distinguish between an isolated bad training day and a true performance plateau, tailored to the progression model in use:
 
-A single session is flagged as a progression failure if either of the following physiological limits are breached:
-1. **Target Failure:** `(actual_reps < target_reps && actual_rpe > target_rpe)`
-2. **Systemic Cost Too High:** `(actual_rpe - 1 > target_rpe)`
+#### A. Top Set Progression Ruleset
 
-If an exercise triggers this flag for 3 consecutive sessions, YAFA prompts the user to initiate a reset. This allows the system to recalculate the e1RM based on recent performance or apply a structural load reduction to dissipate fatigue before resuming the progression model.
+- **Trigger:** 3 consecutive sessions of failure on the top set. A single session is flagged if:
+  - _Target Failure:_ `(actual_reps < target_reps && actual_rpe > target_rpe)`
+  - _Systemic Cost Too High:_ `(actual_rpe - 1 > target_rpe)`
+- **Action:** Prompt an **Intensity Reset**. The system recalculates the e1RM based on recent performance or applies a structural load reduction.
+- **Reasoning:** Top sets generate high central nervous system (CNS) fatigue. Using a 3-session trend distinguishes between a single bad day and a true plateau. Resetting the intensity allows the nervous system to recover and restores the athlete's capacity to express strength before resuming the progression.
+
+#### B. Linear Progression Ruleset
+
+- **Trigger:** 3 consecutive sessions of failure (`actual_reps < target_reps` OR `actual_rpe - 1 > target_rpe`).
+- **Action:** Prompt an **Intensity Reset** (-10% of working weight).
+- **Reasoning:** Linear progression relies on continuous, aggressive load increases. Failing multiple times indicates that fatigue accumulation has outpaced physical adaptation. Taking a 10% step back provides a "runway" to clear fatigue, build momentum, and break past the previous sticking point.
+
+#### C. Double Progression Ruleset
+
+- **Trigger:**
+  - _Regression:_ `actual_reps < previous_actual_reps` at the same weight for 2 consecutive sessions.
+  - _Hard Plateau:_ `actual_reps == previous_actual_reps` for 4+ consecutive sessions.
+- **Action:** Prompt an **Exercise Rotation** or **Volume Reset**. The weight is _not_ dropped.
+- **Reasoning:** Double progression is typically used for hypertrophy-focused accessory work where dropping absolute load is counterproductive. Instead, rotating the exercise (e.g., swapping Dumbbell OHP for Machine OHP) alters the resistance profile to spur new growth, or dropping a set clears local muscular fatigue without sacrificing intensity.

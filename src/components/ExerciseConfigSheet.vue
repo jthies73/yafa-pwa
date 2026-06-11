@@ -7,6 +7,7 @@ import type {
 } from "../db/types";
 import AppBottomSheet from "./AppBottomSheet.vue";
 import ConfirmDialog from "./ConfirmDialog.vue";
+import LockToggle from "./LockToggle.vue";
 
 const showConfirm = ref(false);
 
@@ -14,6 +15,7 @@ const props = defineProps<{
   exerciseName: string;
   isEditing: boolean;
   initialConfig?: RoutineExerciseConfig;
+  periodizationEnabled?: boolean;
 }>();
 
 const open = defineModel<boolean>("open", { required: true });
@@ -26,6 +28,23 @@ const emit = defineEmits<{
 const configModel = ref<ProgressionModelType>("linear");
 const configParams = ref<Record<string, number>>({});
 const configNotes = ref("");
+const lockedFields = ref<Set<string>>(new Set());
+
+// Param keys that periodization can modify — and therefore that the user may lock —
+// per progression model. Keys not listed here are never affected by periodization.
+const LOCKABLE_FIELDS: Record<ProgressionModelType, string[]> = {
+  linear: ["targetSets", "targetReps", "targetRpe"],
+  double: ["targetSets"],
+  topset_backoff: ["topSetTargetReps", "backOffSets", "topSetTargetRpe"],
+};
+
+const isLocked = (field: string) => lockedFields.value.has(field);
+
+const toggleLock = (field: string) => {
+  const next = new Set(lockedFields.value);
+  next.has(field) ? next.delete(field) : next.add(field);
+  lockedFields.value = next;
+};
 
 const PROGRESSION_MODELS: { value: ProgressionModelType; label: string }[] = [
   { value: "linear", label: "Linear" },
@@ -59,10 +78,12 @@ watch(
         >),
       };
       configNotes.value = props.initialConfig.notes ?? "";
+      lockedFields.value = new Set(props.initialConfig.lockedFields ?? []);
     } else {
       configModel.value = "linear";
       configParams.value = { ...DEFAULT_PARAMS.linear };
       configNotes.value = "";
+      lockedFields.value = new Set();
     }
   },
   { immediate: true },
@@ -71,6 +92,8 @@ watch(
 const changeModel = (model: ProgressionModelType) => {
   configModel.value = model;
   configParams.value = { ...DEFAULT_PARAMS[model] };
+  // Field keys differ per model, so drop any locks that no longer apply.
+  lockedFields.value = new Set();
 };
 
 const close = () => {
@@ -78,12 +101,17 @@ const close = () => {
 };
 
 const save = () => {
+  // Only persist locks for fields that are lockable under the current model.
+  const applicableLocks = LOCKABLE_FIELDS[configModel.value].filter((f) =>
+    lockedFields.value.has(f),
+  );
   const config: RoutineExerciseConfig = {
     progressionModel: configModel.value,
     progressionParams: {
       ...configParams.value,
     } as unknown as ProgressionParams,
     ...(configNotes.value ? { notes: configNotes.value } : {}),
+    ...(applicableLocks.length ? { lockedFields: applicableLocks } : {}),
   };
   emit("save", config);
 };
@@ -143,15 +171,49 @@ const save = () => {
         </div>
       </div>
 
+      <!-- Periodization lock hint -->
+      <div
+        v-if="periodizationEnabled"
+        class="flex items-start gap-2.5 rounded-lg bg-accent/5 border border-accent/20 px-3.5 py-3"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="15"
+          height="15"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          class="text-accent shrink-0 mt-0.5"
+        >
+          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+          <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+        </svg>
+        <p class="text-xs text-text-light dark:text-text-dark opacity-80">
+          This plan uses periodization. Unlocked fields may be adjusted by the
+          mesocycle when generating each workout. Lock a field to keep its value
+          fixed.
+        </p>
+      </div>
+
       <!-- Linear params -->
       <div v-if="configModel === 'linear'" class="flex flex-col gap-4">
         <div class="grid grid-cols-3 gap-4">
           <div class="flex flex-col gap-1.5">
-            <label
-              class="text-xs font-bold uppercase tracking-wider text-text-light dark:text-text-dark opacity-60"
-            >
-              Sets
-            </label>
+            <div class="flex items-center justify-between gap-1 min-h-[18px]">
+              <label
+                class="text-xs font-bold uppercase tracking-wider text-text-light dark:text-text-dark opacity-60"
+              >
+                Sets
+              </label>
+              <LockToggle
+                v-if="periodizationEnabled"
+                :locked="isLocked('targetSets')"
+                @toggle="toggleLock('targetSets')"
+              />
+            </div>
             <input
               v-model.number="configParams.targetSets"
               v-numpad
@@ -164,11 +226,18 @@ const save = () => {
             />
           </div>
           <div class="flex flex-col gap-1.5">
-            <label
-              class="text-xs font-bold uppercase tracking-wider text-text-light dark:text-text-dark opacity-60"
-            >
-              Reps
-            </label>
+            <div class="flex items-center justify-between gap-1 min-h-[18px]">
+              <label
+                class="text-xs font-bold uppercase tracking-wider text-text-light dark:text-text-dark opacity-60"
+              >
+                Reps
+              </label>
+              <LockToggle
+                v-if="periodizationEnabled"
+                :locked="isLocked('targetReps')"
+                @toggle="toggleLock('targetReps')"
+              />
+            </div>
             <input
               v-model.number="configParams.targetReps"
               v-numpad
@@ -181,11 +250,18 @@ const save = () => {
             />
           </div>
           <div class="flex flex-col gap-1.5">
-            <label
-              class="text-xs font-bold uppercase tracking-wider text-text-light dark:text-text-dark opacity-60"
-            >
-              Target RPE
-            </label>
+            <div class="flex items-center justify-between gap-1 min-h-[18px]">
+              <label
+                class="text-xs font-bold uppercase tracking-wider text-text-light dark:text-text-dark opacity-60"
+              >
+                Target RPE
+              </label>
+              <LockToggle
+                v-if="periodizationEnabled"
+                :locked="isLocked('targetRpe')"
+                @toggle="toggleLock('targetRpe')"
+              />
+            </div>
             <input
               v-model.number="configParams.targetRpe"
               v-numpad
@@ -221,11 +297,18 @@ const save = () => {
       <div v-else-if="configModel === 'double'" class="flex flex-col gap-4">
         <div class="grid grid-cols-3 gap-4">
           <div class="flex flex-col gap-1.5">
-            <label
-              class="text-xs font-bold uppercase tracking-wider text-text-light dark:text-text-dark opacity-60"
-            >
-              Sets
-            </label>
+            <div class="flex items-center justify-between gap-1 min-h-[18px]">
+              <label
+                class="text-xs font-bold uppercase tracking-wider text-text-light dark:text-text-dark opacity-60"
+              >
+                Sets
+              </label>
+              <LockToggle
+                v-if="periodizationEnabled"
+                :locked="isLocked('targetSets')"
+                @toggle="toggleLock('targetSets')"
+              />
+            </div>
             <input
               v-model.number="configParams.targetSets"
               v-numpad
@@ -298,11 +381,18 @@ const save = () => {
       >
         <div class="grid grid-cols-2 gap-4">
           <div class="flex flex-col gap-1.5">
-            <label
-              class="text-xs font-bold uppercase tracking-wider text-text-light dark:text-text-dark opacity-60"
-            >
-              Top Set Reps
-            </label>
+            <div class="flex items-center justify-between gap-1 min-h-[18px]">
+              <label
+                class="text-xs font-bold uppercase tracking-wider text-text-light dark:text-text-dark opacity-60"
+              >
+                Top Set Reps
+              </label>
+              <LockToggle
+                v-if="periodizationEnabled"
+                :locked="isLocked('topSetTargetReps')"
+                @toggle="toggleLock('topSetTargetReps')"
+              />
+            </div>
             <input
               v-model.number="configParams.topSetTargetReps"
               v-numpad
@@ -315,11 +405,18 @@ const save = () => {
             />
           </div>
           <div class="flex flex-col gap-1.5">
-            <label
-              class="text-xs font-bold uppercase tracking-wider text-text-light dark:text-text-dark opacity-60"
-            >
-              Target RPE
-            </label>
+            <div class="flex items-center justify-between gap-1 min-h-[18px]">
+              <label
+                class="text-xs font-bold uppercase tracking-wider text-text-light dark:text-text-dark opacity-60"
+              >
+                Target RPE
+              </label>
+              <LockToggle
+                v-if="periodizationEnabled"
+                :locked="isLocked('topSetTargetRpe')"
+                @toggle="toggleLock('topSetTargetRpe')"
+              />
+            </div>
             <input
               v-model.number="configParams.topSetTargetRpe"
               v-numpad
@@ -334,11 +431,18 @@ const save = () => {
         </div>
         <div class="grid grid-cols-2 gap-4">
           <div class="flex flex-col gap-1.5">
-            <label
-              class="text-xs font-bold uppercase tracking-wider text-text-light dark:text-text-dark opacity-60"
-            >
-              Back-Off Sets
-            </label>
+            <div class="flex items-center justify-between gap-1 min-h-[18px]">
+              <label
+                class="text-xs font-bold uppercase tracking-wider text-text-light dark:text-text-dark opacity-60"
+              >
+                Back-Off Sets
+              </label>
+              <LockToggle
+                v-if="periodizationEnabled"
+                :locked="isLocked('backOffSets')"
+                @toggle="toggleLock('backOffSets')"
+              />
+            </div>
             <input
               v-model.number="configParams.backOffSets"
               v-numpad

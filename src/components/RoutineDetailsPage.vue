@@ -31,6 +31,9 @@ const router = useRouter();
 // --- Live data ---
 const routine = ref<Routine | null>(null);
 const exercisesMap = ref<Record<string, Exercise>>({});
+// True when some plan that includes this routine has a configured mesocycle —
+// only then can periodization modify (and thus the user lock) exercise fields.
+const periodizationEnabled = ref(false);
 const loading = ref(true);
 let subscription: { unsubscribe(): void } | undefined;
 
@@ -45,13 +48,19 @@ onMounted(() => {
     );
     const eMap: Record<string, Exercise> = {};
     for (const e of eList) if (e) eMap[e.id] = e;
-    return { routine: r, exercisesMap: eMap };
+
+    const plans = await db.plans.toArray();
+    const periodized = plans.some(
+      (p) => p.routineIds.includes(r.id) && (p.mesocycle?.length ?? 0) > 0,
+    );
+    return { routine: r, exercisesMap: eMap, periodizationEnabled: periodized };
   }).subscribe({
     next: (result) => {
       loading.value = false;
       if (result) {
         routine.value = result.routine;
         exercisesMap.value = result.exercisesMap;
+        periodizationEnabled.value = result.periodizationEnabled;
       }
     },
     error: (err) => {
@@ -171,6 +180,9 @@ const toPlainConfig = (
       ...cfg.progressionParams,
     } as unknown as ProgressionParams,
     ...(cfg.notes ? { notes: cfg.notes } : {}),
+    ...(cfg.lockedFields?.length
+      ? { lockedFields: [...cfg.lockedFields] }
+      : {}),
   };
 };
 
@@ -499,6 +511,7 @@ const getSummary = (config?: RoutineExerciseConfig) => {
     :exercise-name="configExerciseName"
     :is-editing="editingIndex !== null"
     :initial-config="initialConfig"
+    :periodization-enabled="periodizationEnabled"
     @save="handleSaveConfig"
     @remove="handleRemoveExercise"
   />

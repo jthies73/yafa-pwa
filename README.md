@@ -36,8 +36,8 @@ YAFA V1 implements core progression engines designed for varying fatigue profile
 
 - **Application**: Main compound lifts during short-term strength peaking or re-sensitization phases.
 - **Logic**: Fixed weight increments applied session-to-session, provided target sets and reps are completed.
-- **Config Parameters**: `target_sets`, `target_reps`, `weight_increment`.
-- **Execution Rule**: Increase load by `weight_increment` for the next session if `actual_reps >= target_reps` across all sets.
+- **Config Parameters**: `target_sets`, `target_reps`, `target_rpe`, `weight_increment`.
+- **Execution Rule**: Increase load by `weight_increment` for the next session if `actual_reps >= target_reps` AND `actual_rpe <= target_rpe` across all sets.
 
 ### 2. Double Progression
 
@@ -78,3 +78,14 @@ YAFA utilizes specific rulesets to distinguish between an isolated bad training 
   - _Hard Plateau:_ `actual_reps == previous_actual_reps` for 4+ consecutive sessions.
 - **Action:** Prompt an **Exercise Rotation** or **Volume Reset**. The weight is _not_ dropped.
 - **Reasoning:** Double progression is typically used for hypertrophy-focused accessory work where dropping absolute load is counterproductive. Instead, rotating the exercise (e.g., swapping Dumbbell OHP for Machine OHP) alters the resistance profile to spur new growth, or dropping a set clears local muscular fatigue without sacrificing intensity.
+
+---
+
+## 📅 Periodization & Mesocycles
+
+YAFA supports structuring training blocks into **Mesocycles** using the visual `MesocycleSheet` component. Users can plan out multiple weeks where each week is assigned a specific training focus.
+
+### Mesocycle Features
+
+- **Week-by-Week Focus Allocation**: Assign specific training phases (e.g., Hypertrophy, Strength, Peaking, Deload) to each week.
+- **Dynamic Variable Adjustment**: Dynamically passes down Volume and Intensity Modifiers to the workout calculation based on the mesocycle week when applicable.

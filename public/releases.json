@@ -1,6 +1,10 @@
 {
-  "latest": "0.1.2",
+  "latest": "0.2.0",
   "releases": [
+    {
+      "version": "0.2.0",
+      "notes": "- Introducing the Workout Engine."
+    },
     {
       "version": "0.1.2",
       "notes": "- Test new update mechanism."

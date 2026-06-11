@@ -16,6 +16,7 @@ const {
   addSet,
   deleteSet,
   deleteExercise,
+  completeSet,
   toggleSet,
   addCardFor,
   reorderCards,
@@ -76,7 +77,7 @@ const onComplete = (cardIndex: number, setIndex: number) => {
   if (!card) return;
   // The row only emits `complete` when valid, so just mark it done — no pointer
   // math means editing a finished set never drags the "current" set backward.
-  card.sets[setIndex].done = true;
+  completeSet(card, setIndex);
 
   if (setIndex + 1 < card.sets.length) {
     cardRefs.value[cardIndex]?.focusSet(setIndex + 1);

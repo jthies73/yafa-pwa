@@ -3,14 +3,20 @@ import type {
   LinearProgressionParams,
   DoubleProgressionParams,
   TopSetProgressionParams,
+  Set as LoggedSet,
+  WorkoutExercise,
 } from "../db/types";
+import type { PrescribedSet } from "../engine/prescription";
 import { useActiveWorkout } from "./useActiveWorkout";
 
 export interface SetEntry {
+  id: string; // stable identity — becomes the persisted Set's id
   reps: string;
   weight: string;
   rpe: string;
   done: boolean;
+  completedAt: number | null; // stamped when the set is marked done
+  target?: PrescribedSet; // engine prescription backing this row, if any
 }
 
 export interface ExerciseCard {
@@ -27,21 +33,63 @@ export const setValid = (s: SetEntry) =>
 // value auto-uncompletes the set and retyping a valid one restores it.
 export const isDone = (s: SetEntry) => s.done && setValid(s);
 
+const newSet = (): SetEntry => ({
+  id: crypto.randomUUID(),
+  reps: "",
+  weight: "",
+  rpe: "",
+  done: false,
+  completedAt: null,
+});
+
+/** A tracker row prefilled with a prescribed set — one tap logs it as planned. */
+export const prescribedSetEntry = (target: PrescribedSet): SetEntry => ({
+  ...newSet(),
+  reps: String(target.reps),
+  weight: target.weight != null ? String(target.weight) : "",
+  rpe: target.rpe != null ? String(target.rpe) : "",
+  target,
+});
+
+/**
+ * Converts a completed tracker row into the persisted Set record the engine
+ * consumes. Targets come from the prescription when the row has one and fall
+ * back to the actuals (the schema requires them). The timestamp is clamped
+ * monotonic per exercise so the engine's sort-by-timestamp always reproduces
+ * row order — row 1 stays the top set even when sets are completed out of
+ * order.
+ */
+export function toSetRecord(entry: SetEntry, prevTimestamp: number): LoggedSet {
+  const actualReps = parseInt(entry.reps, 10);
+  const actualWeight = parseFloat(entry.weight);
+  return {
+    id: entry.id,
+    timestamp: Math.max(entry.completedAt ?? 0, prevTimestamp + 1),
+    targetReps: entry.target?.reps ?? actualReps,
+    actualReps,
+    targetWeight: entry.target?.weight ?? actualWeight,
+    actualWeight,
+    targetRpe: entry.target?.rpe ?? undefined,
+    actualRpe: entry.rpe ? parseFloat(entry.rpe) : undefined,
+    failure: false,
+  };
+}
+
 export function useWorkoutTracker() {
-  const { activeWorkout, routine, exercisesMap } = useActiveWorkout();
+  const {
+    activeWorkout,
+    routine,
+    exercisesMap,
+    prescriptions,
+    syncExercises,
+    syncProgress,
+  } = useActiveWorkout();
 
   const cards = ref<ExerciseCard[]>([]);
 
   // Names of exercises added on the fly (not part of the original routine) so the
   // card header can resolve them without round-tripping through the composable.
   const addedNames = ref<Record<string, string>>({});
-
-  const newSet = (): SetEntry => ({
-    reps: "",
-    weight: "",
-    rpe: "",
-    done: false,
-  });
 
   function plannedSetCount(index: number): number {
     const config = routine.value?.exercises[index]?.config;
@@ -61,14 +109,47 @@ export function useWorkoutTracker() {
       return;
     }
     addedNames.value = {};
-    cards.value = activeWorkout.value.exercises.map((we, i) => ({
-      id: crypto.randomUUID(),
-      exerciseId: we.exerciseId,
-      sets: Array.from({ length: plannedSetCount(i) }, newSet),
-    }));
+    cards.value = activeWorkout.value.exercises.map((we, i) => {
+      const prescription = prescriptions.value[we.exerciseId];
+      return {
+        id: crypto.randomUUID(),
+        exerciseId: we.exerciseId,
+        sets: prescription
+          ? prescription.sets.map(prescribedSetEntry)
+          : Array.from({ length: plannedSetCount(i) }, newSet),
+      };
+    });
   }
 
   watch(() => activeWorkout.value?.id, rebuild, { immediate: true });
+
+  // Continuous projection: every card mutation re-derives the workout's
+  // exercises (completed sets only, in final card order) so finishing the
+  // workout needs no extra data path — activeWorkout is always truthful.
+  function project() {
+    const exercises: WorkoutExercise[] = [];
+    let completed = 0;
+    let pending = 0;
+    for (const card of cards.value) {
+      const sets: LoggedSet[] = [];
+      let prevTimestamp = 0;
+      for (const entry of card.sets) {
+        if (isDone(entry)) {
+          const record = toSetRecord(entry, prevTimestamp);
+          prevTimestamp = record.timestamp;
+          sets.push(record);
+          completed += 1;
+        } else {
+          pending += 1;
+        }
+      }
+      exercises.push({ exerciseId: card.exerciseId, sets });
+    }
+    syncExercises(exercises);
+    syncProgress({ completed, pending });
+  }
+
+  watch(cards, project, { deep: true });
 
   const exerciseName = (id: string) =>
     exercisesMap.value[id]?.name || addedNames.value[id] || "Exercise";
@@ -95,8 +176,17 @@ export function useWorkoutTracker() {
     return i === firstIncomplete ? "current" : "upcoming";
   };
 
+  const completeSet = (card: ExerciseCard, i: number) => {
+    const set = card.sets[i];
+    set.done = true;
+    set.completedAt ??= Date.now();
+  };
+
   const toggleSet = (card: ExerciseCard, i: number) => {
-    card.sets[i].done = !card.sets[i].done;
+    const set = card.sets[i];
+    set.done = !set.done;
+    if (set.done) set.completedAt ??= Date.now();
+    else set.completedAt = null;
   };
 
   const addCardFor = (id: string, name: string) => {
@@ -123,6 +213,7 @@ export function useWorkoutTracker() {
     deleteSet,
     deleteExercise,
     setState,
+    completeSet,
     toggleSet,
     addCardFor,
     reorderCards,

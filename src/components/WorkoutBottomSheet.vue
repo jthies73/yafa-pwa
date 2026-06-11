@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import { ref, computed, watch } from "vue";
 import AppBottomSheet from "./AppBottomSheet.vue";
 import ConfirmDialog from "./ConfirmDialog.vue";
 import WorkoutTrackerPanel from "./WorkoutTrackerPanel.vue";
@@ -13,12 +13,35 @@ const {
   routine,
   isMinimized,
   showSheet,
+  trackerStats,
   finishWorkout,
   discardWorkout,
 } = useActiveWorkout();
 const { timerString } = useWorkoutTimer(() => activeWorkout.value?.startTime);
 
 const confirmingDiscard = ref(false);
+
+// ── Finish flow ──────────────────────────────────────────────────────────────
+// Nothing logged → finishing would save an empty record, so offer discard
+// instead. Incomplete sets → confirm they'll be dropped. Otherwise finish
+// straight away (only completed sets are ever persisted).
+const confirmingFinish = ref(false);
+
+const onFinishClick = () => {
+  const { completed, pending } = trackerStats.value;
+  if (completed === 0) {
+    confirmingDiscard.value = true;
+  } else if (pending > 0) {
+    confirmingFinish.value = true;
+  } else {
+    finishWorkout();
+  }
+};
+
+const finishMessage = computed(() => {
+  const n = trackerStats.value.pending;
+  return `${n} incomplete set${n === 1 ? "" : "s"} will be discarded. Finish anyway?`;
+});
 
 // ── Tracker / Calculator pager ───────────────────────────────────────────────
 const TABS = ["Tracker", "Calculator"] as const;
@@ -112,7 +135,7 @@ watch(
       <button
         v-if="page === 0"
         class="w-full py-3.5 bg-accent hover:bg-accent/90 text-bg-dark font-bold rounded-xl cursor-pointer transition-colors duration-150 text-sm tracking-wide uppercase"
-        @click="finishWorkout"
+        @click="onFinishClick"
       >
         Finish Workout
       </button>
@@ -133,5 +156,13 @@ watch(
     message="Are you sure you want to discard this workout? All progress will be lost."
     confirm-label="Discard"
     @confirm="discardWorkout"
+  />
+
+  <ConfirmDialog
+    v-model:open="confirmingFinish"
+    title="Finish Workout?"
+    :message="finishMessage"
+    confirm-label="Finish"
+    @confirm="finishWorkout"
   />
 </template>

@@ -138,6 +138,7 @@ defineExpose({
             v-model:rpe="set.rpe"
             :index="setIndex + 1"
             :state="setState(setIndex)"
+            :target="set.target"
             @toggle="emit('toggle-set', setIndex)"
             @complete="emit('complete', setIndex)"
             @edit-rpe="emit('edit-rpe', setIndex)"

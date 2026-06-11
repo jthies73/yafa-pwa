@@ -28,56 +28,83 @@ The RPE-to-percentage engine is a fully editable grid of reps (1–10) × RPE (1
 
 ---
 
-## 📈 V1 Progression Models
+## ⚙️ Workout Engine Architecture
 
-YAFA V1 implements core progression engines designed for varying fatigue profiles and exercise types. Users assign a specific engine per exercise.
+YAFA's workout engine is highly modular, separating concerns into independently testable units: progression models, the RPE matrix + e1RM subsystem, the reset/modifier subsystem, and the per-session prescription pipeline.
+
+### Core Concepts: The Two e1RMs
+
+To decouple physiological variance from prescribed weights, YAFA tracks two distinct estimated one-rep max (e1RM) values per exercise:
+
+- **`working_e1rm`**: A persistent planning scalar. Every weight prescription is computed from this. It increases by `weight_increment` on a successful session and is reduced by an intensity reset. It is the absolute source of truth for daily prescriptions.
+- **`observed_e1rm`**: A rolling average of implied e1RMs from the last 10 qualifying sets (reps ≤ 10 AND RPE ≥ 8). This is a **diagnostic only**—used to detect divergence from `working_e1rm` and as a re-baseline target during an intensity reset. It is *never* used directly for daily prescriptions.
+
+### Matrix-Derived Weights & Updates
+
+Weight is always calculated as: `weight = working_e1rm × rpe_matrix[reps][rpe]` (rounded to loadable increments). `weight_increment` is the amount added to `working_e1rm` on a successful session, not a direct load delta.
+
+The RPE matrix maps `(reps, rpe)` to a percentage of e1RM (axes: reps 1–10, RPE 6.0–10.0 in 0.5 steps). Post-session, the matrix is updated dynamically for qualifying sets:
+1. Recomputes `observed_e1rm`.
+2. Nudges the cell toward reality: `observed_pct = set_weight / observed_e1rm`, updating the cell using a slow-moving EMA (Exponential Moving Average).
+3. Smooths across neighboring cells within ±1.0 RPE of the touched cell.
+
+### Per-Session Prescription Pipeline
+
+For each exercise in a workout, prescriptions are calculated dynamically:
+1. **Resolve base targets** from the progression model.
+2. **Apply Mesocycle Modifiers** (multiplicative). Deload weeks are simply treated as normal weeks with modifiers that make the goal easy. Modifiers are only applied to fields not locked in the `ExerciseConfigSheet`.
+3. **Apply Active Reset Modifiers** (decaying fatigue modifiers) multiplicatively.
+4. **Compute weight** from the matrix using `working_e1rm` and the final reps/RPE.
+5. **Top Set + Back-Off**: Compute top set, then recalculate back-off loads from the top-set weight every session.
+
+All targets are clamped to sensible limits (sets ≥ 1, reps ≥ 1, RPE ≤ 10).
+
+---
+
+## 📈 Progression Models
+
+Each exercise is assigned a single progression model that dictates how `working_e1rm` adapts.
 
 ### 1. Linear Progression (LP)
 
-- **Application**: Main compound lifts during short-term strength peaking or re-sensitization phases.
-- **Logic**: Fixed weight increments applied session-to-session, provided target sets and reps are completed.
-- **Config Parameters**: `target_sets`, `target_reps`, `target_rpe`, `weight_increment`.
-- **Execution Rule**: Increase load by `weight_increment` for the next session if `actual_reps >= target_reps` AND `actual_rpe <= target_rpe` across all sets.
+- **Application**: Main compound lifts during strength peaking.
+- **Outcome logic**:
+  - **Progress**: `actual_reps >= target_reps` AND `actual_rpe <= target_rpe` across all sets → `working_e1rm += weight_increment`; zero the failure streak.
+  - **Failure**: `actual_reps < target_reps` OR `(actual_rpe - 1) > target_rpe` → increment failure streak.
+  - **Hold**: Anything in between → no change.
 
 ### 2. Double Progression
 
-- **Application**: Hypertrophy-focused accessory movements and isolation exercises.
-- **Logic**: Repetitions are expanded within a defined range. Weight is increased only when the rep ceiling is achieved across all sets, resetting reps to the floor.
-- **Config Parameters**: `target_sets`, `min_reps`, `max_reps`, `weight_increment`.
-- **Execution Rule**: Increase load by `weight_increment` and reset target to `min_reps` if `actual_reps >= max_reps` across all sets.
+- **Application**: Hypertrophy-focused accessory movements.
+- **Outcome logic**:
+  - If `actual_reps >= max_reps` across all sets → `working_e1rm += weight_increment`; reset current target reps to `min_reps`.
+  - Otherwise advance target reps toward `max_reps`.
+  - Tracks regression and plateau streaks based on the previous session's reps at the same weight.
 
 ### 3. Top Set + Back-Off
 
-- **Application**: Primary strength lifts requiring high-intensity exposure without excessive systemic fatigue.
-- **Logic**: A heavy top set near maximal RPE is followed by back-off sets at a lower percentage to accumulate clean volume.
-- **Config Parameters**: `top_set_target_reps`, `top_set_target_rpe`, `back_off_sets`, `percentage_drop`, `weight_increment`.
-- **Execution Rule**: Increase top set load by `weight_increment` if performance targets are met at or below target RPE; dynamically recalculate back-off loads.
+- **Application**: Primary strength lifts requiring high-intensity exposure.
+- **Outcome logic**: Only the **top set** drives progression and fatigue evaluation. If top-set targets are met at or below target RPE → `working_e1rm += weight_increment`; zero the failure streak. Back-off sets are never evaluated for progression, but still feed the RPE matrix updates.
 
-### 🛑 Fatigue Management & Automated Resets
+---
 
-YAFA utilizes specific rulesets to distinguish between an isolated bad training day and a true performance plateau, tailored to the progression model in use:
+## 🛑 Fatigue Management & Resets
 
-#### A. Top Set Progression Ruleset
+A reset zeroes the relevant streak counter and applies corrective modifiers to ease the lifter back into progression.
 
-- **Trigger:** 3 consecutive sessions of failure on the top set. A single session is flagged if:
-  - _Target Failure:_ `(actual_reps < target_reps && actual_rpe > target_rpe)`
-  - _Systemic Cost Too High:_ `(actual_rpe - 1 > target_rpe)`
-- **Action:** Prompt an **Intensity Reset**. The system recalculates the e1RM based on recent performance or applies a structural load reduction.
-- **Reasoning:** Top sets generate high central nervous system (CNS) fatigue. Using a 3-session trend distinguishes between a single bad day and a true plateau. Resetting the intensity allows the nervous system to recover and restores the athlete's capacity to express strength before resuming the progression.
+### Reset Triggers
 
-#### B. Linear Progression Ruleset
+- **Top Set**: 3 consecutive flagged sessions (`actual_reps < target_reps && actual_rpe > target_rpe` OR `actual_rpe - 1 > target_rpe`) → **Intensity Reset**.
+- **Linear Progression**: 3 consecutive failures → **Intensity Reset**.
+- **Double Progression**: Regression (2 consecutive sessions) or Hard Plateau (4+ consecutive sessions) → **Volume Reset**.
 
-- **Trigger:** 3 consecutive sessions of failure (`actual_reps < target_reps` OR `actual_rpe - 1 > target_rpe`).
-- **Action:** Prompt an **Intensity Reset** (-10% of working weight).
-- **Reasoning:** Linear progression relies on continuous, aggressive load increases. Failing multiple times indicates that fatigue accumulation has outpaced physical adaptation. Taking a 10% step back provides a "runway" to clear fatigue, build momentum, and break past the previous sticking point.
+### Decaying Modifier Queue
 
-#### C. Double Progression Ruleset
+Instead of permanent structural changes (outside of `working_e1rm` drops), resets apply as corrective multipliers that taper linearly to zero over a configurable number of sessions.
 
-- **Trigger:**
-  - _Regression:_ `actual_reps < previous_actual_reps` at the same weight for 2 consecutive sessions.
-  - _Hard Plateau:_ `actual_reps == previous_actual_reps` for 4+ consecutive sessions.
-- **Action:** Prompt an **Exercise Rotation** or **Volume Reset**. The weight is _not_ dropped.
-- **Reasoning:** Double progression is typically used for hypertrophy-focused accessory work where dropping absolute load is counterproductive. Instead, rotating the exercise (e.g., swapping Dumbbell OHP for Machine OHP) alters the resistance profile to spur new growth, or dropping a set clears local muscular fatigue without sacrificing intensity.
+- **Intensity Reset**: Causes a LASTING reduction of `working_e1rm` (e.g., -10% or snapped to `observed_e1rm`) to clear systemic fatigue, PLUS a decaying intensity modifier to ramp back in gently.
+- **Volume Reset**: Applies a decaying volume modifier only (reduces sets/reps). No change to `working_e1rm` or weight.
+- **Decay Windows**: Intensity decays over a longer window (≈5 sessions) than volume (≈3 sessions) because neurological/systemic fatigue takes longer to clear than local muscular fatigue.
 
 ---
 

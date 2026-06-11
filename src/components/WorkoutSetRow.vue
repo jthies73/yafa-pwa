@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
+import type { PrescribedSet } from "../engine/prescription";
 import {
   guardRepsKey,
   guardWeightKey,
@@ -7,10 +8,23 @@ import {
   sanitizeWeight,
 } from "../utils/numericInput";
 
-defineProps<{
+const props = defineProps<{
   index: number;
   state: "finished" | "current" | "upcoming";
+  /** Engine prescription backing this row — shown as placeholder targets. */
+  target?: PrescribedSet;
 }>();
+
+// Cleared inputs keep showing the prescribed target as ghost text.
+const repsPlaceholder = computed(() =>
+  props.target ? String(props.target.reps) : "-",
+);
+const weightPlaceholder = computed(() =>
+  props.target?.weight != null ? String(props.target.weight) : "-",
+);
+const rpePlaceholder = computed(() =>
+  props.target?.rpe != null ? String(props.target.rpe) : "–",
+);
 
 const emit = defineEmits<{
   (e: "toggle"): void;
@@ -116,7 +130,7 @@ function onWeightKeydown(e: KeyboardEvent) {
       v-model="reps"
       v-numpad="'integer'"
       type="text"
-      placeholder="-"
+      :placeholder="repsPlaceholder"
       class="min-w-0 flex-1 bg-surface-light dark:bg-surface-dark border rounded-lg px-2.5 py-2 text-sm font-mono text-center text-text-h-light dark:text-text-h-dark placeholder-text-light/40 dark:placeholder-text-dark/40 focus:outline-none focus:ring-2 transition-colors duration-150"
       :class="
         repsError
@@ -137,7 +151,7 @@ function onWeightKeydown(e: KeyboardEvent) {
       v-model="weight"
       v-numpad="'decimal'"
       type="text"
-      placeholder="-"
+      :placeholder="weightPlaceholder"
       class="min-w-0 flex-1 bg-surface-light dark:bg-surface-dark border rounded-lg px-2.5 py-2 text-sm font-mono text-center text-text-h-light dark:text-text-h-dark placeholder-text-light/40 dark:placeholder-text-dark/40 focus:outline-none focus:ring-2 transition-colors duration-150"
       :class="
         weightError
@@ -164,7 +178,7 @@ function onWeightKeydown(e: KeyboardEvent) {
       title="Set RPE"
       @click="$emit('edit-rpe')"
     >
-      <span :class="{ 'opacity-40': !rpe }">{{ rpe || "–" }}</span>
+      <span :class="{ 'opacity-40': !rpe }">{{ rpe || rpePlaceholder }}</span>
     </button>
 
     <!-- Checkmark -->

@@ -1,11 +1,19 @@
 import { ref, computed } from "vue";
 import { db } from "../db/db";
-import type { Workout, Routine, Exercise } from "../db/types";
-import { applyWorkoutResults } from "../engine/service";
+import type { Workout, WorkoutExercise, Routine, Exercise } from "../db/types";
+import { applyWorkoutResults, prescribeWorkout } from "../engine/service";
+import type { ExercisePrescription } from "../engine/prescription";
 
 const activeWorkout = ref<Workout | null>(null);
 const routine = ref<Routine | null>(null);
 const exercisesMap = ref<Record<string, Exercise>>({});
+// Engine prescriptions for the running workout, keyed by exerciseId. Duplicate
+// movements in a routine share one prescription, mirroring the engine's
+// "duplicate slots share the first slot's config" semantics.
+const prescriptions = ref<Record<string, ExercisePrescription>>({});
+// Live completed/pending counts projected from the tracker, driving the
+// finish-workout confirmation flow.
+const trackerStats = ref({ completed: 0, pending: 0 });
 const isMinimized = ref(false);
 const showSheet = ref(false);
 
@@ -13,6 +21,8 @@ function reset() {
   activeWorkout.value = null;
   routine.value = null;
   exercisesMap.value = {};
+  prescriptions.value = {};
+  trackerStats.value = { completed: 0, pending: 0 };
   isMinimized.value = false;
   showSheet.value = false;
 }
@@ -21,6 +31,7 @@ export function useActiveWorkout() {
   const startWorkout = async (routineId?: string) => {
     let r: Routine | null = null;
     const eMap: Record<string, Exercise> = {};
+    let rx: Record<string, ExercisePrescription> = {};
 
     if (routineId) {
       r = (await db.routines.get(routineId)) ?? null;
@@ -31,8 +42,20 @@ export function useActiveWorkout() {
         );
         for (const e of list) if (e) eMap[e.id] = e;
       }
+
+      // Resolve prescriptions before the workout becomes active so the
+      // tracker's rebuild sees them synchronously (no prefill race). A failing
+      // prescription must never block starting a workout.
+      try {
+        const list = await prescribeWorkout(routineId);
+        rx = Object.fromEntries(list.map((p) => [p.exerciseId, p]));
+      } catch (error) {
+        console.error("YAFA: failed to prescribe workout", error);
+      }
     }
 
+    prescriptions.value = rx;
+    trackerStats.value = { completed: 0, pending: 0 };
     activeWorkout.value = {
       id: crypto.randomUUID(),
       routineId: routineId ?? "",
@@ -48,9 +71,28 @@ export function useActiveWorkout() {
     showSheet.value = true;
   };
 
+  /** Replaces the workout's exercises with the tracker's projection. */
+  const syncExercises = (exercises: WorkoutExercise[]) => {
+    if (!activeWorkout.value) return;
+    activeWorkout.value = { ...activeWorkout.value, exercises };
+  };
+
+  const syncProgress = (stats: { completed: number; pending: number }) => {
+    trackerStats.value = stats;
+  };
+
   const finishWorkout = async () => {
     if (!activeWorkout.value) return;
-    const completed: Workout = { ...activeWorkout.value, endTime: Date.now() };
+    // Strip Vue reactivity proxies before persisting — IndexedDB's structured
+    // clone rejects them (same reason setPlanMesocycle flattens its weeks).
+    const completed: Workout = JSON.parse(
+      JSON.stringify({
+        ...activeWorkout.value,
+        endTime: Date.now(),
+        // Exercises the user never logged carry no information — drop them.
+        exercises: activeWorkout.value.exercises.filter((e) => e.sets.length),
+      }),
+    );
     await db.workouts.add(completed);
     // Post-session engine pass: matrix learning, e1RM/streak bookkeeping,
     // reset modifier decay. No-ops for exercises without logged sets.
@@ -67,6 +109,8 @@ export function useActiveWorkout() {
     activeWorkout: computed(() => activeWorkout.value),
     routine: computed(() => routine.value),
     exercisesMap: computed(() => exercisesMap.value),
+    prescriptions: computed(() => prescriptions.value),
+    trackerStats: computed(() => trackerStats.value),
     isMinimized: computed({
       get: () => isMinimized.value,
       set: (val) => {
@@ -83,5 +127,7 @@ export function useActiveWorkout() {
     finishWorkout,
     discardWorkout: reset,
     maximize,
+    syncExercises,
+    syncProgress,
   };
 }

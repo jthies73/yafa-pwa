@@ -46,6 +46,11 @@ const router = createRouter({
       name: "measurements",
       component: () => import("../components/MeasurementsPage.vue"),
     },
+    {
+      path: "/install",
+      name: "install",
+      component: () => import("../components/InstallPage.vue"),
+    },
   ],
 });
 

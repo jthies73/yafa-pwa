@@ -394,7 +394,6 @@ const confirmDeleteOpen = ref(false);
           Mesocycle buckets need an active plan with periodization configured.
         </p>
       </div>
-
     </div>
 
     <template #footer>

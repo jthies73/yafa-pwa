@@ -487,6 +487,42 @@ const isActive = (names: readonly string[] | string) => {
           </svg>
           <span>Import / Export</span>
         </button>
+
+        <!-- Install App (route nav, highlighted when active) -->
+        <a
+          href="#"
+          class="flex items-center gap-3 font-medium text-lg transition-colors cursor-pointer group"
+          :class="
+            isActive(['install'])
+              ? 'text-accent'
+              : 'text-text-light dark:text-text-dark hover:text-accent'
+          "
+          @click.prevent="navigateTo('install')"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            class="w-5 h-5 transition-colors"
+            :class="
+              isActive(['install'])
+                ? 'text-accent'
+                : 'text-text-light/70 dark:text-text-dark/70 group-hover:text-accent'
+            "
+          >
+            <rect width="16" height="20" x="4" y="2" rx="2" />
+            <path d="M12 7v6" />
+            <path d="m9 10 3 3 3-3" />
+            <path d="M10 18h4" />
+          </svg>
+          <span>Install App</span>
+        </a>
       </nav>
     </div>
 

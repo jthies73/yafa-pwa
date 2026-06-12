@@ -6,6 +6,23 @@ import { db } from "../db/db";
 import type { Plan, Routine } from "../db/types";
 import { useActiveWorkout } from "../composables/useActiveWorkout";
 import WorkoutPreviewSheet from "./WorkoutPreviewSheet.vue";
+import { isStandalone } from "../utils/platform";
+
+const INSTALL_BANNER_KEY = "yafa:dismissedInstallBanner";
+const isInstalled = isStandalone();
+const permanentlyDismissed =
+  typeof localStorage !== "undefined" &&
+  localStorage.getItem(INSTALL_BANNER_KEY) === "true";
+const sessionDismissed = ref(false);
+const showBanner = computed(
+  () => !isInstalled && !permanentlyDismissed && !sessionDismissed.value,
+);
+
+const dismissSession = () => (sessionDismissed.value = true);
+const dismissPermanent = () => {
+  localStorage.setItem(INSTALL_BANNER_KEY, "true");
+  sessionDismissed.value = true;
+};
 
 const router = useRouter();
 const {
@@ -111,6 +128,45 @@ watch(
 
 <template>
   <div class="p-6 relative min-h-full flex flex-col gap-6">
+    <!-- Install banner -->
+    <div
+      v-if="showBanner"
+      class="rounded-xl border border-accent/25 bg-accent/5 p-4 flex flex-col gap-3"
+    >
+      <div class="flex items-start gap-3">
+        <span
+          class="shrink-0 px-2.5 py-1 rounded-md bg-accent/15 text-accent text-xs font-bold uppercase tracking-wider"
+        >
+          Install
+        </span>
+        <p
+          class="text-sm font-semibold text-text-h-light dark:text-text-h-dark leading-snug pt-0.5"
+        >
+          Install YAFA for offline access and faster logging.
+        </p>
+      </div>
+      <button
+        class="w-full py-2 rounded-lg bg-accent hover:bg-accent-hover text-bg-dark text-sm font-bold cursor-pointer transition-colors duration-150"
+        @click="router.push({ name: 'install' })"
+      >
+        View Install Guide
+      </button>
+      <div class="flex items-center gap-2">
+        <button
+          class="flex-1 py-1.5 rounded-lg text-sm font-medium text-text-light dark:text-text-dark border border-border-light dark:border-border-dark hover:bg-surface-light dark:hover:bg-surface-dark cursor-pointer transition-colors duration-150"
+          @click="dismissSession"
+        >
+          Remind me later
+        </button>
+        <button
+          class="flex-1 py-1.5 rounded-lg text-sm font-medium text-text-light dark:text-text-dark border border-border-light dark:border-border-dark hover:bg-surface-light dark:hover:bg-surface-dark cursor-pointer transition-colors duration-150"
+          @click="dismissPermanent"
+        >
+          Do not ask again
+        </button>
+      </div>
+    </div>
+
     <!-- Page header -->
     <div class="flex items-center justify-between gap-4">
       <h1

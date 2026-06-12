@@ -164,8 +164,7 @@ export function prescribeExercise(
         topWeight === null
           ? null
           : roundToLoadable(
-              (bodyweightLoad + topWeight) *
-                (1 - params.percentageDrop / 100) -
+              (bodyweightLoad + topWeight) * (1 - params.percentageDrop / 100) -
                 bodyweightLoad,
             );
       return {

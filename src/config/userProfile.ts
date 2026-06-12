@@ -2,11 +2,11 @@
 // place as theme/units — see db/types.ts). The engine reads bodyweight to turn
 // bodyweight-loaded movements (pull-ups, dips, …) into total system load before
 // any e1RM/matrix math, and back into "added weight" for display.
-//   yafa:bodyweight — the lifter's bodyweight, in the app's weight unit
+//   yafa:bodyweight — the lifter's bodyweight, stored in kg
 
 export const BODYWEIGHT_KEY = "yafa:bodyweight";
 
-/** The lifter's bodyweight, or 0 when unset/invalid (⇒ no bodyweight load). */
+/** The lifter's bodyweight in kg, or 0 when unset/invalid (⇒ no bodyweight load). */
 export function getBodyweight(): number {
   const raw = Number(localStorage.getItem(BODYWEIGHT_KEY));
   return Number.isFinite(raw) && raw > 0 ? raw : 0;

@@ -5,8 +5,9 @@ import {
   guardRepsKey,
   guardWeightKey,
   sanitizeReps,
-  sanitizeWeight,
 } from "../utils/numericInput";
+import { useWeightField } from "../composables/useWeightField";
+import { useWeightUnit } from "../composables/useWeightUnit";
 
 const props = defineProps<{
   index: number;
@@ -15,12 +16,16 @@ const props = defineProps<{
   target?: PrescribedSet;
 }>();
 
+const { display: displayWeight } = useWeightUnit();
+
 // Cleared inputs keep showing the prescribed target as ghost text.
 const repsPlaceholder = computed(() =>
   props.target ? String(props.target.reps) : "-",
 );
 const weightPlaceholder = computed(() =>
-  props.target?.weight != null ? String(props.target.weight) : "-",
+  props.target?.weight != null
+    ? String(displayWeight(props.target.weight))
+    : "-",
 );
 const rpePlaceholder = computed(() =>
   props.target?.rpe != null ? String(props.target.rpe) : "–",
@@ -36,6 +41,16 @@ const emit = defineEmits<{
 const reps = defineModel<string>("reps", { default: "" });
 const weight = defineModel<string>("weight", { default: "" });
 const rpe = defineModel<string>("rpe", { default: "" });
+
+// The model stays in kg; this buffer is what the user sees/edits in their unit.
+const {
+  buffer: weightBuffer,
+  onFocus: onWeightFocus,
+  commit: commitWeight,
+} = useWeightField({
+  getKg: () => (weight.value === "" ? null : parseFloat(weight.value)),
+  setKg: (kg) => (weight.value = kg == null ? "" : String(kg)),
+});
 
 const repsInput = ref<HTMLInputElement | null>(null);
 const weightInput = ref<HTMLInputElement | null>(null);
@@ -108,6 +123,7 @@ function onRepsKeydown(e: KeyboardEvent) {
 function onWeightKeydown(e: KeyboardEvent) {
   if (e.key === "Enter") {
     e.preventDefault();
+    commitWeight(); // flush the buffer to the kg model before validating
     tryComplete();
     return;
   }
@@ -148,7 +164,7 @@ function onWeightKeydown(e: KeyboardEvent) {
     <!-- Weight -->
     <input
       ref="weightInput"
-      v-model="weight"
+      v-model="weightBuffer"
       v-numpad="'decimal'"
       type="text"
       :placeholder="weightPlaceholder"
@@ -158,8 +174,9 @@ function onWeightKeydown(e: KeyboardEvent) {
           ? 'border-red-500 dark:border-red-400 focus:border-red-500 focus:ring-red-500/20'
           : 'border-border-light dark:border-border-dark focus:border-accent/50 focus:ring-accent/40'
       "
+      @focus="onWeightFocus"
       @keydown="onWeightKeydown"
-      @blur="weight = sanitizeWeight(weight)"
+      @blur="commitWeight"
     />
 
     <span class="text-xs text-text-light dark:text-text-dark opacity-30"

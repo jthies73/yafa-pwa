@@ -6,6 +6,8 @@ import type {
   ProgressionParams,
 } from "../db/types";
 import { LOCKABLE_FIELDS } from "../config/periodization";
+import { useWeightUnit } from "../composables/useWeightUnit";
+import { useWeightField } from "../composables/useWeightField";
 import AppBottomSheet from "./AppBottomSheet.vue";
 import ConfirmDialog from "./ConfirmDialog.vue";
 import LockToggle from "./LockToggle.vue";
@@ -35,6 +37,21 @@ const configModel = ref<ProgressionModelType>("linear");
 const configParams = ref<Record<string, number>>({});
 const configNotes = ref("");
 const lockedFields = ref<Set<string>>(new Set());
+
+// weightIncrement is stored in kg; show/edit it in the active unit. One bridge
+// serves all three model variants (only one is rendered at a time).
+const { label: weightUnit } = useWeightUnit();
+const {
+  buffer: incrementBuffer,
+  onFocus: onIncrementFocus,
+  commit: commitIncrement,
+} = useWeightField({
+  getKg: () =>
+    typeof configParams.value.weightIncrement === "number"
+      ? configParams.value.weightIncrement
+      : null,
+  setKg: (kg) => (configParams.value.weightIncrement = kg ?? 0),
+});
 
 const isLocked = (field: string) => lockedFields.value.has(field);
 
@@ -103,6 +120,7 @@ const close = () => {
 };
 
 const save = async () => {
+  commitIncrement(); // flush the weight buffer to kg in case Save skipped blur
   // The matrix editor owns its own override persistence.
   await matrixEditor.value?.persist();
   // Only persist locks for fields that are lockable under the current model.
@@ -282,17 +300,16 @@ const save = async () => {
           <label
             class="text-xs font-bold uppercase tracking-wider text-text-light dark:text-text-dark opacity-60"
           >
-            Weight Increment (kg)
+            Weight Increment ({{ weightUnit }})
           </label>
           <input
-            v-model.number="configParams.weightIncrement"
-            v-numpad
+            v-model="incrementBuffer"
+            v-numpad="'decimal'"
             v-keynav
-            type="number"
-            min="0.25"
-            max="20"
-            step="0.25"
+            type="text"
             class="bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-lg px-3 py-2.5 text-sm font-mono text-text-h-light dark:text-text-h-dark focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent/50"
+            @focus="onIncrementFocus"
+            @blur="commitIncrement"
           />
         </div>
       </div>
@@ -363,17 +380,16 @@ const save = async () => {
           <label
             class="text-xs font-bold uppercase tracking-wider text-text-light dark:text-text-dark opacity-60"
           >
-            Weight Increment (kg)
+            Weight Increment ({{ weightUnit }})
           </label>
           <input
-            v-model.number="configParams.weightIncrement"
-            v-numpad
+            v-model="incrementBuffer"
+            v-numpad="'decimal'"
             v-keynav
-            type="number"
-            min="0.25"
-            max="20"
-            step="0.25"
+            type="text"
             class="bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-lg px-3 py-2.5 text-sm font-mono text-text-h-light dark:text-text-h-dark focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent/50"
+            @focus="onIncrementFocus"
+            @blur="commitIncrement"
           />
         </div>
       </div>
@@ -480,17 +496,16 @@ const save = async () => {
           <label
             class="text-xs font-bold uppercase tracking-wider text-text-light dark:text-text-dark opacity-60"
           >
-            Weight Increment (kg)
+            Weight Increment ({{ weightUnit }})
           </label>
           <input
-            v-model.number="configParams.weightIncrement"
-            v-numpad
+            v-model="incrementBuffer"
+            v-numpad="'decimal'"
             v-keynav
-            type="number"
-            min="0.25"
-            max="20"
-            step="0.25"
+            type="text"
             class="bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-lg px-3 py-2.5 text-sm font-mono text-text-h-light dark:text-text-h-dark focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent/50"
+            @focus="onIncrementFocus"
+            @blur="commitIncrement"
           />
         </div>
       </div>

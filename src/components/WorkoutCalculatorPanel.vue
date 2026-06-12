@@ -11,6 +11,9 @@ import {
 } from "../utils/numericInput";
 import ExercisePickerSheet from "./ExercisePickerSheet.vue";
 import ExerciseFormSheet from "./ExerciseFormSheet.vue";
+import { useWeightUnit } from "../composables/useWeightUnit";
+
+const { label: weightUnit } = useWeightUnit();
 
 const selected = ref<Exercise | null>(null);
 const reps = ref("");
@@ -125,7 +128,7 @@ const selectRpe = (value: number) => {
         <label
           class="text-xs font-bold uppercase tracking-wider text-text-light dark:text-text-dark opacity-60"
         >
-          Weight (kg)
+          Weight ({{ weightUnit }})
         </label>
         <input
           ref="weightInput"

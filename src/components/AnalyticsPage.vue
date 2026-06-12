@@ -1,5 +1,9 @@
 <script setup lang="ts">
 import { ref } from "vue";
+import { useWeightUnit } from "../composables/useWeightUnit";
+
+// Placeholder analytics — mock series treated as kg, shown in the active unit.
+const { label: weightUnit, display: displayWeight } = useWeightUnit();
 
 const variables = [
   { key: "squat", label: "Squat", color: "text-accent bg-accent/10" },
@@ -161,11 +165,11 @@ const polyline = mockPoints
         >
           <span
             class="text-[10px] text-text-light dark:text-text-dark opacity-40"
-            >{{ maxVal }}kg</span
+            >{{ displayWeight(maxVal) }}{{ weightUnit }}</span
           >
           <span
             class="text-[10px] text-text-light dark:text-text-dark opacity-40"
-            >{{ minVal }}kg</span
+            >{{ displayWeight(minVal) }}{{ weightUnit }}</span
           >
         </div>
       </div>
@@ -175,15 +179,15 @@ const polyline = mockPoints
         class="mt-3 pt-3 border-t border-border-light dark:border-border-dark flex items-baseline gap-2"
       >
         <span class="text-2xl font-bold text-accent"
-          >{{ mockPoints[mockPoints.length - 1] }}kg</span
+          >{{ displayWeight(mockPoints[mockPoints.length - 1])
+          }}{{ weightUnit }}</span
         >
         <span class="text-xs text-text-light dark:text-text-dark opacity-60"
           >latest session</span
         >
         <span class="ml-auto text-xs font-bold text-green-500">
-          +{{
-            (mockPoints[mockPoints.length - 1] - mockPoints[0]).toFixed(1)
-          }}kg since start
+          +{{ displayWeight(mockPoints[mockPoints.length - 1] - mockPoints[0])
+          }}{{ weightUnit }} since start
         </span>
       </div>
     </div>
@@ -192,9 +196,12 @@ const polyline = mockPoints
     <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
       <div
         v-for="stat in [
-          { label: 'Best Session', value: maxVal + 'kg' },
+          { label: 'Best Session', value: displayWeight(maxVal) + weightUnit },
           { label: 'Total Sessions', value: mockPoints.length },
-          { label: 'Avg Increment', value: '+2.5kg' },
+          {
+            label: 'Avg Increment',
+            value: '+' + displayWeight(2.5, 1) + weightUnit,
+          },
           { label: 'Weeks Active', value: '6' },
         ]"
         :key="stat.label"

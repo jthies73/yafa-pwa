@@ -15,6 +15,13 @@ import {
   type WorkoutPreview,
 } from "../engine/service";
 import AppBottomSheet from "./AppBottomSheet.vue";
+import { useWeightUnit } from "../composables/useWeightUnit";
+
+const {
+  label: weightUnit,
+  display: displayWeight,
+  format: fmtWeight,
+} = useWeightUnit();
 
 const props = defineProps<{
   routineId: string | null;
@@ -65,7 +72,6 @@ const ROLE_LABELS: Record<PrescribedSet["role"], string> = {
 };
 
 const fmtMult = (m: number) => `×${Math.round(m * 100) / 100}`;
-const fmtKg = (w: number) => `${Math.round(w * 10) / 10} kg`;
 
 interface SetGroup {
   count: number;
@@ -95,22 +101,28 @@ const groupSets = (sets: PrescribedSet[]): SetGroup[] => {
 const groupLine = (g: SetGroup): string => {
   const parts = [`${g.count} × ${g.set.reps}`];
   if (g.set.rpe != null) parts.push(`@ RPE ${g.set.rpe}`);
-  parts.push(g.set.weight != null ? `· ${fmtKg(g.set.weight)}` : "· — kg");
+  parts.push(
+    g.set.weight != null
+      ? `· ${fmtWeight(g.set.weight)}`
+      : `· — ${weightUnit.value}`,
+  );
   return parts.join(" ");
 };
 
 const baseConfigLine = (e: ExercisePreview): string => {
   if (!e.config) return "";
   const p = e.config.progressionParams as unknown as Record<string, number>;
+  // weightIncrement is stored in kg; show it in the active unit.
+  const inc = `+${displayWeight(p.weightIncrement, 2)} ${weightUnit.value}`;
   switch (e.config.progressionModel) {
     case "linear":
       return `${p.targetSets} × ${p.targetReps}${
         p.targetRpe != null ? ` @ RPE ${p.targetRpe}` : ""
-      } · +${p.weightIncrement} kg`;
+      } · ${inc}`;
     case "double":
-      return `${p.targetSets} × ${p.minReps}–${p.maxReps} · +${p.weightIncrement} kg`;
+      return `${p.targetSets} × ${p.minReps}–${p.maxReps} · ${inc}`;
     case "topset_backoff":
-      return `Top ${p.topSetTargetReps} @ RPE ${p.topSetTargetRpe} · ${p.backOffSets} back-off −${p.percentageDrop}% · +${p.weightIncrement} kg`;
+      return `Top ${p.topSetTargetReps} @ RPE ${p.topSetTargetRpe} · ${p.backOffSets} back-off −${p.percentageDrop}% · ${inc}`;
   }
 };
 
@@ -153,10 +165,10 @@ const streakNotes = (e: ExercisePreview): string[] => {
 
 const e1rmLine = (e: ExercisePreview): string => {
   if (e.workingE1rm === null) return "Not calibrated";
-  const working = `Working ${fmtKg(e.workingE1rm)}`;
+  const working = `Working ${fmtWeight(e.workingE1rm)}`;
   return e.observedE1rm === null
     ? working
-    : `${working} · observed ≈ ${fmtKg(e.observedE1rm)}`;
+    : `${working} · observed ≈ ${fmtWeight(e.observedE1rm)}`;
 };
 </script>
 

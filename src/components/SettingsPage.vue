@@ -34,6 +34,13 @@ const { label: lengthUnit, setUnit: setLengthUnitRaw } = useLengthUnit();
 
 const setWeightUnit = (unit: WeightUnit) => setUnit(unit);
 const setLengthUnit = (unit: LengthUnit) => setLengthUnitRaw(unit);
+
+const toggleWeightUnit = () => {
+  setWeightUnit(weightUnit.value === "kg" ? "lbs" : "kg");
+};
+const toggleLengthUnit = () => {
+  setLengthUnit(lengthUnit.value === "cm" ? "in" : "cm");
+};
 </script>
 
 <template>
@@ -121,32 +128,35 @@ const setLengthUnit = (unit: LengthUnit) => setLengthUnitRaw(unit);
               Preferred system for exercises
             </div>
           </div>
-          <div
-            class="flex items-center border border-border-light dark:border-border-dark rounded-lg overflow-hidden bg-black/5 dark:bg-white/5"
+          <button
+            type="button"
+            class="flex items-center border border-border-light dark:border-border-dark rounded-lg overflow-hidden bg-black/5 dark:bg-white/5 w-24 cursor-pointer select-none"
+            @click="toggleWeightUnit"
+            role="switch"
+            :aria-checked="weightUnit === 'lbs'"
+            aria-label="Toggle weight unit"
           >
-            <button
-              class="px-3 py-1.5 text-xs font-semibold cursor-pointer transition-colors duration-150"
+            <span
+              class="flex-1 text-center py-1.5 text-xs font-semibold transition-colors duration-150"
               :class="
                 weightUnit === 'kg'
-                  ? 'bg-accent text-bg-dark'
-                  : 'text-text-h-light dark:text-text-h-dark hover:bg-surface-light-hover dark:hover:bg-surface-dark-hover'
+                  ? 'bg-accent text-bg-dark font-bold'
+                  : 'text-text-h-light dark:text-text-h-dark hover:bg-surface-light-hover/40 dark:hover:bg-surface-dark-hover/40'
               "
-              @click="setWeightUnit('kg')"
             >
               kg
-            </button>
-            <button
-              class="px-3 py-1.5 text-xs font-semibold cursor-pointer transition-colors duration-150"
+            </span>
+            <span
+              class="flex-1 text-center py-1.5 text-xs font-semibold transition-colors duration-150"
               :class="
                 weightUnit === 'lbs'
-                  ? 'bg-accent text-bg-dark'
-                  : 'text-text-h-light dark:text-text-h-dark hover:bg-surface-light-hover dark:hover:bg-surface-dark-hover'
+                  ? 'bg-accent text-bg-dark font-bold'
+                  : 'text-text-h-light dark:text-text-h-dark hover:bg-surface-light-hover/40 dark:hover:bg-surface-dark-hover/40'
               "
-              @click="setWeightUnit('lbs')"
             >
               lbs
-            </button>
-          </div>
+            </span>
+          </button>
         </div>
 
         <!-- Length Units -->
@@ -161,32 +171,35 @@ const setLengthUnit = (unit: LengthUnit) => setLengthUnitRaw(unit);
               Preferred system for body measurements
             </div>
           </div>
-          <div
-            class="flex items-center border border-border-light dark:border-border-dark rounded-lg overflow-hidden bg-black/5 dark:bg-white/5"
+          <button
+            type="button"
+            class="flex items-center border border-border-light dark:border-border-dark rounded-lg overflow-hidden bg-black/5 dark:bg-white/5 w-24 cursor-pointer select-none"
+            @click="toggleLengthUnit"
+            role="switch"
+            :aria-checked="lengthUnit === 'in'"
+            aria-label="Toggle length unit"
           >
-            <button
-              class="px-3 py-1.5 text-xs font-semibold cursor-pointer transition-colors duration-150"
+            <span
+              class="flex-1 text-center py-1.5 text-xs font-semibold transition-colors duration-150"
               :class="
                 lengthUnit === 'cm'
-                  ? 'bg-accent text-bg-dark'
-                  : 'text-text-h-light dark:text-text-h-dark hover:bg-surface-light-hover dark:hover:bg-surface-dark-hover'
+                  ? 'bg-accent text-bg-dark font-bold'
+                  : 'text-text-h-light dark:text-text-h-dark hover:bg-surface-light-hover/40 dark:hover:bg-surface-dark-hover/40'
               "
-              @click="setLengthUnit('cm')"
             >
               cm
-            </button>
-            <button
-              class="px-3 py-1.5 text-xs font-semibold cursor-pointer transition-colors duration-150"
+            </span>
+            <span
+              class="flex-1 text-center py-1.5 text-xs font-semibold transition-colors duration-150"
               :class="
                 lengthUnit === 'in'
-                  ? 'bg-accent text-bg-dark'
-                  : 'text-text-h-light dark:text-text-h-dark hover:bg-surface-light-hover dark:hover:bg-surface-dark-hover'
+                  ? 'bg-accent text-bg-dark font-bold'
+                  : 'text-text-h-light dark:text-text-h-dark hover:bg-surface-light-hover/40 dark:hover:bg-surface-dark-hover/40'
               "
-              @click="setLengthUnit('in')"
             >
               in
-            </button>
-          </div>
+            </span>
+          </button>
         </div>
       </div>
 

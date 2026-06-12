@@ -5,6 +5,7 @@ import { countExerciseUsage } from "../db/repository";
 import AppBottomSheet from "./AppBottomSheet.vue";
 import ConfirmDialog from "./ConfirmDialog.vue";
 import ExerciseMusclePicker from "./ExerciseMusclePicker.vue";
+import ExerciseRpeMatrixEditor from "./ExerciseRpeMatrixEditor.vue";
 import { useExerciseForm } from "../composables/useExerciseForm";
 
 const props = defineProps<{
@@ -107,8 +108,14 @@ const close = () => {
   open.value = false;
 };
 
-const save = () => {
+const matrixEditor = ref<InstanceType<typeof ExerciseRpeMatrixEditor> | null>(
+  null,
+);
+
+const save = async () => {
   if (!canSave.value) return;
+  // The matrix editor owns its own per-exercise override persistence.
+  await matrixEditor.value?.persist();
   emit("save", getFormData());
 };
 </script>
@@ -306,6 +313,13 @@ const save = () => {
               class="resize-none rounded-lg border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2.5 text-sm text-text-h-light dark:text-text-h-dark placeholder-text-light/40 dark:placeholder-text-dark/40 focus:border-accent/50 focus:outline-none focus:ring-2 focus:ring-accent/40"
             ></textarea>
           </div>
+
+          <!-- RPE Matrix (existing exercises only) -->
+          <ExerciseRpeMatrixEditor
+            ref="matrixEditor"
+            :exercise-id="exerciseId"
+            :open="open"
+          />
         </div>
 
         <!-- Page 2: Muscle Picker Component -->

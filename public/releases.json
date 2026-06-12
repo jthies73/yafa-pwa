@@ -1,9 +1,13 @@
 {
-  "latest": "0.2.0",
+  "latest": "0.2.1",
   "releases": [
     {
+      "version": "0.2.1",
+      "notes": "- Add per-exercise RPE matrix visualization.\n- Add make RPE matrix editable and apply smoothing after edits."
+    },
+    {
       "version": "0.2.0",
-      "notes": "- Introducing the Workout Engine."
+      "notes": "- Introduce Workout Engine."
     },
     {
       "version": "0.1.2",
@@ -11,7 +15,7 @@
     },
     {
       "version": "0.1.1",
-      "notes": "- Streamlined app updates and data migrations.\n- Added comprehensive periodization and mesocycle planning."
+      "notes": "- Add comprehensive periodization and mesocycle planning."
     },
     {
       "version": "0.1.0",

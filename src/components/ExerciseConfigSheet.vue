@@ -142,7 +142,7 @@ const save = async () => {
 <template>
   <AppBottomSheet v-model:open="open">
     <template #title>
-      <div class="flex items-center justify-between gap-4">
+      <div class="flex items-center justify-between gap-4 w-full">
         <div class="min-w-0">
           <p
             class="text-xs font-semibold uppercase tracking-wider text-text-light dark:text-text-dark opacity-50 mb-0.5"

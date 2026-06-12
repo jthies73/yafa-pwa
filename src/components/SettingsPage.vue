@@ -2,9 +2,7 @@
 import { ref, onMounted } from "vue";
 import { DEFAULT_RPE_MATRIX } from "../db/rpeMatrix";
 import RpeMatrixTable from "./RpeMatrixTable.vue";
-import { getBodyweight, setBodyweight } from "../config/userProfile";
 import { useWeightUnit, type WeightUnit } from "../composables/useWeightUnit";
-import { useWeightField } from "../composables/useWeightField";
 import { useLengthUnit, type LengthUnit } from "../composables/useLengthUnit";
 
 const isDark = ref(false);
@@ -13,21 +11,6 @@ const rpeMatrix = DEFAULT_RPE_MATRIX;
 // Reactive, app-wide weight unit. Switching it reconverts every weight in the
 // app (kg stays the stored source of truth).
 const { label: weightUnit, setUnit } = useWeightUnit();
-
-// Bodyweight is stored in kg (userProfile); this field shows/edits it in the
-// active unit and converts back to kg on commit.
-const {
-  buffer: bodyweight,
-  onFocus: onBodyweightFocus,
-  commit: commitBodyweight,
-} = useWeightField({
-  getKg: () => {
-    const bw = getBodyweight();
-    return bw > 0 ? bw : null;
-  },
-  setKg: (kg) => setBodyweight(kg ?? 0),
-  decimals: 1,
-});
 
 onMounted(() => {
   const savedTheme = localStorage.getItem("theme");
@@ -163,36 +146,6 @@ const setLengthUnit = (unit: LengthUnit) => setLengthUnitRaw(unit);
             >
               lbs
             </button>
-          </div>
-        </div>
-
-        <!-- Bodyweight -->
-        <div
-          class="flex items-center justify-between py-3 border-b border-border-light dark:border-border-dark"
-        >
-          <div>
-            <div
-              class="font-semibold text-text-h-light dark:text-text-h-dark text-sm sm:text-base"
-            >
-              Bodyweight
-            </div>
-            <div class="text-xs text-text-light dark:text-text-dark opacity-60">
-              For system load calculations
-            </div>
-          </div>
-          <div class="flex items-center gap-2">
-            <input
-              type="text"
-              v-model="bodyweight"
-              v-numpad="'decimal'"
-              class="w-24 bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-lg px-3 py-1.5 text-sm text-right font-mono text-text-h-light dark:text-text-h-dark focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent/50"
-              @focus="onBodyweightFocus"
-              @blur="commitBodyweight"
-            />
-            <span
-              class="text-sm font-semibold text-text-light dark:text-text-dark opacity-60 min-w-6"
-              >{{ weightUnit }}</span
-            >
           </div>
         </div>
 

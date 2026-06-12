@@ -265,6 +265,11 @@ const isActive = (names: readonly string[] | string) => {
             },
             { name: 'analytics', label: 'Analytics', match: ['analytics'] },
             { name: 'exercises', label: 'Exercises', match: ['exercises'] },
+            {
+              name: 'measurements',
+              label: 'Measurements',
+              match: ['measurements'],
+            },
             { name: 'settings', label: 'Settings', match: ['settings'] },
           ]"
           :key="item.name"
@@ -371,6 +376,33 @@ const isActive = (names: readonly string[] | string) => {
             <rect x="6" y="5" width="2" height="14" rx="1" />
             <rect x="16" y="5" width="2" height="14" rx="1" />
             <line x1="8" x2="16" y1="12" y2="12" />
+          </svg>
+          <!-- Measurements icon -->
+          <svg
+            v-else-if="item.name === 'measurements'"
+            xmlns="http://www.w3.org/2000/svg"
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            class="w-5 h-5 transition-colors"
+            :class="
+              isActive(item.match)
+                ? 'text-accent'
+                : 'text-text-light/70 dark:text-text-dark/70 group-hover:text-accent'
+            "
+          >
+            <path
+              d="M21.3 8.7 8.7 21.3a1 1 0 0 1-1.4 0l-4.6-4.6a1 1 0 0 1 0-1.4L15.3 2.7a1 1 0 0 1 1.4 0l4.6 4.6a1 1 0 0 1 0 1.4Z"
+            />
+            <path d="m7.5 10.5 2 2" />
+            <path d="m10.5 7.5 2 2" />
+            <path d="m13.5 4.5 2 2" />
+            <path d="m4.5 13.5 2 2" />
           </svg>
           <!-- Settings icon -->
           <svg

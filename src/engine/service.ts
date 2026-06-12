@@ -11,7 +11,7 @@ import type {
   Workout,
 } from "../db/types";
 import { FOCUS_MODIFIERS, type FocusModifiers } from "../config/periodization";
-import { getBodyweight } from "../config/userProfile";
+import { BODYWEIGHT_TYPE_ID, latestEntry } from "../db/measurements";
 import { QUALIFYING_MAX_REPS } from "./config";
 import {
   applyMatrixUpdates,
@@ -145,7 +145,8 @@ export async function previewWorkout(
   const routine = await db.routines.get(routineId);
   if (!routine) return null;
 
-  const bodyweight = getBodyweight();
+  const bwEntry = await latestEntry(BODYWEIGHT_TYPE_ID);
+  const bodyweight = bwEntry?.value ?? 0;
 
   // The mesocycle week comes from the plan this routine belongs to — the
   // active plan wins when a routine is shared across plans.
@@ -236,7 +237,8 @@ export async function prescribeWorkout(
  */
 export async function applyWorkoutResults(workout: Workout): Promise<void> {
   const routine = await db.routines.get(workout.routineId);
-  const bodyweight = getBodyweight();
+  const bwEntry = await latestEntry(BODYWEIGHT_TYPE_ID);
+  const bodyweight = bwEntry?.value ?? 0;
 
   await db.transaction("rw", [db.exercises, db.progressionStates], async () => {
     for (const workoutExercise of workout.exercises) {

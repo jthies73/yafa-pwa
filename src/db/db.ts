@@ -5,6 +5,8 @@ import type {
   Plan,
   Workout,
   ProgressionState,
+  MeasurementType,
+  MeasurementEntry,
 } from "./types";
 
 export class YafaDatabase extends Dexie {
@@ -13,6 +15,8 @@ export class YafaDatabase extends Dexie {
   plans!: Table<Plan, string>;
   workouts!: Table<Workout, string>;
   progressionStates!: Table<ProgressionState, string>;
+  measurementTypes!: Table<MeasurementType, string>;
+  measurementEntries!: Table<MeasurementEntry, string>;
 
   constructor() {
     super("YafaDatabase");
@@ -27,6 +31,12 @@ export class YafaDatabase extends Dexie {
     // v2: per-exercise progression engine state (working e1RM, streaks, resets).
     this.version(2).stores({
       progressionStates: "exerciseId",
+    });
+
+    // v3: body measurements (anthropometrics + composition over time).
+    this.version(3).stores({
+      measurementTypes: "id, name, created_at",
+      measurementEntries: "id, measurementTypeId, timestamp",
     });
   }
 }

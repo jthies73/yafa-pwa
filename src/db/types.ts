@@ -170,6 +170,34 @@ export interface ProgressionState {
 }
 
 // ----------------------------------------------
+// Body Measurements
+// ----------------------------------------------
+
+// Which physical quantity a measurement tracks. This — not cm/kg — is what the
+// user picks; the concrete display unit (cm/in, kg/lbs) is a global preference
+// resolved at render time. PERCENTAGE is unit-less (body-fat %, etc.).
+export type MeasurementCategory = "WEIGHT" | "LENGTH" | "PERCENTAGE";
+
+export interface MeasurementType {
+  id: string;
+  name: string; // e.g. "Biceps", "Waist", "Bodyweight"
+  category: MeasurementCategory;
+  // System types (currently only "Bodyweight") cannot be renamed, recategorised
+  // or deleted — they link into the engine (bodyweight load) and analytics.
+  isSystem: boolean;
+  created_at: number;
+}
+
+export interface MeasurementEntry {
+  id: string;
+  measurementTypeId: string;
+  // Stored in the source-of-truth unit for the type's category: kg for WEIGHT,
+  // cm for LENGTH, raw percent for PERCENTAGE. Imperial never reaches the DB.
+  value: number;
+  timestamp: number; // epoch ms the measurement was taken
+}
+
+// ----------------------------------------------
 // Global State
 // ----------------------------------------------
 

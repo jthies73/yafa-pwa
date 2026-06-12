@@ -6,7 +6,10 @@ import type {
   Plan,
   Workout,
   ProgressionState,
+  MeasurementType,
+  MeasurementEntry,
 } from "./types";
+import { ensureSystemMeasurements } from "./measurements";
 
 /**
  * Full snapshot of the local database. Because YAFA is offline-only, this file
@@ -24,24 +27,44 @@ export interface BackupFile {
     workouts: Workout[];
     // Optional so backups created before the progression engine still import.
     progressionStates?: ProgressionState[];
+    // Optional so backups created before body measurements still import.
+    measurementTypes?: MeasurementType[];
+    measurementEntries?: MeasurementEntry[];
   };
 }
 
 /** Read every table into a serializable backup object. */
 export async function exportData(): Promise<BackupFile> {
-  const [exercises, routines, plans, workouts, progressionStates] =
-    await Promise.all([
-      db.exercises.toArray(),
-      db.routines.toArray(),
-      db.plans.toArray(),
-      db.workouts.toArray(),
-      db.progressionStates.toArray(),
-    ]);
+  const [
+    exercises,
+    routines,
+    plans,
+    workouts,
+    progressionStates,
+    measurementTypes,
+    measurementEntries,
+  ] = await Promise.all([
+    db.exercises.toArray(),
+    db.routines.toArray(),
+    db.plans.toArray(),
+    db.workouts.toArray(),
+    db.progressionStates.toArray(),
+    db.measurementTypes.toArray(),
+    db.measurementEntries.toArray(),
+  ]);
   return {
     app: "yafa",
     version: APP_VERSION,
     exportedAt: new Date().toISOString(),
-    data: { exercises, routines, plans, workouts, progressionStates },
+    data: {
+      exercises,
+      routines,
+      plans,
+      workouts,
+      progressionStates,
+      measurementTypes,
+      measurementEntries,
+    },
   };
 }
 
@@ -56,7 +79,15 @@ export async function importData(backup: BackupFile): Promise<void> {
   const { data } = backup;
   await db.transaction(
     "rw",
-    [db.exercises, db.routines, db.plans, db.workouts, db.progressionStates],
+    [
+      db.exercises,
+      db.routines,
+      db.plans,
+      db.workouts,
+      db.progressionStates,
+      db.measurementTypes,
+      db.measurementEntries,
+    ],
     async () => {
       await Promise.all([
         db.exercises.clear(),
@@ -64,12 +95,20 @@ export async function importData(backup: BackupFile): Promise<void> {
         db.plans.clear(),
         db.workouts.clear(),
         db.progressionStates.clear(),
+        db.measurementTypes.clear(),
+        db.measurementEntries.clear(),
       ]);
       await db.exercises.bulkAdd(data.exercises ?? []);
       await db.routines.bulkAdd(data.routines ?? []);
       await db.plans.bulkAdd(data.plans ?? []);
       await db.workouts.bulkAdd(data.workouts ?? []);
       await db.progressionStates.bulkAdd(data.progressionStates ?? []);
+      await db.measurementTypes.bulkAdd(data.measurementTypes ?? []);
+      await db.measurementEntries.bulkAdd(data.measurementEntries ?? []);
     },
   );
+
+  // The imported set may lack the system Bodyweight type or change the latest
+  // entry — re-bootstrap and refresh the synchronous bodyweight cache.
+  await ensureSystemMeasurements();
 }

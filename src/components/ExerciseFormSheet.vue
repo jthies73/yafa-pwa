@@ -123,7 +123,7 @@ const save = async () => {
 <template>
   <AppBottomSheet v-model:open="open">
     <template #title>
-      <div class="flex items-center justify-between gap-4">
+      <div class="flex items-center justify-between gap-4 w-full">
         <h2
           class="text-lg font-bold text-text-h-light dark:text-text-h-dark truncate"
         >

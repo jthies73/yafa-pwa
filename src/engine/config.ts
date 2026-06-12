@@ -52,7 +52,8 @@ export const DEFAULT_TARGET_RPE = 8;
 
 // Smallest weight step a barbell can actually be loaded to (ususally a 1.25 kg plate
 // pair). All prescribed weights are rounded to this.
-export const LOADABLE_INCREMENT_KG = 0.1;
+// TODO: make increments configurable per exercise
+export const LOADABLE_INCREMENT_KG = 2.5;
 
 // ---- Reset triggers ----
 

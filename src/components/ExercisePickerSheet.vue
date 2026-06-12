@@ -38,7 +38,7 @@ const filteredExercises = computed(() => {
   return allExercises.value.filter(
     (e) =>
       e.name.toLowerCase().includes(q) ||
-      e.primaryMuscleGroup.toLowerCase().includes(q) ||
+      e.primaryMuscleGroups.some((g) => g.toLowerCase().includes(q)) ||
       e.secondaryMuscleGroups?.some((s) => s.toLowerCase().includes(q)),
   );
 });
@@ -159,7 +159,7 @@ const createNew = () => {
       <span
         class="shrink-0 rounded-md border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-2 py-0.5 text-xs text-text-light dark:text-text-dark"
       >
-        {{ exercise.primaryMuscleGroup }}
+        {{ exercise.primaryMuscleGroups?.join(", ") }}
       </span>
     </div>
 

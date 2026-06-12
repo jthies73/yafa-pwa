@@ -3,7 +3,7 @@ import { MUSCLE_GROUPS } from "../utils/constants";
 
 const props = defineProps<{
   mode: "primary" | "secondary" | null;
-  primarySelected: string;
+  primarySelected: string[];
   secondarySelected: string[];
 }>();
 
@@ -14,7 +14,7 @@ const emit = defineEmits<{
 
 const isSelected = (group: string) => {
   if (props.mode === "primary") {
-    return props.primarySelected === group;
+    return props.primarySelected.includes(group);
   } else {
     return props.secondarySelected.includes(group);
   }

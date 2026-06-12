@@ -22,7 +22,7 @@ export class YafaDatabase extends Dexie {
     super("YafaDatabase");
 
     this.version(1).stores({
-      exercises: "id, name, primaryMuscleGroup, created_at",
+      exercises: "id, name, *primaryMuscleGroups, created_at",
       routines: "id, name, created_at",
       plans: "id, name, active, created_at",
       workouts: "id, routineId, startTime, endTime",
@@ -37,6 +37,21 @@ export class YafaDatabase extends Dexie {
     this.version(3).stores({
       measurementTypes: "id, name, created_at",
       measurementEntries: "id, measurementTypeId, timestamp",
+    });
+
+    // v4: primary muscle groups migrated to an array.
+    this.version(4).stores({
+      exercises: "id, name, *primaryMuscleGroups, created_at",
+    }).upgrade(tx => {
+      // Migrate old exercises that have `primaryMuscleGroup` (string) to `primaryMuscleGroups` (string[])
+      return tx.table("exercises").toCollection().modify(e => {
+        if (e.primaryMuscleGroup) {
+          e.primaryMuscleGroups = [e.primaryMuscleGroup];
+          delete e.primaryMuscleGroup;
+        } else if (!e.primaryMuscleGroups) {
+          e.primaryMuscleGroups = [];
+        }
+      });
     });
   }
 }

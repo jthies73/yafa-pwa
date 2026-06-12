@@ -5,7 +5,7 @@ const exercises: Exercise[] = [
   {
     id: "barbell-back-squat",
     name: "Barbell Back Squat",
-    primaryMuscleGroup: "Quads",
+    primaryMuscleGroups: ["Quads"],
     secondaryMuscleGroups: ["Glutes", "Hamstrings", "Lower Back"],
     notes: "",
     bodyweightFactor: 0.0,
@@ -14,7 +14,7 @@ const exercises: Exercise[] = [
   {
     id: "barbell-bench-press",
     name: "Barbell Bench Press",
-    primaryMuscleGroup: "Chest",
+    primaryMuscleGroups: ["Chest"],
     secondaryMuscleGroups: ["Front Delts", "Triceps"],
     notes: "",
     bodyweightFactor: 0.0,
@@ -23,7 +23,7 @@ const exercises: Exercise[] = [
   {
     id: "conventional-deadlift",
     name: "Conventional Deadlift",
-    primaryMuscleGroup: "Hamstrings",
+    primaryMuscleGroups: ["Hamstrings"],
     secondaryMuscleGroups: ["Glutes", "Lower Back", "Lats", "Forearms"],
     notes: "",
     bodyweightFactor: 0.0,
@@ -32,7 +32,7 @@ const exercises: Exercise[] = [
   {
     id: "overhead-press",
     name: "Overhead Press",
-    primaryMuscleGroup: "Shoulders",
+    primaryMuscleGroups: ["Shoulders"],
     secondaryMuscleGroups: ["Triceps", "Upper Chest", "Core"],
     notes: "",
     bodyweightFactor: 0.0,
@@ -41,7 +41,7 @@ const exercises: Exercise[] = [
   {
     id: "pull-ups",
     name: "Pull-ups",
-    primaryMuscleGroup: "Lats",
+    primaryMuscleGroups: ["Lats"],
     secondaryMuscleGroups: ["Biceps", "Upper Back", "Rear Delts"],
     notes: "",
     bodyweightFactor: 1.0,
@@ -50,7 +50,7 @@ const exercises: Exercise[] = [
   {
     id: "push-ups",
     name: "Push-ups",
-    primaryMuscleGroup: "Chest",
+    primaryMuscleGroups: ["Chest"],
     secondaryMuscleGroups: ["Front Delts", "Triceps", "Core"],
     notes: "",
     bodyweightFactor: 0.65,
@@ -59,7 +59,7 @@ const exercises: Exercise[] = [
   {
     id: "dumbbell-lateral-raise",
     name: "Dumbbell Lateral Raise",
-    primaryMuscleGroup: "Side Delts",
+    primaryMuscleGroups: ["Side Delts"],
     secondaryMuscleGroups: ["Traps"],
     notes: "",
     bodyweightFactor: 0.0,
@@ -68,7 +68,7 @@ const exercises: Exercise[] = [
   {
     id: "bicep-curl",
     name: "Bicep Curl",
-    primaryMuscleGroup: "Biceps",
+    primaryMuscleGroups: ["Biceps"],
     secondaryMuscleGroups: ["Forearms"],
     notes: "",
     bodyweightFactor: 0.0,

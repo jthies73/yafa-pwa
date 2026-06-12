@@ -49,11 +49,12 @@ const confirmDelete = () => {
 const initialProp = computed(() => props.initial);
 const {
   name,
-  primaryMuscleGroup,
+  primaryMuscleGroups,
   secondaryTags,
   bodyweightFactor,
   notes,
   canSave,
+  removePrimaryTag,
   removeTag,
   getFormData,
 } = useExerciseForm(initialProp, open);
@@ -89,11 +90,10 @@ const goToPage1 = () => {
 
 const handleMuscleToggle = (group: string) => {
   if (selectingMode.value === "primary") {
-    if (primaryMuscleGroup.value === group) {
-      primaryMuscleGroup.value = "";
+    if (primaryMuscleGroups.value.includes(group)) {
+      primaryMuscleGroups.value = primaryMuscleGroups.value.filter((t) => t !== group);
     } else {
-      primaryMuscleGroup.value = group;
-      setTimeout(() => goToPage1(), 150);
+      primaryMuscleGroups.value.push(group);
     }
   } else {
     if (secondaryTags.value.includes(group)) {
@@ -170,24 +170,53 @@ const save = async () => {
             <label
               class="text-xs font-bold uppercase tracking-wider text-text-light dark:text-text-dark opacity-60"
             >
-              Primary Muscle Group
+              Primary Muscle Groups
             </label>
-            <button
-              type="button"
-              class="flex items-center justify-between w-full text-left rounded-lg border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2.5 text-sm focus:border-accent/50 focus:outline-none focus:ring-2 focus:ring-accent/40 cursor-pointer transition-colors hover:bg-black/5 dark:hover:bg-white/5"
+            <div
+              role="button"
+              tabindex="0"
+              class="flex items-center justify-between gap-2 rounded-lg border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 cursor-pointer focus-within:border-accent/50 focus-within:ring-2 focus-within:ring-accent/40 min-h-[46px] transition-colors hover:bg-black/5 dark:hover:bg-white/5"
               @click="openMusclePicker('primary')"
+              @keydown.enter="openMusclePicker('primary')"
             >
-              <span
-                v-if="primaryMuscleGroup"
-                class="inline-flex items-center gap-1 rounded-md bg-accent/15 py-1 px-2.5 text-xs font-semibold text-accent"
-              >
-                {{ primaryMuscleGroup }}
-              </span>
-              <span v-else class="text-text-light/40 dark:text-text-dark/40">
-                Select primary muscle group...
-              </span>
+              <div class="flex flex-wrap items-center gap-2 flex-1">
+                <span
+                  v-for="tag in primaryMuscleGroups"
+                  :key="tag"
+                  class="inline-flex items-center gap-1 rounded-md bg-accent/15 py-1 pl-2.5 pr-1 text-xs font-semibold text-accent"
+                >
+                  {{ tag }}
+                  <button
+                    type="button"
+                    class="flex h-4 w-4 items-center justify-center rounded-sm text-accent/80 transition-colors duration-150 hover:bg-accent/20 hover:text-accent cursor-pointer"
+                    aria-label="Remove muscle group"
+                    @click.stop="removePrimaryTag(tag)"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="11"
+                      height="11"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="3"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <line x1="18" y1="6" x2="6" y2="18" />
+                      <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                  </button>
+                </span>
+                <span
+                  v-if="!primaryMuscleGroups.length"
+                  class="text-sm text-text-light/40 dark:text-text-dark/40"
+                >
+                  Add primary muscle groups...
+                </span>
+              </div>
               <svg
-                class="w-4 h-4 opacity-50"
+                class="w-4 h-4 opacity-50 shrink-0"
                 xmlns="http://www.w3.org/2000/svg"
                 fill="none"
                 viewBox="0 0 24 24"
@@ -200,7 +229,7 @@ const save = async () => {
                   d="M9 5l7 7-7 7"
                 />
               </svg>
-            </button>
+            </div>
           </div>
 
           <!-- Secondary muscle groups -->
@@ -326,7 +355,7 @@ const save = async () => {
         <div class="w-1/2 shrink-0">
           <ExerciseMusclePicker
             :mode="selectingMode"
-            :primary-selected="primaryMuscleGroup"
+            :primary-selected="primaryMuscleGroups"
             :secondary-selected="secondaryTags"
             @toggle="handleMuscleToggle"
             @back="goToPage1"

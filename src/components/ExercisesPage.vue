@@ -33,7 +33,7 @@ const filtered = computed(() => {
   return exercises.value.filter(
     (e) =>
       e.name.toLowerCase().includes(q) ||
-      e.primaryMuscleGroup.toLowerCase().includes(q) ||
+      e.primaryMuscleGroups.some((g) => g.toLowerCase().includes(q)) ||
       e.secondaryMuscleGroups?.some((s) => s.toLowerCase().includes(q)),
   );
 });
@@ -42,7 +42,9 @@ const filtered = computed(() => {
 const grouped = computed(() => {
   const groups: Record<string, Exercise[]> = {};
   for (const e of filtered.value) {
-    (groups[e.primaryMuscleGroup] ??= []).push(e);
+    for (const group of e.primaryMuscleGroups || []) {
+      (groups[group] ??= []).push(e);
+    }
   }
   return Object.keys(groups)
     .sort((a, b) => a.localeCompare(b))
@@ -58,7 +60,7 @@ const formInitial = computed<ExerciseInput | undefined>(() => {
   if (!e) return undefined;
   return {
     name: e.name,
-    primaryMuscleGroup: e.primaryMuscleGroup,
+    primaryMuscleGroups: e.primaryMuscleGroups,
     secondaryMuscleGroups: e.secondaryMuscleGroups,
     notes: e.notes,
     bodyweightFactor: e.bodyweightFactor,

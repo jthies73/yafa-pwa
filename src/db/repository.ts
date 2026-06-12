@@ -28,7 +28,7 @@ export interface RoutineInput {
 
 export interface ExerciseInput {
   name: string;
-  primaryMuscleGroup: string;
+  primaryMuscleGroups: string[];
   secondaryMuscleGroups?: string[];
   notes?: string;
   bodyweightFactor: number;
@@ -195,7 +195,7 @@ export async function createExercise(input: ExerciseInput): Promise<string> {
   const exercise: Exercise = {
     id,
     name: input.name.trim(),
-    primaryMuscleGroup: input.primaryMuscleGroup.trim(),
+    primaryMuscleGroups: input.primaryMuscleGroups.map(s => s.trim()).filter(Boolean),
     secondaryMuscleGroups: secondary.length ? secondary : undefined,
     notes: input.notes?.trim() || undefined,
     bodyweightFactor: input.bodyweightFactor,
@@ -220,7 +220,7 @@ export async function updateExercise(
   // override reverts the exercise to inheriting the global matrix.
   await db.exercises.update(id, {
     name: input.name.trim(),
-    primaryMuscleGroup: input.primaryMuscleGroup.trim(),
+    primaryMuscleGroups: input.primaryMuscleGroups.map(s => s.trim()).filter(Boolean),
     secondaryMuscleGroups: secondary.length ? secondary : undefined,
     notes: input.notes?.trim() || undefined,
     bodyweightFactor: input.bodyweightFactor,

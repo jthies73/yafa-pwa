@@ -6,7 +6,7 @@ export function useExerciseForm(
   isOpen: Ref<boolean>,
 ) {
   const name = ref("");
-  const primaryMuscleGroup = ref("");
+  const primaryMuscleGroups = ref<string[]>([]);
   const secondaryTags = ref<string[]>([]);
   const bodyweightFactor = ref(0);
   const notes = ref("");
@@ -16,7 +16,7 @@ export function useExerciseForm(
     (open) => {
       if (!open) return;
       name.value = initial.value?.name ?? "";
-      primaryMuscleGroup.value = initial.value?.primaryMuscleGroup ?? "";
+      primaryMuscleGroups.value = [...(initial.value?.primaryMuscleGroups ?? [])];
       secondaryTags.value = [...(initial.value?.secondaryMuscleGroups ?? [])];
       bodyweightFactor.value = initial.value?.bodyweightFactor ?? 0;
       notes.value = initial.value?.notes ?? "";
@@ -27,8 +27,12 @@ export function useExerciseForm(
   const canSave = computed(
     () =>
       name.value.trim().length > 0 &&
-      primaryMuscleGroup.value.trim().length > 0,
+      primaryMuscleGroups.value.length > 0,
   );
+
+  const removePrimaryTag = (tag: string) => {
+    primaryMuscleGroups.value = primaryMuscleGroups.value.filter((t) => t !== tag);
+  };
 
   const removeTag = (tag: string) => {
     secondaryTags.value = secondaryTags.value.filter((t) => t !== tag);
@@ -36,7 +40,7 @@ export function useExerciseForm(
 
   const getFormData = (): ExerciseInput => ({
     name: name.value,
-    primaryMuscleGroup: primaryMuscleGroup.value,
+    primaryMuscleGroups: primaryMuscleGroups.value,
     secondaryMuscleGroups: secondaryTags.value,
     notes: notes.value,
     bodyweightFactor: Number(bodyweightFactor.value) || 0,
@@ -44,11 +48,12 @@ export function useExerciseForm(
 
   return {
     name,
-    primaryMuscleGroup,
+    primaryMuscleGroups,
     secondaryTags,
     bodyweightFactor,
     notes,
     canSave,
+    removePrimaryTag,
     removeTag,
     getFormData,
   };

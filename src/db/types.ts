@@ -37,7 +37,7 @@ export type RpeMatrix = Record<number, Record<number, number>>;
 export interface Exercise {
   id: string;
   name: string;
-  primaryMuscleGroup: string;
+  primaryMuscleGroups: string[];
   secondaryMuscleGroups?: string[];
   notes?: string;
   bodyweightFactor: number; // Decimal representing % of bodyweight moved (e.g. 1.0 for pullups, 0.65 for pushups, 0.0 for barbell/dumbbell lifts)

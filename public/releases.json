@@ -1,6 +1,14 @@
 {
-  "latest": "0.2.1",
+  "latest": "0.4.0",
   "releases": [
+    {
+      "version": "0.4.0",
+      "notes": "- Add dynamic analytics engine.\n- Add chart builder with configurable scopes (global, muscle, exercise).\n- Add chart types (line, bar, stacked bar).\n- Add inline analytics and measurement history."
+    },
+    {
+      "version": "0.3.0",
+      "notes": "- Add Measurements: Keep track of body weight, body fat, and other body measurements."
+    },
     {
       "version": "0.2.1",
       "notes": "- Add per-exercise RPE matrix visualization.\n- Add make RPE matrix editable and apply smoothing after edits."

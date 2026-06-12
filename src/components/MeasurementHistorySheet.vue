@@ -16,7 +16,12 @@ import {
   useMeasurementField,
   useMeasurementFormat,
 } from "../composables/useMeasurementUnit";
+import {
+  computeMeasurementSeries,
+  type BucketPoint,
+} from "../analytics/compute";
 import { guardWeightKey } from "../utils/numericInput";
+import AnalyticsChart from "./AnalyticsChart.vue";
 import AppBottomSheet from "./AppBottomSheet.vue";
 import ConfirmDialog from "./ConfirmDialog.vue";
 
@@ -61,6 +66,25 @@ const category = computed<MeasurementCategory>(
   () => props.type?.category ?? "LENGTH",
 );
 
+// --- Inline trend chart ---
+// Fixed 3-month window, deliberately independent of the analytics page's
+// global timeframe toggle: this chart answers "where am I trending right now",
+// shown before the user logs a new entry.
+const TREND_WINDOW_MS = 90 * 24 * 60 * 60 * 1000;
+
+const trendPoints = computed<BucketPoint[]>(() => {
+  const cutoff = Date.now() - TREND_WINDOW_MS;
+  return computeMeasurementSeries({
+    entries: entries.value.filter((e) => e.timestamp >= cutoff),
+    bucket: "session",
+  });
+});
+
+const formatTrendValue = (value: number) => format(value, category.value);
+const trendTitle = (point: BucketPoint) =>
+  `${point.label} — ${format(point.value, category.value)}`;
+const trendLines = () => [];
+
 const pendingValue = ref<number | null>(null);
 const { buffer, onFocus, commit, unitLabel } = useMeasurementField({
   category,
@@ -85,9 +109,13 @@ const resetEntryForm = () => {
   entryTimeLocal.value = toLocalInput(Date.now());
 };
 
-watch(open, (isOpen) => {
-  if (isOpen) resetEntryForm();
-}, { immediate: true });
+watch(
+  open,
+  (isOpen) => {
+    if (isOpen) resetEntryForm();
+  },
+  { immediate: true },
+);
 
 const onValueKeydown = (e: KeyboardEvent) => {
   if (e.key === "Enter") {
@@ -191,6 +219,30 @@ const requestDeleteType = () => {
         </span>
       </div>
     </template>
+
+    <!-- Trend (same line style as the analytics charts) -->
+    <div
+      v-if="trendPoints.length >= 2"
+      class="border-b border-border-light dark:border-border-dark px-5 py-4"
+    >
+      <div class="mb-2 flex items-center justify-between">
+        <h3
+          class="text-xs font-bold uppercase tracking-wider text-text-light dark:text-text-dark opacity-50"
+        >
+          Trend
+        </h3>
+        <span class="text-xs text-text-light dark:text-text-dark opacity-40">
+          Last 3 months
+        </span>
+      </div>
+      <AnalyticsChart
+        :points="trendPoints"
+        type="line"
+        :format-value="formatTrendValue"
+        :tooltip-title="trendTitle"
+        :tooltip-lines="trendLines"
+      />
+    </div>
 
     <!-- Data entry -->
     <div

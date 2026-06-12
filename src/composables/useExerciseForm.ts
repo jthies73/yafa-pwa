@@ -16,7 +16,9 @@ export function useExerciseForm(
     (open) => {
       if (!open) return;
       name.value = initial.value?.name ?? "";
-      primaryMuscleGroups.value = [...(initial.value?.primaryMuscleGroups ?? [])];
+      primaryMuscleGroups.value = [
+        ...(initial.value?.primaryMuscleGroups ?? []),
+      ];
       secondaryTags.value = [...(initial.value?.secondaryMuscleGroups ?? [])];
       bodyweightFactor.value = initial.value?.bodyweightFactor ?? 0;
       notes.value = initial.value?.notes ?? "";
@@ -25,13 +27,13 @@ export function useExerciseForm(
   );
 
   const canSave = computed(
-    () =>
-      name.value.trim().length > 0 &&
-      primaryMuscleGroups.value.length > 0,
+    () => name.value.trim().length > 0 && primaryMuscleGroups.value.length > 0,
   );
 
   const removePrimaryTag = (tag: string) => {
-    primaryMuscleGroups.value = primaryMuscleGroups.value.filter((t) => t !== tag);
+    primaryMuscleGroups.value = primaryMuscleGroups.value.filter(
+      (t) => t !== tag,
+    );
   };
 
   const removeTag = (tag: string) => {

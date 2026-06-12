@@ -198,6 +198,43 @@ export interface MeasurementEntry {
 }
 
 // ----------------------------------------------
+// Analytics
+// ----------------------------------------------
+
+export type AnalyticsSourceKind =
+  | "global"
+  | "muscle"
+  | "exercise"
+  | "measurement";
+
+// "value" is the raw logged measurement and only exists for the measurement
+// source; every other metric is workout-derived.
+export type AnalyticsMetric =
+  | "workouts"
+  | "sets"
+  | "reps"
+  | "volume"
+  | "e1rm"
+  | "value";
+
+export type AnalyticsBucket = "session" | "week" | "month" | "mesocycle";
+
+// A user-configured chart on the analytics page. Flat optional source fields
+// (instead of a discriminated union) keep the shape Dexie-friendly; exactly
+// the field matching `sourceKind` is set.
+export interface AnalyticsChartConfig {
+  id: string;
+  sourceKind: AnalyticsSourceKind;
+  muscleGroup?: string; // sourceKind === "muscle"
+  exerciseId?: string; // sourceKind === "exercise"
+  measurementTypeId?: string; // sourceKind === "measurement"
+  metric: AnalyticsMetric;
+  bucket: AnalyticsBucket;
+  order: number; // manual drag-to-reorder position on the analytics page
+  created_at: number;
+}
+
+// ----------------------------------------------
 // Global State
 // ----------------------------------------------
 

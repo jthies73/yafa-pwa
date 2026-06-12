@@ -91,7 +91,9 @@ const goToPage1 = () => {
 const handleMuscleToggle = (group: string) => {
   if (selectingMode.value === "primary") {
     if (primaryMuscleGroups.value.includes(group)) {
-      primaryMuscleGroups.value = primaryMuscleGroups.value.filter((t) => t !== group);
+      primaryMuscleGroups.value = primaryMuscleGroups.value.filter(
+        (t) => t !== group,
+      );
     } else {
       primaryMuscleGroups.value.push(group);
     }

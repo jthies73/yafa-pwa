@@ -14,8 +14,6 @@ function uid(): string {
   return crypto.randomUUID();
 }
 
-
-
 /** Most recent entry for a type, or undefined when none logged yet. */
 export async function latestEntry(
   typeId: string,
@@ -128,5 +126,3 @@ export async function logMeasurementEntry(input: {
 export async function deleteMeasurementEntry(id: string): Promise<void> {
   await db.measurementEntries.delete(id);
 }
-
-

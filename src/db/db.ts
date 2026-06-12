@@ -7,6 +7,7 @@ import type {
   ProgressionState,
   MeasurementType,
   MeasurementEntry,
+  AnalyticsChartConfig,
 } from "./types";
 
 export class YafaDatabase extends Dexie {
@@ -17,6 +18,7 @@ export class YafaDatabase extends Dexie {
   progressionStates!: Table<ProgressionState, string>;
   measurementTypes!: Table<MeasurementType, string>;
   measurementEntries!: Table<MeasurementEntry, string>;
+  analyticsCharts!: Table<AnalyticsChartConfig, string>;
 
   constructor() {
     super("YafaDatabase");
@@ -40,18 +42,28 @@ export class YafaDatabase extends Dexie {
     });
 
     // v4: primary muscle groups migrated to an array.
-    this.version(4).stores({
-      exercises: "id, name, *primaryMuscleGroups, created_at",
-    }).upgrade(tx => {
-      // Migrate old exercises that have `primaryMuscleGroup` (string) to `primaryMuscleGroups` (string[])
-      return tx.table("exercises").toCollection().modify(e => {
-        if (e.primaryMuscleGroup) {
-          e.primaryMuscleGroups = [e.primaryMuscleGroup];
-          delete e.primaryMuscleGroup;
-        } else if (!e.primaryMuscleGroups) {
-          e.primaryMuscleGroups = [];
-        }
+    this.version(4)
+      .stores({
+        exercises: "id, name, *primaryMuscleGroups, created_at",
+      })
+      .upgrade((tx) => {
+        // Migrate old exercises that have `primaryMuscleGroup` (string) to `primaryMuscleGroups` (string[])
+        return tx
+          .table("exercises")
+          .toCollection()
+          .modify((e) => {
+            if (e.primaryMuscleGroup) {
+              e.primaryMuscleGroups = [e.primaryMuscleGroup];
+              delete e.primaryMuscleGroup;
+            } else if (!e.primaryMuscleGroups) {
+              e.primaryMuscleGroups = [];
+            }
+          });
       });
+
+    // v5: user-configured analytics charts (source × metric × time bucket).
+    this.version(5).stores({
+      analyticsCharts: "id, order",
     });
   }
 }

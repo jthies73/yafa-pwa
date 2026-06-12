@@ -288,7 +288,7 @@ watch(
       </div>
     </div>
 
-    <!-- 2 + 3) Analytics & Active Plan nav cards -->
+    <!-- 2 + 3) Quick-nav cards -->
     <div class="grid grid-cols-2 gap-4">
       <!-- Analytics -->
       <button
@@ -369,6 +369,87 @@ watch(
             class="text-xs text-text-light dark:text-text-dark opacity-55 mt-0.5 truncate"
           >
             {{ loading ? "—" : (activePlan?.name ?? "None set") }}
+          </div>
+        </div>
+      </button>
+
+      <!-- Exercises -->
+      <button
+        class="bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-xl p-4 shadow-sm flex flex-col gap-2.5 text-left hover:bg-surface-light-hover dark:hover:bg-surface-dark-hover cursor-pointer transition-colors duration-150"
+        @click="router.push({ name: 'exercises' })"
+      >
+        <div
+          class="w-9 h-9 rounded-lg bg-slate-500/10 text-slate-500 flex items-center justify-center"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="m6.5 6.5 11 11" />
+            <path d="m21 21-1-1" />
+            <path d="m3 3 1 1" />
+            <path d="m18 22 4-4" />
+            <path d="m2 6 4-4" />
+            <path d="m3 10 7-7" />
+            <path d="m14 21 7-7" />
+          </svg>
+        </div>
+        <div>
+          <div
+            class="font-bold text-sm text-text-h-light dark:text-text-h-dark"
+          >
+            Exercises
+          </div>
+          <div
+            class="text-xs text-text-light dark:text-text-dark opacity-55 mt-0.5"
+          >
+            Manage library
+          </div>
+        </div>
+      </button>
+
+      <!-- Settings -->
+      <button
+        class="bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-xl p-4 shadow-sm flex flex-col gap-2.5 text-left hover:bg-surface-light-hover dark:hover:bg-surface-dark-hover cursor-pointer transition-colors duration-150"
+        @click="router.push({ name: 'settings' })"
+      >
+        <div
+          class="w-9 h-9 rounded-lg bg-slate-500/10 text-slate-500 flex items-center justify-center"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path
+              d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.1a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"
+            />
+            <circle cx="12" cy="12" r="3" />
+          </svg>
+        </div>
+        <div>
+          <div
+            class="font-bold text-sm text-text-h-light dark:text-text-h-dark"
+          >
+            Settings
+          </div>
+          <div
+            class="text-xs text-text-light dark:text-text-dark opacity-55 mt-0.5"
+          >
+            Preferences
           </div>
         </div>
       </button>

@@ -5,6 +5,7 @@ import { liveQuery } from "dexie";
 import { db } from "../db/db";
 import type { Plan, Routine } from "../db/types";
 import { useActiveWorkout } from "../composables/useActiveWorkout";
+import WorkoutPreviewSheet from "./WorkoutPreviewSheet.vue";
 
 const router = useRouter();
 const {
@@ -53,7 +54,18 @@ const today = computed(() =>
   }),
 );
 
+// Routine clicks open a preview of the calculated workout first; the actual
+// start happens from the preview sheet's footer.
+const previewRoutineId = ref<string | null>(null);
+const showPreview = ref(false);
+
 const startRoutine = (routineId: string) => {
+  previewRoutineId.value = routineId;
+  showPreview.value = true;
+};
+
+const onStartFromPreview = (routineId: string) => {
+  showPreview.value = false;
   startWorkout(routineId);
 };
 
@@ -362,4 +374,10 @@ watch(
       </button>
     </div>
   </div>
+
+  <WorkoutPreviewSheet
+    v-model:open="showPreview"
+    :routine-id="previewRoutineId"
+    @start="onStartFromPreview"
+  />
 </template>

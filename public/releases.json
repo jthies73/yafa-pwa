@@ -1,6 +1,10 @@
 {
-  "latest": "0.5.1",
+  "latest": "0.5.2",
   "releases": [
+    {
+      "version": "0.5.2",
+      "notes": "- Implement set calculator"
+    },
     {
       "version": "0.5.1",
       "notes": "- Improve Update functionality."

@@ -34,15 +34,6 @@ function handleKeydown(e: KeyboardEvent) {
 
 watch(open, (isOpen) => {
   document.body.style.overflow = isOpen ? "hidden" : "";
-  // Focus cancel button when dialog opens so ENTER/TAB work naturally
-  if (isOpen) {
-    setTimeout(() => {
-      const cancelBtn = document.querySelector(
-        "[role='alertdialog'] button:first-of-type",
-      ) as HTMLButtonElement;
-      cancelBtn?.focus();
-    }, 0);
-  }
 });
 
 onMounted(() => {

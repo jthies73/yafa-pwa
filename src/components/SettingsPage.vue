@@ -125,10 +125,10 @@ const toggleLengthUnit = () => {
           <button
             type="button"
             class="flex items-center border border-border-light dark:border-border-dark rounded-lg overflow-hidden bg-black/5 dark:bg-white/5 w-24 cursor-pointer select-none"
-            @click="toggleWeightUnit"
             role="switch"
             :aria-checked="weightUnit === 'lbs'"
             aria-label="Toggle weight unit"
+            @click="toggleWeightUnit"
           >
             <span
               class="flex-1 text-center py-1.5 text-xs font-semibold transition-colors duration-150"
@@ -165,10 +165,10 @@ const toggleLengthUnit = () => {
           <button
             type="button"
             class="flex items-center border border-border-light dark:border-border-dark rounded-lg overflow-hidden bg-black/5 dark:bg-white/5 w-24 cursor-pointer select-none"
-            @click="toggleLengthUnit"
             role="switch"
             :aria-checked="lengthUnit === 'in'"
             aria-label="Toggle length unit"
+            @click="toggleLengthUnit"
           >
             <span
               class="flex-1 text-center py-1.5 text-xs font-semibold transition-colors duration-150"

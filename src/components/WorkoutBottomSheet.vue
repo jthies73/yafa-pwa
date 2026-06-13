@@ -14,6 +14,7 @@ const {
   isMinimized,
   showSheet,
   trackerStats,
+  calculatorSetCount,
   finishWorkout,
   discardWorkout,
 } = useActiveWorkout();
@@ -29,7 +30,7 @@ const confirmingFinish = ref(false);
 
 const onFinishClick = () => {
   const { completed, pending } = trackerStats.value;
-  if (completed === 0) {
+  if (completed + calculatorSetCount.value === 0) {
     confirmingDiscard.value = true;
   } else if (pending > 0) {
     confirmingFinish.value = true;
@@ -133,19 +134,10 @@ watch(
 
     <template #footer>
       <button
-        v-if="page === 0"
         class="w-full py-3.5 bg-accent hover:bg-accent-hover text-bg-dark font-bold rounded-xl cursor-pointer transition-colors duration-150 text-sm tracking-wide uppercase"
         @click="onFinishClick"
       >
         Finish Workout
-      </button>
-      <button
-        v-else
-        disabled
-        class="w-full py-3.5 bg-accent/40 text-bg-dark font-bold rounded-xl text-sm tracking-wide uppercase cursor-not-allowed"
-        title="Calculation coming soon"
-      >
-        Calculate
       </button>
     </template>
   </AppBottomSheet>

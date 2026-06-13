@@ -1,8 +1,21 @@
 import { ref, computed } from "vue";
 import { db } from "../db/db";
-import type { Workout, WorkoutExercise, Routine, Exercise } from "../db/types";
+import type {
+  Workout,
+  WorkoutExercise,
+  Routine,
+  Exercise,
+  Set as LoggedSet,
+} from "../db/types";
 import { applyWorkoutResults, prescribeWorkout } from "../engine/service";
 import type { ExercisePrescription } from "../engine/prescription";
+
+export interface CalculatorSet {
+  exerciseId: string;
+  exerciseName: string;
+  e1rm: number; // workingE1rm used as the reference for this set
+  set: LoggedSet;
+}
 
 const activeWorkout = ref<Workout | null>(null);
 const routine = ref<Routine | null>(null);
@@ -17,12 +30,18 @@ const trackerStats = ref({ completed: 0, pending: 0 });
 const isMinimized = ref(false);
 const showSheet = ref(false);
 
+// Calculator sets are kept separate from the tracker's exercise projection so
+// that the tracker's continuous project() writes don't clobber them. Merged into
+// the workout at finishWorkout() only.
+const calculatorSets = ref<CalculatorSet[]>([]);
+
 function reset() {
   activeWorkout.value = null;
   routine.value = null;
   exercisesMap.value = {};
   prescriptions.value = {};
   trackerStats.value = { completed: 0, pending: 0 };
+  calculatorSets.value = [];
   isMinimized.value = false;
   showSheet.value = false;
 }
@@ -81,8 +100,33 @@ export function useActiveWorkout() {
     trackerStats.value = stats;
   };
 
+  const logCalculatorSet = (entry: CalculatorSet) => {
+    calculatorSets.value.push(entry);
+  };
+
+  const removeCalculatorSet = (setId: string) => {
+    calculatorSets.value = calculatorSets.value.filter(
+      (cs) => cs.set.id !== setId,
+    );
+  };
+
   const finishWorkout = async () => {
     if (!activeWorkout.value) return;
+
+    // Merge calculator sets onto the tracker's exercise list before persisting.
+    const merged = activeWorkout.value.exercises.map((e) => ({
+      ...e,
+      sets: [...e.sets],
+    }));
+    for (const cs of calculatorSets.value) {
+      const existing = merged.find((e) => e.exerciseId === cs.exerciseId);
+      if (existing) {
+        existing.sets.push(cs.set);
+      } else {
+        merged.push({ exerciseId: cs.exerciseId, sets: [cs.set] });
+      }
+    }
+
     // Strip Vue reactivity proxies before persisting — IndexedDB's structured
     // clone rejects them (same reason setPlanMesocycle flattens its weeks).
     const completed: Workout = JSON.parse(
@@ -90,7 +134,7 @@ export function useActiveWorkout() {
         ...activeWorkout.value,
         endTime: Date.now(),
         // Exercises the user never logged carry no information — drop them.
-        exercises: activeWorkout.value.exercises.filter((e) => e.sets.length),
+        exercises: merged.filter((e) => e.sets.length),
       }),
     );
     await db.workouts.add(completed);
@@ -111,6 +155,8 @@ export function useActiveWorkout() {
     exercisesMap: computed(() => exercisesMap.value),
     prescriptions: computed(() => prescriptions.value),
     trackerStats: computed(() => trackerStats.value),
+    calculatorSets: computed(() => calculatorSets.value),
+    calculatorSetCount: computed(() => calculatorSets.value.length),
     isMinimized: computed({
       get: () => isMinimized.value,
       set: (val) => {
@@ -129,5 +175,7 @@ export function useActiveWorkout() {
     maximize,
     syncExercises,
     syncProgress,
+    logCalculatorSet,
+    removeCalculatorSet,
   };
 }

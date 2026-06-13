@@ -103,8 +103,8 @@ const groupLine = (g: SetGroup): string => {
   if (g.set.rpe != null) parts.push(`@ RPE ${g.set.rpe}`);
   parts.push(
     g.set.weight != null
-      ? `· ${fmtWeight(g.set.weight)}`
-      : `· — ${weightUnit.value}`,
+      ? `| ${fmtWeight(g.set.weight)}`
+      : `| — ${weightUnit.value}`,
   );
   return parts.join(" ");
 };
@@ -118,11 +118,11 @@ const baseConfigLine = (e: ExercisePreview): string => {
     case "linear":
       return `${p.targetSets} × ${p.targetReps}${
         p.targetRpe != null ? ` @ RPE ${p.targetRpe}` : ""
-      } · ${inc}`;
+      } | ${inc}`;
     case "double":
-      return `${p.targetSets} × ${p.minReps}–${p.maxReps} · ${inc}`;
+      return `${p.targetSets} × ${p.minReps}–${p.maxReps} | ${inc}`;
     case "topset_backoff":
-      return `Top ${p.topSetTargetReps} @ RPE ${p.topSetTargetRpe} · ${p.backOffSets} back-off −${p.percentageDrop}% · ${inc}`;
+      return `Top ${p.topSetTargetReps} @ RPE ${p.topSetTargetRpe} | ${p.backOffSets} back-off −${p.percentageDrop}% | ${inc}`;
   }
 };
 
@@ -164,11 +164,9 @@ const streakNotes = (e: ExercisePreview): string[] => {
 };
 
 const e1rmLine = (e: ExercisePreview): string => {
-  if (e.workingE1rm === null) return "Not calibrated";
-  const working = `Working ${fmtWeight(e.workingE1rm)}`;
-  return e.observedE1rm === null
-    ? working
-    : `${working} · observed ≈ ${fmtWeight(e.observedE1rm)}`;
+  if (e.observedE1rm !== null) return fmtWeight(e.observedE1rm);
+  if (e.workingE1rm !== null) return fmtWeight(e.workingE1rm);
+  return "Not calibrated";
 };
 </script>
 
@@ -224,14 +222,15 @@ const e1rmLine = (e: ExercisePreview): string => {
             </span>
           </div>
           <div class="flex items-center justify-between gap-3 text-xs">
-            <span class="text-text-light dark:text-text-dark opacity-60">
-              Mesocycle modifiers
+            <span class="text-text-light dark:text-text-dark opacity-60">Volume</span>
+            <span class="font-mono font-semibold text-text-h-light dark:text-text-h-dark">
+              {{ fmtMult(preview.mesocycle.modifiers.volume) }}
             </span>
-            <span
-              class="font-mono font-semibold text-text-h-light dark:text-text-h-dark"
-            >
-              Volume {{ fmtMult(preview.mesocycle.modifiers.volume) }} ·
-              Intensity {{ fmtMult(preview.mesocycle.modifiers.intensity) }}
+          </div>
+          <div class="flex items-center justify-between gap-3 text-xs">
+            <span class="text-text-light dark:text-text-dark opacity-60">Intensity</span>
+            <span class="font-mono font-semibold text-text-h-light dark:text-text-h-dark">
+              {{ fmtMult(preview.mesocycle.modifiers.intensity) }}
             </span>
           </div>
           <div class="flex items-center justify-between gap-3 text-xs">

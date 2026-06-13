@@ -95,9 +95,6 @@ const toggleLengthUnit = () => {
             >
               Dark Mode
             </div>
-            <div class="text-xs text-text-light dark:text-text-dark opacity-60">
-              Enable dark theme styling
-            </div>
           </div>
           <button
             class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2"
@@ -123,9 +120,6 @@ const toggleLengthUnit = () => {
               class="font-semibold text-text-h-light dark:text-text-h-dark text-sm sm:text-base"
             >
               Weight Units
-            </div>
-            <div class="text-xs text-text-light dark:text-text-dark opacity-60">
-              Preferred system for exercises
             </div>
           </div>
           <button
@@ -166,9 +160,6 @@ const toggleLengthUnit = () => {
               class="font-semibold text-text-h-light dark:text-text-h-dark text-sm sm:text-base"
             >
               Length Units
-            </div>
-            <div class="text-xs text-text-light dark:text-text-dark opacity-60">
-              Preferred system for body measurements
             </div>
           </div>
           <button

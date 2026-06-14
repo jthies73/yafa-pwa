@@ -1,4 +1,4 @@
-name: CI / CD
+name: CI / CD - yafa-pwa
 
 on:
   pull_request:

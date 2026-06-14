@@ -5,7 +5,6 @@ import type {
   MeasurementType,
   Routine,
   Plan,
-  Workout,
 } from "./types";
 
 const measurementTypes: MeasurementType[] = [
@@ -209,98 +208,6 @@ const plan: Plan = {
   ],
 };
 
-const workouts: Workout[] = [
-  {
-    id: "workout-past-1",
-    routineId: "upper-day",
-    startTime: Date.now() - 3 * 24 * 60 * 60 * 1000, // 3 days ago
-    endTime: Date.now() - 3 * 24 * 60 * 60 * 1000 + 75 * 60 * 1000, // 75 mins later
-    exercises: [
-      {
-        exerciseId: "barbell-bench-press",
-        sets: [
-          {
-            id: "set-1",
-            timestamp: Date.now() - 3 * 24 * 60 * 60 * 1000 + 10 * 60 * 1000,
-            targetReps: 5,
-            actualReps: 5,
-            targetWeight: 80,
-            actualWeight: 80,
-            targetRpe: 9,
-            actualRpe: 9,
-            failure: false,
-          },
-          {
-            id: "set-2",
-            timestamp: Date.now() - 3 * 24 * 60 * 60 * 1000 + 15 * 60 * 1000,
-            targetReps: 5,
-            actualReps: 5,
-            targetWeight: 72,
-            actualWeight: 72,
-            targetRpe: 8,
-            actualRpe: 7.5,
-            failure: false,
-          },
-          {
-            id: "set-3",
-            timestamp: Date.now() - 3 * 24 * 60 * 60 * 1000 + 20 * 60 * 1000,
-            targetReps: 5,
-            actualReps: 5,
-            targetWeight: 72,
-            actualWeight: 72,
-            targetRpe: 8,
-            actualRpe: 8,
-            failure: false,
-          },
-          {
-            id: "set-4",
-            timestamp: Date.now() - 3 * 24 * 60 * 60 * 1000 + 25 * 60 * 1000,
-            targetReps: 5,
-            actualReps: 5,
-            targetWeight: 72,
-            actualWeight: 72,
-            targetRpe: 8,
-            actualRpe: 8.5,
-            failure: false,
-          },
-        ],
-      },
-      {
-        exerciseId: "pull-ups",
-        sets: [
-          {
-            id: "set-5",
-            timestamp: Date.now() - 3 * 24 * 60 * 60 * 1000 + 35 * 60 * 1000,
-            targetReps: 12,
-            actualReps: 12,
-            targetWeight: 0,
-            actualWeight: 0,
-            failure: false,
-          },
-          {
-            id: "set-6",
-            timestamp: Date.now() - 3 * 24 * 60 * 60 * 1000 + 40 * 60 * 1000,
-            targetReps: 12,
-            actualReps: 10,
-            targetWeight: 0,
-            actualWeight: 0,
-            failure: false,
-          },
-          {
-            id: "set-7",
-            timestamp: Date.now() - 3 * 24 * 60 * 60 * 1000 + 45 * 60 * 1000,
-            targetReps: 12,
-            actualReps: 9,
-            targetWeight: 0,
-            actualWeight: 0,
-            failure: true,
-          },
-        ],
-      },
-    ],
-  },
-];
-
 /**
  * Checks if the database is empty, and if so, seeds it with initial default data.
  */
@@ -316,12 +223,11 @@ export async function seedDatabase() {
   try {
     await db.transaction(
       "rw",
-      [db.exercises, db.routines, db.plans, db.workouts, db.measurementTypes],
+      [db.exercises, db.routines, db.plans, db.measurementTypes],
       async () => {
         await db.exercises.bulkAdd(exercises);
         await db.routines.bulkAdd(routines);
         await db.plans.add(plan);
-        await db.workouts.bulkAdd(workouts);
         await db.measurementTypes.bulkAdd(measurementTypes);
       },
     );

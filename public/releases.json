@@ -1,6 +1,10 @@
 {
-  "latest": "0.5.3",
+  "latest": "0.5.4",
   "releases": [
+    {
+      "version": "0.5.4",
+      "notes": "- Add Workout Summary Sheet."
+    },
     {
       "version": "0.5.3",
       "notes": "- Remove bodyweight factors from exercises."

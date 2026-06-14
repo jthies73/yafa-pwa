@@ -12,7 +12,13 @@ onMounted(() => {
   if (['development', 'production'].includes(import.meta.env.MODE)) {
     const baseUrl = import.meta.env.VITE_API_BASE_URL;
     if (baseUrl) {
-      fetch(`${baseUrl}/page-visits`, { method: 'POST' }).catch(() => {});
+      fetch(`${baseUrl}/page-visits`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ path: window.location.pathname }),
+      }).catch(() => {});
     }
   }
 });

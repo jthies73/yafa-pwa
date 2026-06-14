@@ -68,6 +68,9 @@ jobs:
     runs-on: ubuntu-latest
     needs: [lint, test-unit]
     if: github.event_name == 'release'
+    permissions:
+      contents: read
+      packages: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -78,13 +81,25 @@ jobs:
       - name: Build Production
         run: yarn build:production
         env:
-          VITE_ADMIN_BASE_URL: ${{ vars.PROD_ADMIN_BASE_URL || secrets.PROD_ADMIN_BASE_URL }}
+          VITE_API_BASE_URL: ${{ vars.PROD_ADMIN_BASE_URL || secrets.PROD_ADMIN_BASE_URL }}
       - uses: actions/upload-artifact@v4
         with:
           name: dist-production
           path: dist/
           retention-days: 1
           if-no-files-found: error
+      - name: Log in to the Container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ghcr.io/jthies73/yafa-pwa:latest
 
   deploy-staging:
     name: Deploy to Staging
@@ -118,23 +133,6 @@ jobs:
     if: github.event_name == 'release'
     environment: production
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
-        with:
-          name: dist-production
-          path: dist/
-      - name: Log in to the Container registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          push: true
-          tags: ghcr.io/jthies73/yafa-pwa:latest
       - name: Set up SSH
         run: |
           mkdir -p ~/.ssh
@@ -143,4 +141,4 @@ jobs:
           ssh-keyscan -H ${{ secrets.VPS_IP }} >> ~/.ssh/known_hosts
       - name: Deploy via Docker Compose
         run: |
-          ssh -i ~/.ssh/id_rsa_deploy -o StrictHostKeyChecking=no ${{ secrets.VPS_USER }}@${{ secrets.VPS_IP }} "cd /opt/yafa-pwa && sudo docker compose pull web && sudo docker compose up -d"
+          ssh -i ~/.ssh/id_rsa_deploy -o StrictHostKeyChecking=no ${{ secrets.VPS_USER }}@${{ secrets.VPS_IP }} "cd /opt/yafa-pwa && sudo docker compose pull yafa-pwa && sudo docker compose up -d"

@@ -1,6 +1,10 @@
 {
-  "latest": "0.5.4",
+  "latest": "0.5.7",
   "releases": [
+    {
+      "version": "0.5.7",
+      "notes": "- Change deployment method to GitHub Container Registry."
+    },
     {
       "version": "0.5.4",
       "notes": "- Add Workout Summary Sheet."

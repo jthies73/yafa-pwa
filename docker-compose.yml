@@ -1,5 +1,5 @@
 services:
   yafa-pwa:
-    build: .
+    image: ghcr.io/jthies73/yafa-pwa:latest
     ports:
       - "8080:80"

@@ -134,6 +134,7 @@ watch(
 
     <template #footer>
       <button
+        v-if="page === 0"
         class="w-full py-3.5 bg-accent hover:bg-accent-hover text-bg-dark font-bold rounded-xl cursor-pointer transition-colors duration-150 text-sm tracking-wide uppercase"
         @click="onFinishClick"
       >

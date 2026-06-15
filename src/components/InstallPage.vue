@@ -41,25 +41,25 @@ const STEPS: Record<OS, Step[]> = {
     },
     {
       title: "Tap Share",
-      body: "Tap the Share icon in the toolbar — bottom center on iPhone, top right on iPad.",
+      body: "Find the Share icon — Usually located on the bottom right on iPhone.",
       glyph: "share",
-      caption: "The Share icon — a square with an upward arrow",
+      caption: "The Share icon — a box with an upward arrow",
     },
     {
       title: "Add to Home Screen",
       body: "Scroll down the share menu and select Add to Home Screen.",
       glyph: "add-to-home",
-      caption: 'The "Add to Home Screen" row in the share menu',
+      caption: 'The "Add to Home Screen" icon in the share menu',
     },
     {
       title: "Confirm",
-      body: "Tap Add in the top-right corner. YAFA now lives on your home screen and runs as a standalone app.",
+      body: "Tap Add in the top-right corner. YAFA is now available on your home screen as a standalone app.",
     },
   ],
   android: [
     {
       title: "Open the menu",
-      body: "Tap the Menu icon — three vertical dots — in the top-right corner of Chrome.",
+      body: "Tap the Menu icon — three vertical dots — in the top-right corner of Chrome. (other browsers may not support installation)",
       glyph: "menu-dots",
       caption: "Chrome's 3-dot menu, top right",
     },
@@ -71,7 +71,7 @@ const STEPS: Record<OS, Step[]> = {
     },
     {
       title: "Confirm",
-      body: "Tap Install on the prompt. YAFA is added to your app drawer and home screen.",
+      body: "Tap Install on the prompt. YAFA is now available on your home screen as a standalone app.",
     },
   ],
   desktop: [

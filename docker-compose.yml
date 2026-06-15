@@ -1,5 +1,6 @@
 services:
   yafa-pwa:
+    container_name: yafa-pwa
     image: ghcr.io/jthies73/yafa-pwa:latest
     ports:
       - "8080:80"

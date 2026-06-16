@@ -17,6 +17,7 @@ import {
 } from "../utils/numericInput";
 import { useWeightUnit } from "../composables/useWeightUnit";
 import { useActiveWorkout } from "../composables/useActiveWorkout";
+import { deriveState } from "../engine/service";
 import { solveWeight, solveReps, solveRpe } from "../engine/calculator";
 import { impliedE1rm } from "../engine/matrix";
 import ExercisePickerSheet from "./ExercisePickerSheet.vue";
@@ -37,7 +38,7 @@ const matrix = computed<RpeMatrix>(
   () => selected.value?.rpeMatrix ?? DEFAULT_RPE_MATRIX,
 );
 
-const workingE1rm = computed(() => progressionState.value?.workingE1rm ?? null);
+const workingE1rm = computed(() => progressionState.value?.e1rm ?? null);
 
 // Implied e1RM from the most recent calculator set logged for this exercise this
 // session — lets uncalibrated exercises calculate after the first manual set.
@@ -54,7 +55,9 @@ const effectiveE1rm = computed(() => workingE1rm.value ?? sessionE1rm.value);
 watch(selected, async (ex) => {
   progressionState.value = null;
   if (!ex) return;
-  progressionState.value = (await db.progressionStates.get(ex.id)) ?? null;
+  // Derive (recomputing if the checkpoint went stale) so the calculator anchors
+  // to a working e1RM that is coherent with the latest logged history.
+  progressionState.value = await deriveState(ex.id);
 });
 
 const onSelect = (exercise: Exercise) => {

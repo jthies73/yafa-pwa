@@ -5,6 +5,7 @@ import type {
   Plan,
   Workout,
   ProgressionState,
+  Recalibration,
   MeasurementType,
   MeasurementEntry,
   AnalyticsChartConfig,
@@ -16,6 +17,7 @@ export class YafaDatabase extends Dexie {
   plans!: Table<Plan, string>;
   workouts!: Table<Workout, string>;
   progressionStates!: Table<ProgressionState, string>;
+  recalibrations!: Table<Recalibration, [string, string]>;
   measurementTypes!: Table<MeasurementType, string>;
   measurementEntries!: Table<MeasurementEntry, string>;
   analyticsCharts!: Table<AnalyticsChartConfig, string>;
@@ -82,6 +84,18 @@ export class YafaDatabase extends Dexie {
           delete t.isSystem;
         });
     });
+
+    // v7: engine rewrite to a single derived-state reducer. progressionStates
+    // are now memoized fold checkpoints with a new shape, so the old rows are
+    // discarded (they recompute from logged history on first derive). Adds the
+    // recalibrations table — confirmed e1RM snaps the fold replays as inputs.
+    this.version(7)
+      .stores({
+        recalibrations: "[exerciseId+workoutId], exerciseId, workoutId",
+      })
+      .upgrade(async (tx) => {
+        await tx.table("progressionStates").clear();
+      });
   }
 }
 

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import { useWeightUnit } from "../../composables/useWeightUnit";
-import type { RecalibrationProposal } from "../../engine/recalibration";
+import type { RecalibrationProposal } from "../../engine/service";
 
 defineProps<{ recalibrations: RecalibrationProposal[] }>();
 const emit = defineEmits<{ confirm: [] }>();

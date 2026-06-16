@@ -6,6 +6,7 @@ import type {
   Plan,
   Workout,
   ProgressionState,
+  Recalibration,
   MeasurementType,
   MeasurementEntry,
   AnalyticsChartConfig,
@@ -27,6 +28,8 @@ export interface BackupFile {
     workouts: Workout[];
     // Optional so backups created before the progression engine still import.
     progressionStates?: ProgressionState[];
+    // Optional so backups created before the derived-state engine still import.
+    recalibrations?: Recalibration[];
     // Optional so backups created before body measurements still import.
     measurementTypes?: MeasurementType[];
     measurementEntries?: MeasurementEntry[];
@@ -43,6 +46,7 @@ export async function exportData(): Promise<BackupFile> {
     plans,
     workouts,
     progressionStates,
+    recalibrations,
     measurementTypes,
     measurementEntries,
     analyticsCharts,
@@ -52,6 +56,7 @@ export async function exportData(): Promise<BackupFile> {
     db.plans.toArray(),
     db.workouts.toArray(),
     db.progressionStates.toArray(),
+    db.recalibrations.toArray(),
     db.measurementTypes.toArray(),
     db.measurementEntries.toArray(),
     db.analyticsCharts.toArray(),
@@ -66,6 +71,7 @@ export async function exportData(): Promise<BackupFile> {
       plans,
       workouts,
       progressionStates,
+      recalibrations,
       measurementTypes,
       measurementEntries,
       analyticsCharts,
@@ -90,6 +96,7 @@ export async function importData(backup: BackupFile): Promise<void> {
       db.plans,
       db.workouts,
       db.progressionStates,
+      db.recalibrations,
       db.measurementTypes,
       db.measurementEntries,
       db.analyticsCharts,
@@ -101,6 +108,7 @@ export async function importData(backup: BackupFile): Promise<void> {
         db.plans.clear(),
         db.workouts.clear(),
         db.progressionStates.clear(),
+        db.recalibrations.clear(),
         db.measurementTypes.clear(),
         db.measurementEntries.clear(),
         db.analyticsCharts.clear(),
@@ -110,6 +118,7 @@ export async function importData(backup: BackupFile): Promise<void> {
       await db.plans.bulkAdd(data.plans ?? []);
       await db.workouts.bulkAdd(data.workouts ?? []);
       await db.progressionStates.bulkAdd(data.progressionStates ?? []);
+      await db.recalibrations.bulkAdd(data.recalibrations ?? []);
       await db.measurementTypes.bulkAdd(data.measurementTypes ?? []);
       await db.measurementEntries.bulkAdd(data.measurementEntries ?? []);
       await db.analyticsCharts.bulkAdd(data.analyticsCharts ?? []);

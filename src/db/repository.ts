@@ -242,18 +242,26 @@ export async function countExerciseUsage(id: string): Promise<number> {
 }
 
 /**
- * Deletes an exercise and removes every reference to it from all routines.
+ * Deletes an exercise and removes every reference to it from all routines. Its
+ * derived engine checkpoint and any confirmed recalibrations are dropped too —
+ * they are exercise-scoped and meaningless once the movement is gone.
  */
 export async function deleteExercise(id: string): Promise<void> {
-  await db.transaction("rw", [db.exercises, db.routines], async () => {
-    const routines = await db.routines.toArray();
-    for (const r of routines) {
-      if (r.exercises.some((e) => e.exerciseId === id)) {
-        await db.routines.update(r.id, {
-          exercises: r.exercises.filter((e) => e.exerciseId !== id),
-        });
+  await db.transaction(
+    "rw",
+    [db.exercises, db.routines, db.progressionStates, db.recalibrations],
+    async () => {
+      const routines = await db.routines.toArray();
+      for (const r of routines) {
+        if (r.exercises.some((e) => e.exerciseId === id)) {
+          await db.routines.update(r.id, {
+            exercises: r.exercises.filter((e) => e.exerciseId !== id),
+          });
+        }
       }
-    }
-    await db.exercises.delete(id);
-  });
+      await db.exercises.delete(id);
+      await db.progressionStates.delete(id);
+      await db.recalibrations.where("exerciseId").equals(id).delete();
+    },
+  );
 }

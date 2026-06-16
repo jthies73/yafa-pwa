@@ -16,11 +16,11 @@ import {
   applyWorkoutResults,
   computeRecalibrations,
   prescribeWorkout,
+  type RecalibrationProposal,
 } from "../engine/service";
 import { buildWorkoutSummary } from "../analytics/service";
 import type { WorkoutSummary } from "../analytics/summary";
 import type { ExercisePrescription } from "../engine/prescription";
-import type { RecalibrationProposal } from "../engine/recalibration";
 
 export interface CalculatorSet {
   exerciseId: string;

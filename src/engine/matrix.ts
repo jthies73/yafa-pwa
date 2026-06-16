@@ -6,15 +6,15 @@ import {
   LOOKUP_REPS_MAX,
   QUALIFYING_MIN_RPE,
   QUALIFYING_MAX_REPS,
-  OBSERVED_E1RM_WINDOW,
-  MATRIX_EMA_ALPHA,
   MATRIX_SMOOTHING_KERNEL,
   LOADABLE_INCREMENT_KG,
 } from "./config";
 
 // ----------------------------------------------
-// RPE matrix + e1RM subsystem: pure lookup, derivation, and learning logic.
-// Persistence-free so it can be tested in isolation.
+// RPE matrix + e1RM subsystem: pure lookup and derivation against a FIXED table.
+// The matrix is never learned/mutated by the engine; a per-exercise override is
+// user-authored only (setMatrixCell, via the matrix editor). Persistence-free so
+// it can be tested in isolation.
 // ----------------------------------------------
 
 /** Clamp an RPE into the matrix grid and snap it to the 0.5 step. */
@@ -65,34 +65,9 @@ export function roundToLoadable(
   return Math.round(weight / increment) * increment;
 }
 
-/** Mean of the rolling implied-e1RM window; null while the window is empty. */
-export function observedE1rm(observedE1rms: number[]): number | null {
-  if (!observedE1rms.length) return null;
-  return observedE1rms.reduce((sum, v) => sum + v, 0) / observedE1rms.length;
-}
-
 /**
- * Whether a logged set lands naturally on a matrix cell (no clamping): a real
- * RPE within the grid's RPE span, reps within the grid's rep span, and load on
- * the bar. Every such set calibrates its cell's shape. The raw RPE must be in
- * range so a genuine RPE 5.8 stays out of the grid rather than snapping up onto
- * the RPE-6 column.
- */
-export function isInGridSet(set: LoggedSet): boolean {
-  return (
-    set.actualRpe !== undefined &&
-    set.actualRpe >= RPE_MIN &&
-    set.actualRpe <= RPE_MAX &&
-    set.actualReps >= LOOKUP_REPS_MIN &&
-    set.actualReps <= LOOKUP_REPS_MAX &&
-    set.actualWeight > 0
-  );
-}
-
-/**
- * Whether a set is an honest, near-limit set trusted to move the observed e1RM
- * (a strict subset of in-grid sets). Applies to every set — top set or back-off
- * alike.
+ * Whether a set is an honest, near-limit set trusted to estimate demonstrated
+ * capacity. Applies to every set — top set or back-off alike.
  */
 export function isQualifyingSet(set: LoggedSet): boolean {
   return (
@@ -129,13 +104,6 @@ export function peakImpliedE1rm(
     if (!best || e1rm > best.e1rm) best = { e1rm, set };
   }
   return best;
-}
-
-export interface MatrixUpdateResult {
-  matrix: RpeMatrix;
-  observedE1rms: number[];
-  /** True iff at least one cell was nudged (lets the caller skip a no-op write). */
-  changed: boolean;
 }
 
 const cloneMatrix = (matrix: RpeMatrix): RpeMatrix => {
@@ -183,62 +151,4 @@ export function setMatrixCell(
   next[row][col] = value;
   smoothNeighbors(next, row, col, delta);
   return next;
-}
-
-/**
- * Post-session matrix learning. For each in-grid set, in lift order, EMA-nudge
- * the touched cell toward the percentage the set demonstrated relative to a
- * baseline e1RM, then bleed a fraction of that nudge into the cells within
- * ±1.0 RPE (see MATRIX_SMOOTHING_KERNEL for the kernel rationale). The baseline
- * differs by set:
- *
- * - Qualifying (honest, near-limit) sets roll their implied e1RM into the
- *   observed window first and nudge against the window mean — they calibrate
- *   both the matrix AND the observed e1RM.
- * - Off-anchor sets (in-grid but sub-qualifying RPE) leave the observed window
- *   untouched and nudge against the fixed working e1RM: too far from limit to
- *   estimate capacity, but a fine probe of the curve's SHAPE given a known
- *   e1RM. With no working e1RM yet (cold start) there is no baseline, so they
- *   are skipped.
- *
- * Pure: returns fresh copies, never mutates its inputs.
- */
-export function applyMatrixUpdates(
-  matrix: RpeMatrix,
-  observedE1rms: number[],
-  sets: LoggedSet[],
-  workingE1rm: number | null,
-): MatrixUpdateResult {
-  const next = cloneMatrix(matrix);
-  const observed = [...observedE1rms];
-  let changed = false;
-
-  const inGrid = [...sets]
-    .filter(isInGridSet)
-    .sort((a, b) => a.timestamp - b.timestamp);
-
-  for (const set of inGrid) {
-    const reps = clampLookupReps(set.actualReps);
-    const rpe = snapRpe(set.actualRpe!);
-
-    let baseline: number;
-    if (isQualifyingSet(set)) {
-      observed.push(set.actualWeight / next[reps][rpe]);
-      if (observed.length > OBSERVED_E1RM_WINDOW) {
-        observed.splice(0, observed.length - OBSERVED_E1RM_WINDOW);
-      }
-      baseline = observedE1rm(observed)!;
-    } else {
-      if (workingE1rm === null) continue;
-      baseline = workingE1rm;
-    }
-
-    const observedPct = set.actualWeight / baseline;
-    const delta = MATRIX_EMA_ALPHA * (observedPct - next[reps][rpe]);
-    next[reps][rpe] += delta;
-    smoothNeighbors(next, reps, rpe, delta);
-    changed = true;
-  }
-
-  return { matrix: next, observedE1rms: observed, changed };
 }

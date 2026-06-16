@@ -69,6 +69,7 @@ const MODEL_LABELS: Record<ProgressionModelType, string> = {
   linear: "Linear",
   double: "Double",
   topset_backoff: "Top Set",
+  none: "None",
 };
 
 const ROLE_LABELS: Record<PrescribedSet["role"], string> = {
@@ -129,6 +130,11 @@ const baseConfigLine = (e: ExercisePreview): string => {
       return `${p.targetSets} × ${p.minReps}–${p.maxReps} | ${inc}`;
     case "topset_backoff":
       return `Top ${p.topSetTargetReps} @ RPE ${p.topSetTargetRpe} | ${p.backOffSets} back-off −${p.percentageDrop}% | ${inc}`;
+    case "none":
+      // No auto-increment — weights are derived from the e1RM but never advanced.
+      return `${p.targetSets} × ${p.targetReps}${
+        p.targetRpe != null ? ` @ RPE ${p.targetRpe}` : ""
+      }`;
   }
 };
 

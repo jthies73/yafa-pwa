@@ -4,79 +4,124 @@ import type {
   Exercise,
   PeriodizationFocus,
   ProgressionState,
-  ResetKind,
+  Recalibration,
+  Routine,
   RoutineExerciseConfig,
   RpeMatrix,
-  Set as LoggedSet,
   Workout,
 } from "../db/types";
 import { FOCUS_MODIFIERS, type FocusModifiers } from "../config/periodization";
-import { QUALIFYING_MAX_REPS } from "./config";
-import {
-  applyMatrixUpdates,
-  impliedE1rm,
-  isInGridSet,
-  peakImpliedE1rm,
-} from "./matrix";
-import {
-  proposeRecalibrationE1rm,
-  type RecalibrationProposal,
-} from "./recalibration";
+import { effectiveMagnitude, isExpired } from "./deload";
+import { foldExercise } from "./fold";
+import { groupSessions, type ExerciseSession } from "./sessions";
 import {
   mesocycleWeekIndex,
   resolveMesocycleWeek,
   weekStart,
 } from "./mesocycle";
-import { advanceProgression } from "./progression";
 import { prescribeExercise, type ExercisePrescription } from "./prescription";
-import { effectiveMagnitude, isExpired, tickModifiers } from "./resets";
 
 // ----------------------------------------------
-// Engine service: the only layer that touches Dexie. Loads state, runs the
-// pure subsystems (matrix, progression, resets, prescription), persists the
-// results.
+// Engine service: the only layer that touches Dexie. It does NOT mutate engine
+// state — it DERIVES it by folding logged history (engine/fold.ts) and memoizes
+// the result in db.progressionStates, guarded by a content hash. A checkpoint
+// whose inputs (sessions, matrix, confirmed recalibrations) still hash the same
+// is returned as-is; otherwise it is recomputed and re-stored. State therefore
+// can never drift from history — editing or deleting a past workout simply
+// invalidates the hash and re-folds on the next derive.
 // ----------------------------------------------
 
-export function freshProgressionState(exerciseId: string): ProgressionState {
-  return {
-    exerciseId,
-    workingE1rm: null,
-    observedE1rms: [],
-    failureStreak: 0,
-    resetModifiers: [],
-    updated_at: Date.now(),
-  };
+const effectiveMatrix = (exercise: Exercise | undefined): RpeMatrix =>
+  exercise?.rpeMatrix ?? DEFAULT_RPE_MATRIX;
+
+// djb2 over a compact projection of the fold inputs. Cheap and stable; only the
+// fields the fold actually reads are included, so cosmetic changes don't bust
+// the cache while any change to sets/config/matrix/recalibrations does.
+function hashString(s: string): string {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h * 33) ^ s.charCodeAt(i)) >>> 0;
+  return h.toString(36);
 }
 
-const effectiveMatrix = (exercise: Exercise): RpeMatrix =>
-  exercise.rpeMatrix ?? DEFAULT_RPE_MATRIX;
+function contentHash(
+  sessions: ExerciseSession[],
+  matrix: RpeMatrix,
+  recals: Recalibration[],
+): string {
+  const projection = {
+    s: sessions.map((session) => ({
+      w: session.workoutId,
+      c: session.config ?? null,
+      k: session.sets.map((set) => [
+        set.timestamp,
+        set.targetReps,
+        set.actualReps,
+        set.targetWeight,
+        set.actualWeight,
+        set.targetRpe ?? null,
+        set.actualRpe ?? null,
+      ]),
+    })),
+    m: matrix,
+    r: recals.map((rc) => [rc.workoutId, rc.e1rm]),
+  };
+  return hashString(JSON.stringify(projection));
+}
 
 /**
- * Cold-start seed for the working e1RM, derived from the first logged session:
- * the heaviest honest set (reps on the matrix grid, RPE supplied) is the best
- * single estimate of current capacity, so take the max implied e1RM rather
- * than an average that easy warm-up sets would drag down.
+ * Derive an exercise's state from its checkpoint + the supplied fold inputs.
+ * Returns the existing checkpoint unchanged on a cache hit (===), so callers can
+ * skip the write; otherwise a freshly folded, hash-stamped state.
  */
-function seedWorkingE1rm(matrix: RpeMatrix, sets: LoggedSet[]): number | null {
-  const candidates = sets.filter(
-    (s) =>
-      s.actualWeight > 0 &&
-      s.actualReps >= 1 &&
-      s.actualReps <= QUALIFYING_MAX_REPS &&
-      s.actualRpe !== undefined,
-  );
-  if (!candidates.length) return null;
-  const best = Math.max(
-    ...candidates.map((s) =>
-      impliedE1rm(matrix, s.actualWeight, s.actualReps, s.actualRpe!),
-    ),
-  );
-  return Math.round(best * 10) / 10;
+function computeDerived(
+  exerciseId: string,
+  checkpoint: ProgressionState | undefined,
+  workouts: Workout[],
+  routinesById: Map<string, Routine>,
+  matrix: RpeMatrix,
+  recals: Recalibration[],
+): ProgressionState {
+  const sessions = groupSessions(workouts, routinesById, exerciseId);
+  const hash = contentHash(sessions, matrix, recals);
+  if (checkpoint && checkpoint.contentHash === hash) return checkpoint;
+
+  const confirmed = new Map(recals.map((rc) => [rc.workoutId, rc.e1rm]));
+  const { state } = foldExercise(exerciseId, sessions, matrix, confirmed);
+  state.contentHash = hash;
+  return state;
 }
 
-/** An active reset modifier as it will shape the upcoming session. */
+/**
+ * The current derived state for one exercise, recomputing and re-memoizing the
+ * checkpoint if its inputs changed. Safe to call anywhere a fresh scalar/streak
+ * is needed (e.g. the in-workout calculator).
+ */
+export async function deriveState(
+  exerciseId: string,
+): Promise<ProgressionState> {
+  const [checkpoint, workouts, routines, exercise, recals] = await Promise.all([
+    db.progressionStates.get(exerciseId),
+    db.workouts.toArray(),
+    db.routines.toArray(),
+    db.exercises.get(exerciseId),
+    db.recalibrations.where("exerciseId").equals(exerciseId).toArray(),
+  ]);
+  const routinesById = new Map(routines.map((r) => [r.id, r]));
+  const state = computeDerived(
+    exerciseId,
+    checkpoint,
+    workouts,
+    routinesById,
+    effectiveMatrix(exercise),
+    recals,
+  );
+  if (state !== checkpoint) await db.progressionStates.put(state);
+  return state;
+}
+
+/** An active deload as it will shape the upcoming session. */
 export interface ResetEffect {
-  kind: ResetKind;
+  kind: "intensity" | "volume";
   multiplier: number; // effect on its axis this session (≤ 1)
   sessionsRemaining: number;
 }
@@ -108,11 +153,34 @@ export interface WorkoutPreview {
   exercises: ExercisePreview[];
 }
 
+/** One exercise's proposed working-e1RM recalibration, pending user confirmation. */
+export interface RecalibrationProposal {
+  exerciseId: string;
+  exerciseName: string;
+  workoutId: string; // the session whose drift triggered the proposal
+  currentE1rm: number; // working e1RM the session was prescribed from
+  sessionE1rm: number; // peak honest e1RM the session demonstrated
+  proposedE1rm: number; // where a confirmed recalibration moves the working e1RM
+}
+
+const deloadEffects = (state: ProgressionState): ResetEffect[] =>
+  state.deload && !isExpired(state.deload)
+    ? [
+        {
+          kind: "intensity",
+          multiplier: 1 - effectiveMagnitude(state.deload),
+          sessionsRemaining:
+            state.deload.decaySessions - state.deload.sessionsElapsed,
+        },
+      ]
+    : [];
+
 /**
  * Assembles the full picture behind a routine's upcoming workout: per exercise
- * the base config, engine state (e1RMs, streaks, active reset modifiers) and
- * the resulting prescription, plus where the plan currently sits in its
- * mesocycle. Read-only: previewing never mutates engine state.
+ * the base config, derived engine state (e1RM, streak, active deload) and the
+ * resulting prescription, plus where the plan currently sits in its mesocycle.
+ * Derives state through the memoized checkpoints (recomputing any that went
+ * stale), but never advances state — previewing is logically read-only.
  */
 export async function previewWorkout(
   routineId: string,
@@ -121,9 +189,16 @@ export async function previewWorkout(
   const routine = await db.routines.get(routineId);
   if (!routine) return null;
 
-  // The mesocycle week comes from the plan this routine belongs to — the
-  // active plan wins when a routine is shared across plans.
-  const plans = await db.plans.toArray();
+  const [plans, workouts, routines, allRecals] = await Promise.all([
+    db.plans.toArray(),
+    db.workouts.toArray(),
+    db.routines.toArray(),
+    db.recalibrations.toArray(),
+  ]);
+  const routinesById = new Map(routines.map((r) => [r.id, r]));
+
+  // The mesocycle week comes from the plan this routine belongs to — the active
+  // plan wins when a routine is shared across plans.
   const owners = plans.filter((p) => p.routineIds.includes(routineId));
   const plan = owners.find((p) => p.active) ?? owners[0];
   const week = resolveMesocycleWeek(plan, at);
@@ -149,32 +224,38 @@ export async function previewWorkout(
 
   const exercises: ExercisePreview[] = [];
   for (const routineExercise of routine.exercises) {
-    const [exercise, state] = await Promise.all([
-      db.exercises.get(routineExercise.exerciseId),
-      db.progressionStates.get(routineExercise.exerciseId),
-    ]);
+    const exerciseId = routineExercise.exerciseId;
+    const exercise = await db.exercises.get(exerciseId);
     if (!exercise) continue;
+
+    const matrix = effectiveMatrix(exercise);
+    const recals = allRecals.filter((rc) => rc.exerciseId === exerciseId);
+    const checkpoint = await db.progressionStates.get(exerciseId);
+    const state = computeDerived(
+      exerciseId,
+      checkpoint,
+      workouts,
+      routinesById,
+      matrix,
+      recals,
+    );
+    if (state !== checkpoint) await db.progressionStates.put(state);
+
     exercises.push({
-      exerciseId: routineExercise.exerciseId,
+      exerciseId,
       name: exercise.name,
       config: routineExercise.config,
-      workingE1rm: state?.workingE1rm ?? null,
-      failureStreak: state?.failureStreak ?? 0,
-      currentTargetReps: state?.currentTargetReps,
-      resetEffects: (state?.resetModifiers ?? [])
-        .filter((m) => !isExpired(m))
-        .map((m) => ({
-          kind: m.kind,
-          multiplier: 1 - effectiveMagnitude(m),
-          sessionsRemaining: m.decaySessions - m.sessionsElapsed,
-        })),
+      workingE1rm: state.e1rm,
+      failureStreak: state.failureStreak,
+      currentTargetReps: state.currentTargetReps,
+      resetEffects: deloadEffects(state),
       // Without a progression config there is no model to prescribe from.
       prescription: routineExercise.config
         ? prescribeExercise({
-            exerciseId: routineExercise.exerciseId,
+            exerciseId,
             config: routineExercise.config,
             state,
-            matrix: effectiveMatrix(exercise),
+            matrix,
             week,
           })
         : null,
@@ -186,7 +267,7 @@ export async function previewWorkout(
 
 /**
  * Calculates the prescription for every configured exercise of a routine.
- * Read-only: prescribing a workout never mutates engine state.
+ * Read-only: prescribing a workout never advances engine state.
  */
 export async function prescribeWorkout(
   routineId: string,
@@ -198,146 +279,115 @@ export async function prescribeWorkout(
     .filter((p): p is ExercisePrescription => p !== null);
 }
 
+/** The distinct exercise ids logged in a workout. */
+function loggedExerciseIds(workout: Workout): string[] {
+  const ids = new Set<string>();
+  for (const we of workout.exercises) {
+    if (we.sets.length) ids.add(we.exerciseId);
+  }
+  return [...ids];
+}
+
 /**
- * Post-session pass, run once when a workout is finished: rolls the matrix /
- * observed-e1RM learning, seeds or advances the working e1RM, updates streaks,
- * and fires resets. Idempotence is the caller's responsibility — run it
- * exactly once per saved workout.
+ * Post-session pass, run once when a workout is finished: re-derives and
+ * re-memoizes the checkpoint of every exercise the session touched (the new
+ * workout is already persisted, so the fold now folds it in). Pure recompute —
+ * no bespoke mutation, so it can never produce a state a full re-fold wouldn't.
  */
 export async function applyWorkoutResults(workout: Workout): Promise<void> {
-  const routine = await db.routines.get(workout.routineId);
+  const ids = loggedExerciseIds(workout);
+  if (!ids.length) return;
 
-  await db.transaction("rw", [db.exercises, db.progressionStates], async () => {
-    for (const workoutExercise of workout.exercises) {
-      const exercise = await db.exercises.get(workoutExercise.exerciseId);
-      if (!exercise) continue;
+  const [workouts, routines, allRecals] = await Promise.all([
+    db.workouts.toArray(),
+    db.routines.toArray(),
+    db.recalibrations.toArray(),
+  ]);
+  const routinesById = new Map(routines.map((r) => [r.id, r]));
 
-      const sets = [...workoutExercise.sets].sort(
-        (a, b) => a.timestamp - b.timestamp,
-      );
-      if (!sets.length) continue;
-      // Duplicate slots of the same movement share the first slot's config.
-      const config = routine?.exercises.find(
-        (e) => e.exerciseId === workoutExercise.exerciseId,
-      )?.config;
-
-      const state =
-        (await db.progressionStates.get(workoutExercise.exerciseId)) ??
-        freshProgressionState(workoutExercise.exerciseId);
-
-      // The modifiers that shaped this session's prescription are now one
-      // session older; tick BEFORE evaluating so a reset fired below starts
-      // at full strength for the NEXT session.
-      let next: ProgressionState = {
-        ...state,
-        resetModifiers: tickModifiers(state.resetModifiers),
-      };
-
-      let matrix = effectiveMatrix(exercise);
-      if (sets.some(isInGridSet)) {
-        const update = applyMatrixUpdates(
-          matrix,
-          next.observedE1rms,
-          sets,
-          next.workingE1rm,
-        );
-        matrix = update.matrix;
-        next.observedE1rms = update.observedE1rms;
-        // Learning is per-exercise by definition, so the first update
-        // materializes the inherited global matrix as an exercise override —
-        // but only when a cell actually moved, so a no-op session (e.g. only
-        // off-anchor sets with no working-e1RM baseline yet) leaves the
-        // exercise inheriting the global matrix.
-        if (update.changed) {
-          await db.exercises.update(workoutExercise.exerciseId, {
-            rpeMatrix: matrix,
-          });
-        }
-      }
-
-      if (next.workingE1rm === null) {
-        // First logged session is calibration only: it seeds the working e1RM
-        // but is not judged against targets it was never prescribed from.
-        next.workingE1rm = seedWorkingE1rm(matrix, sets);
-      } else if (config) {
-        next = advanceProgression(config, next, sets);
-      }
-
-      next.updated_at = Date.now();
-      await db.progressionStates.put(next);
-    }
-  });
-}
-
-/** Logged sets of a workout merged across duplicate slots of the same movement. */
-function setsByExerciseId(workout: Workout): Map<string, LoggedSet[]> {
-  const map = new Map<string, LoggedSet[]>();
-  for (const we of workout.exercises) {
-    const list = map.get(we.exerciseId) ?? [];
-    list.push(...we.sets);
-    map.set(we.exerciseId, list);
+  for (const exerciseId of ids) {
+    const [exercise, checkpoint] = await Promise.all([
+      db.exercises.get(exerciseId),
+      db.progressionStates.get(exerciseId),
+    ]);
+    const recals = allRecals.filter((rc) => rc.exerciseId === exerciseId);
+    const state = computeDerived(
+      exerciseId,
+      checkpoint,
+      workouts,
+      routinesById,
+      effectiveMatrix(exercise),
+      recals,
+    );
+    if (state !== checkpoint) await db.progressionStates.put(state);
   }
-  return map;
 }
 
 /**
- * Recalibration proposals for a finished session: per exercise, compares the
- * working e1RM the session was prescribed from against the peak e1RM the
- * session actually demonstrated, proposing a correction when they diverge
- * beyond tolerance. Read-only — proposals are surfaced for user confirmation
- * (applyRecalibrations) rather than applied here.
- *
- * MUST run BEFORE applyWorkoutResults so it reads the PRE-session working e1RM
- * and the pre-learning matrix (mirroring how the summary is built). Exercises
- * still on their cold-start seed (no working e1RM yet) yield no proposal.
+ * Recalibration proposals for a finished session: per exercise, the fold
+ * surfaces when the e1RM the session demonstrated has drifted beyond tolerance
+ * from the e1RM it was prescribed from. Read-only — proposals are confirmed via
+ * applyRecalibrations. The workout MUST already be persisted (it is the session
+ * the proposal is keyed to). Already-confirmed sessions yield no proposal.
  */
 export async function computeRecalibrations(
   workout: Workout,
 ): Promise<RecalibrationProposal[]> {
+  const ids = loggedExerciseIds(workout);
+  if (!ids.length) return [];
+
+  const [workouts, routines, allRecals] = await Promise.all([
+    db.workouts.toArray(),
+    db.routines.toArray(),
+    db.recalibrations.toArray(),
+  ]);
+  const routinesById = new Map(routines.map((r) => [r.id, r]));
+
   const proposals: RecalibrationProposal[] = [];
-  for (const [exerciseId, sets] of setsByExerciseId(workout)) {
-    const [exercise, state] = await Promise.all([
-      db.exercises.get(exerciseId),
-      db.progressionStates.get(exerciseId),
-    ]);
-    if (!exercise || !state) continue;
-    const peak = peakImpliedE1rm(effectiveMatrix(exercise), sets);
-    const proposedE1rm = proposeRecalibrationE1rm(
-      state.workingE1rm,
-      peak?.e1rm ?? null,
+  for (const exerciseId of ids) {
+    const exercise = await db.exercises.get(exerciseId);
+    if (!exercise) continue;
+    const recals = allRecals.filter((rc) => rc.exerciseId === exerciseId);
+    const sessions = groupSessions(workouts, routinesById, exerciseId);
+    const confirmed = new Map(recals.map((rc) => [rc.workoutId, rc.e1rm]));
+    const { proposals: byWorkout } = foldExercise(
+      exerciseId,
+      sessions,
+      effectiveMatrix(exercise),
+      confirmed,
     );
-    if (proposedE1rm === null) continue;
+    const drift = byWorkout.get(workout.id);
+    if (!drift) continue;
     proposals.push({
       exerciseId,
       exerciseName: exercise.name,
-      currentE1rm: state.workingE1rm!,
-      sessionE1rm: peak!.e1rm,
-      proposedE1rm,
+      workoutId: workout.id,
+      currentE1rm: drift.from,
+      sessionE1rm: drift.demonstrated,
+      proposedE1rm: drift.to,
     });
   }
   return proposals;
 }
 
 /**
- * Applies user-confirmed recalibrations: snaps each exercise's working e1RM to
- * the proposed value and clears its failure streak — a re-baselined scalar
- * makes a streak counted against the old baseline meaningless. Matrix learning
- * already ran in applyWorkoutResults; only the planning scalar is rewritten.
+ * Records user-confirmed recalibrations as ground-truth facts and re-derives the
+ * affected exercises so their checkpoints replay the snap. Because the snap is
+ * persisted (not applied in place), it survives any later full recompute.
  */
 export async function applyRecalibrations(
   proposals: RecalibrationProposal[],
 ): Promise<void> {
   if (!proposals.length) return;
-  await db.transaction("rw", db.progressionStates, async () => {
-    for (const proposal of proposals) {
-      const state = await db.progressionStates.get(proposal.exerciseId);
-      if (!state) continue;
-      await db.progressionStates.put({
-        ...state,
-        workingE1rm: proposal.proposedE1rm,
-        failureStreak: 0,
-        updated_at: Date.now(),
+  await db.transaction("rw", db.recalibrations, async () => {
+    for (const p of proposals) {
+      await db.recalibrations.put({
+        exerciseId: p.exerciseId,
+        workoutId: p.workoutId,
+        e1rm: p.proposedE1rm,
       });
     }
   });
+  const ids = [...new Set(proposals.map((p) => p.exerciseId))];
+  for (const id of ids) await deriveState(id);
 }

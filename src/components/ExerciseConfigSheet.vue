@@ -589,7 +589,8 @@ const save = async () => {
           </div>
         </div>
         <p class="text-xs text-text-light dark:text-text-dark opacity-55">
-          Weight targets are derived from your e1RM but won't auto-increment after sessions.
+          Weight targets are derived from your e1RM but won't auto-increment
+          after sessions.
         </p>
       </div>
 

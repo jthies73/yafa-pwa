@@ -12,15 +12,16 @@ import type {
 import { FOCUS_MODIFIERS } from "../config/periodization";
 import { DEFAULT_TARGET_RPE } from "./config";
 import { roundToLoadable, snapRpe, weightFromE1rm } from "./matrix";
-import { resetMultiplier } from "./resets";
+import { deloadMultiplier } from "./deload";
 
 // ----------------------------------------------
 // Per-session prescription pipeline:
 //   1. base targets from the progression model's config (+ engine state)
 //   2. mesocycle modifiers (multiplicative, lock-gated)
-//   3. active reset modifiers (multiplicative, decaying — never lock-gated:
-//      locks protect user config from periodization, not from fatigue safety)
-//   4. weight from the matrix at the final reps/RPE, via working e1RM
+//   3. the active deload (multiplicative on intensity, decaying — never
+//      lock-gated: locks protect user config from periodization, not from
+//      fatigue safety)
+//   4. weight from the matrix at the final reps/RPE, via the working e1RM
 //   5. top set + back-off expansion
 // ----------------------------------------------
 
@@ -57,13 +58,13 @@ export function prescribeExercise(
   const { exerciseId, config, state, matrix, week } = input;
   const locked = config.lockedFields ?? [];
   const focus = week ? FOCUS_MODIFIERS[week.focus] : null;
-  const modifiers = state?.resetModifiers ?? [];
-  const volumeReset = resetMultiplier(modifiers, "volume");
-  const intensityReset = resetMultiplier(modifiers, "intensity");
+  // The active deload tapers the intensity (RPE) target, lowering the derived
+  // load; it does not scale volume.
+  const intensityDeload = deloadMultiplier(state?.deload ?? null);
 
   // Steps 2 + 3 for one target value. Mesocycle modifiers respect field locks;
-  // reset modifiers always apply. Rounding/clamping happens once at the end so
-  // the two multiplicative layers don't accumulate rounding bias.
+  // the deload always applies. Rounding/clamping happens once at the end so the
+  // two multiplicative layers don't accumulate rounding bias.
   const adjust = (
     value: number,
     axis: "volume" | "intensity",
@@ -73,16 +74,16 @@ export function prescribeExercise(
     if (focus && lockKey !== null && !locked.includes(lockKey)) {
       adjusted *= focus[axis];
     }
-    adjusted *= axis === "volume" ? volumeReset : intensityReset;
+    if (axis === "intensity") adjusted *= intensityDeload;
     return adjusted;
   };
 
   // The matrix derives the loadable weight from the working e1RM at the given
   // reps/RPE, rounded to the bar.
   const weightFor = (reps: number, rpe: number): number | null =>
-    state?.workingE1rm == null
+    state?.e1rm == null
       ? null
-      : roundToLoadable(weightFromE1rm(matrix, state.workingE1rm, reps, rpe));
+      : roundToLoadable(weightFromE1rm(matrix, state.e1rm, reps, rpe));
 
   switch (config.progressionModel) {
     case "linear": {
@@ -100,7 +101,7 @@ export function prescribeExercise(
       return {
         exerciseId,
         model: "linear",
-        workingE1rm: state?.workingE1rm ?? null,
+        workingE1rm: state?.e1rm ?? null,
         sets: Array.from({ length: sets }, () => ({
           reps,
           rpe,
@@ -114,7 +115,8 @@ export function prescribeExercise(
       const params = config.progressionParams as DoubleProgressionParams;
       const sets = clampSets(adjust(params.targetSets, "volume", "targetSets"));
       // The rep goal is engine state (advancing minReps → maxReps), so the
-      // mesocycle never touches it (lockKey null) — only volume resets do.
+      // mesocycle never touches it (lockKey null); the deload only tapers
+      // intensity, so the rep goal passes through unchanged.
       const reps = clampReps(
         adjust(state?.currentTargetReps ?? params.minReps, "volume", null),
       );
@@ -123,7 +125,7 @@ export function prescribeExercise(
       return {
         exerciseId,
         model: "double",
-        workingE1rm: state?.workingE1rm ?? null,
+        workingE1rm: state?.e1rm ?? null,
         sets: Array.from({ length: sets }, () => ({
           reps,
           rpe,
@@ -157,7 +159,7 @@ export function prescribeExercise(
       return {
         exerciseId,
         model: "topset_backoff",
-        workingE1rm: state?.workingE1rm ?? null,
+        workingE1rm: state?.e1rm ?? null,
         sets: [
           {
             reps: topReps,
@@ -180,13 +182,17 @@ export function prescribeExercise(
       const sets = clampSets(adjust(params.targetSets, "volume", "targetSets"));
       const reps = clampReps(adjust(params.targetReps, "volume", "targetReps"));
       const rpe = clampRpe(
-        adjust(params.targetRpe ?? DEFAULT_TARGET_RPE, "intensity", "targetRpe"),
+        adjust(
+          params.targetRpe ?? DEFAULT_TARGET_RPE,
+          "intensity",
+          "targetRpe",
+        ),
       );
       const weight = weightFor(reps, rpe);
       return {
         exerciseId,
         model: "none",
-        workingE1rm: state?.workingE1rm ?? null,
+        workingE1rm: state?.e1rm ?? null,
         sets: Array.from({ length: sets }, () => ({
           reps,
           rpe,

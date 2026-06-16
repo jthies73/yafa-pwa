@@ -36,7 +36,11 @@ export type ProgressionParams =
   | TopSetProgressionParams
   | NoneProgressionParams;
 
-export type ProgressionModelType = "linear" | "double" | "topset_backoff" | "none";
+export type ProgressionModelType =
+  | "linear"
+  | "double"
+  | "topset_backoff"
+  | "none";
 
 // Record<reps, Record<rpe, percentage_of_1rm>> — percentages stored as decimals (0..1).
 export type RpeMatrix = Record<number, Record<number, number>>;
@@ -134,42 +138,53 @@ export interface Workout {
 // Progression Engine State
 // ----------------------------------------------
 
-export type ResetKind = "intensity" | "volume";
-
-// Corrective layer applied on top of a prescription after a reset. Its
-// strength tapers linearly to zero over `decaySessions` post-reset sessions
-// (effective = initialMagnitude × (1 − sessionsElapsed / decaySessions)),
-// after which it is dropped from the queue.
-export interface ResetModifier {
-  kind: ResetKind;
+// The single active deload's decaying corrective layer. Its strength tapers
+// linearly to zero over `decaySessions` post-trigger sessions
+// (effective = initialMagnitude × (1 − sessionsElapsed / decaySessions)), after
+// which it is dropped. At most one deload is active at a time — a fresh failure
+// cascade replaces it rather than stacking a second modifier.
+export interface DeloadState {
+  e1rmAtTrigger: number; // the working e1RM when the deload fired (telemetry)
   initialMagnitude: number; // fraction removed at full strength (0.1 ⇒ −10%)
   decaySessions: number;
   sessionsElapsed: number;
 }
 
 /**
- * Persistent per-exercise engine state. The engine tracks TWO distinct e1RM
- * concepts — they must never be conflated:
+ * Per-exercise engine state. This is NOT an independently-mutated source of
+ * truth: it is a memoized CHECKPOINT of folding the exercise's logged history
+ * (engine/fold.ts) through the single ordered reducer. It is recomputed whenever
+ * `contentHash` no longer matches its inputs (config, logged sets, matrix,
+ * confirmed recalibrations), so it can never drift out of sync with history —
+ * editing or deleting a past workout retro-corrects it on the next derive.
  *
- * - `workingE1rm` is the planning scalar: every weight prescription is derived
- *   from it via the RPE matrix. It moves deliberately — up by the configured
- *   `weightIncrement` on a successful session, down (lastingly) by an
- *   intensity reset. It is the single source of truth for prescriptions.
- * - `observedE1rms` holds the implied e1RMs of the last 10 qualifying sets
- *   (reps ≤ 10 AND RPE ≥ 8). It is INTERNAL to matrix learning: the rolling
- *   mean is the reference baseline each qualifying set's demonstrated
- *   percentage is measured against as the RPE matrix self-calibrates. It never
- *   drives prescriptions and is not surfaced to the user — divergence between
- *   demonstrated and working e1RM is reconciled by the recalibration flow.
+ * `e1rm` is the single strength scalar: every weight prescription derives from
+ * it via the RPE matrix. It moves only through the reducer (progression
+ * increment, deload cut, passive blend toward demonstrated reality, or a
+ * user-confirmed recalibration snap).
  */
 export interface ProgressionState {
   exerciseId: string;
-  workingE1rm: number | null; // null until seeded from the first logged session
-  observedE1rms: number[];
+  e1rm: number | null; // null until seeded from the first logged session
+  trend: number[]; // rolling window of recent demonstrated e1RMs (smoothing + analytics)
   failureStreak: number; // consecutive failed sessions (all progression models)
   currentTargetReps?: number; // double: rep goal advancing from minReps to maxReps
-  resetModifiers: ResetModifier[];
+  deload: DeloadState | null;
+  lastWorkoutId: string | null; // newest workout folded into this checkpoint
+  contentHash: string; // hash of the fold inputs; mismatch ⇒ recompute
   updated_at: number;
+}
+
+/**
+ * A user-confirmed recalibration: ground truth that the working e1RM of
+ * `exerciseId` was deliberately snapped to `e1rm` at the session `workoutId`.
+ * The fold reads these as inputs and replays the snap, so a confirmed
+ * recalibration survives any later full recompute.
+ */
+export interface Recalibration {
+  exerciseId: string;
+  workoutId: string;
+  e1rm: number;
 }
 
 // ----------------------------------------------

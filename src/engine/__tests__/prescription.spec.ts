@@ -2,16 +2,18 @@ import { describe, it, expect } from "vitest";
 import { DEFAULT_RPE_MATRIX } from "../../db/rpeMatrix";
 import type { ProgressionState, RoutineExerciseConfig } from "../../db/types";
 import { prescribeExercise } from "../prescription";
-import { createIntensityResetModifier } from "../resets";
+import { freshDeload } from "../deload";
 
 const makeState = (
   overrides: Partial<ProgressionState> = {},
 ): ProgressionState => ({
   exerciseId: "ex",
-  workingE1rm: 100,
-  observedE1rms: [],
+  e1rm: 100,
+  trend: [],
   failureStreak: 0,
-  resetModifiers: [],
+  deload: null,
+  lastWorkoutId: null,
+  contentHash: "",
   updated_at: 0,
   ...overrides,
 });
@@ -98,7 +100,7 @@ describe("prescription pipeline", () => {
     expect(peaking.sets[0].rpe).toBe(10); // 9.5 × 1.05 snapped and capped
   });
 
-  it("a fresh intensity reset reduces prescribed weight for double progression", () => {
+  it("a fresh deload reduces prescribed weight for double progression", () => {
     const config: RoutineExerciseConfig = {
       progressionModel: "double",
       progressionParams: {
@@ -119,12 +121,12 @@ describe("prescription pipeline", () => {
       config,
       state: makeState({
         currentTargetReps: 10,
-        resetModifiers: [createIntensityResetModifier()],
+        deload: freshDeload(100),
       }),
       matrix: DEFAULT_RPE_MATRIX,
     });
-    // Intensity reset at full strength applies a ×0.9 multiplier to the e1RM,
-    // so the prescribed weight should be lower than the baseline.
+    // A fresh deload at full strength tapers the intensity (RPE) target, so the
+    // prescribed weight should be lower than the baseline.
     expect(withReset.sets[0].weight).toBeLessThan(baseline.sets[0].weight!);
   });
 

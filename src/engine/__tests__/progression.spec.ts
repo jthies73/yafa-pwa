@@ -1,10 +1,10 @@
 import { describe, it, expect } from "vitest";
 import type {
+  DoubleProgressionParams,
   ProgressionState,
-  RoutineExerciseConfig,
   Set as LoggedSet,
 } from "../../db/types";
-import { advanceProgression, evaluateLinear } from "../progression";
+import { evaluateDouble, evaluateLinear, evaluateTopSet } from "../progression";
 
 let setSeq = 0;
 const makeSet = (
@@ -39,31 +39,20 @@ const failSet = (
   weight = 100,
 ) => makeSet(actualReps, targetReps, actualRpe, targetRpe, weight, weight);
 
-const makeState = (
-  overrides: Partial<ProgressionState> = {},
-): ProgressionState => ({
+const doubleState = (currentTargetReps?: number): ProgressionState => ({
   exerciseId: "ex",
-  workingE1rm: 100,
-  observedE1rms: [],
+  e1rm: 100,
+  trend: [],
   failureStreak: 0,
-  resetModifiers: [],
+  currentTargetReps,
+  deload: null,
+  lastWorkoutId: null,
+  contentHash: "",
   updated_at: 0,
-  ...overrides,
 });
 
-const LP_CONFIG: RoutineExerciseConfig = {
-  progressionModel: "linear",
-  progressionParams: {
-    targetSets: 3,
-    targetReps: 5,
-    targetRpe: 8,
-    weightIncrement: 2.5,
-  },
-};
-
-describe("set failure condition", () => {
+describe("evaluateLinear — set failure condition", () => {
   it("fails only when reps short AND RPE over AND weight matches", () => {
-    // All three conditions met → failure
     expect(evaluateLinear([failSet(4, 5, 9, 8)])).toBe("failure");
   });
 
@@ -76,7 +65,7 @@ describe("set failure condition", () => {
   });
 
   it("success when reps short and RPE over but weight was changed", () => {
-    // Actual weight differs from target → set is ignored
+    // Actual weight differs from target → the set is an intentional adjustment.
     expect(evaluateLinear([makeSet(4, 5, 9, 8, 97.5, 100)])).toBe("success");
   });
 
@@ -89,185 +78,56 @@ describe("set failure condition", () => {
   });
 });
 
-describe("linear progression state transitions", () => {
-  const successSets = () => [hitSet(5, 8), hitSet(5, 8), hitSet(5, 8)];
-  const failSets = () => [
-    failSet(4, 5, 9, 8),
-    failSet(4, 5, 9, 8),
-    failSet(4, 5, 9, 8),
-  ];
-
-  it("success adds the weight increment and clears the streak", () => {
-    const state = advanceProgression(
-      LP_CONFIG,
-      makeState({ failureStreak: 2 }),
-      successSets(),
-    );
-    expect(state.workingE1rm).toBeCloseTo(102.5);
-    expect(state.failureStreak).toBe(0);
-    expect(state.resetModifiers).toHaveLength(0);
-  });
-
-  it("failure increments the streak but does not fire reset below trigger", () => {
-    const state = advanceProgression(LP_CONFIG, makeState(), failSets());
-    expect(state.failureStreak).toBe(1);
-    expect(state.workingE1rm).toBeCloseTo(100);
-    expect(state.resetModifiers).toHaveLength(0);
-  });
-
-  it("fires the intensity reset on exactly the third consecutive failure", () => {
-    let state = makeState();
-    state = advanceProgression(LP_CONFIG, state, failSets());
-    state = advanceProgression(LP_CONFIG, state, failSets());
-    expect(state.failureStreak).toBe(2);
-    expect(state.resetModifiers).toHaveLength(0);
-
-    state = advanceProgression(LP_CONFIG, state, failSets());
-    expect(state.resetModifiers).toHaveLength(1);
-    expect(state.resetModifiers[0].kind).toBe("intensity");
-    expect(state.workingE1rm).toBeCloseTo(90);
-    expect(state.failureStreak).toBe(0);
-  });
-
-  it("a set with changed weight is not a failure — streak does not accumulate", () => {
-    // Reps short and RPE over, but user loaded 97.5 instead of 100
-    const adjustedSets = () => [makeSet(4, 5, 9, 8, 97.5, 100)];
-    let state = makeState();
-    state = advanceProgression(LP_CONFIG, state, adjustedSets());
-    state = advanceProgression(LP_CONFIG, state, adjustedSets());
-    state = advanceProgression(LP_CONFIG, state, adjustedSets());
-    expect(state.resetModifiers).toHaveLength(0);
-  });
-});
-
-describe("top set + back-off", () => {
-  const TS_CONFIG: RoutineExerciseConfig = {
-    progressionModel: "topset_backoff",
-    progressionParams: {
-      topSetTargetReps: 5,
-      topSetTargetRpe: 8,
-      backOffSets: 2,
-      percentageDrop: 10,
-      weightIncrement: 2.5,
-    },
-  };
-
-  it("only the top set drives evaluation — back-off failures are ignored", () => {
-    // Top set clean, back-offs both failed: still success
+describe("evaluateTopSet", () => {
+  it("only the top set (first) drives the outcome — back-off failures ignored", () => {
     const sets = [hitSet(5, 8), failSet(2, 5, 10, 8), failSet(1, 5, 10, 8)];
-    const state = advanceProgression(TS_CONFIG, makeState(), sets);
-    expect(state.workingE1rm).toBeCloseTo(102.5);
-    expect(state.failureStreak).toBe(0);
+    expect(evaluateTopSet(sets)).toBe("success");
   });
 
-  it("top set failure increments the streak", () => {
-    // Top set: reps short AND RPE over → failure
-    const sets = [failSet(4, 5, 9, 8), hitSet(5, 8), hitSet(5, 8)];
-    const state = advanceProgression(TS_CONFIG, makeState(), sets);
-    expect(state.failureStreak).toBe(1);
-    expect(state.workingE1rm).toBeCloseTo(100);
+  it("a failed top set is a failure regardless of back-offs", () => {
+    const sets = [failSet(4, 5, 9, 8), hitSet(5, 8)];
+    expect(evaluateTopSet(sets)).toBe("failure");
   });
 
-  it("fires the intensity reset on exactly the third consecutive top-set failure", () => {
-    const failedTopSet = () => [
-      failSet(4, 5, 9, 8),
-      hitSet(5, 8),
-      hitSet(5, 8),
-    ];
-    let state = makeState();
-    state = advanceProgression(TS_CONFIG, state, failedTopSet());
-    state = advanceProgression(TS_CONFIG, state, failedTopSet());
-    expect(state.failureStreak).toBe(2);
-
-    state = advanceProgression(TS_CONFIG, state, failedTopSet());
-    expect(state.resetModifiers).toHaveLength(1);
-    expect(state.resetModifiers[0].kind).toBe("intensity");
-    expect(state.workingE1rm).toBeCloseTo(90);
-    expect(state.failureStreak).toBe(0);
-  });
-
-  it("top set with changed weight is not a failure", () => {
-    const sets = [makeSet(4, 5, 9, 8, 97.5, 100), hitSet(5, 8)];
-    const state = advanceProgression(TS_CONFIG, makeState(), sets);
-    expect(state.failureStreak).toBe(0);
-    expect(state.workingE1rm).toBeCloseTo(102.5);
+  it("success on empty set list", () => {
+    expect(evaluateTopSet([])).toBe("success");
   });
 });
 
-describe("double progression", () => {
-  const DP_CONFIG: RoutineExerciseConfig = {
-    progressionModel: "double",
-    progressionParams: {
-      targetSets: 3,
-      minReps: 8,
-      maxReps: 12,
-      weightIncrement: 2.5,
-    },
+describe("evaluateDouble", () => {
+  const params: DoubleProgressionParams = {
+    targetSets: 3,
+    minReps: 8,
+    maxReps: 12,
+    weightIncrement: 2.5,
   };
 
-  it("hitting maxReps everywhere adds the increment and restarts at minReps", () => {
+  it("hitting maxReps on every set flags weight progress and restarts at minReps", () => {
     const sets = [hitSet(12, 9, 50), hitSet(12, 9, 50), hitSet(13, 9.5, 50)];
-    const state = advanceProgression(
-      DP_CONFIG,
-      makeState({ currentTargetReps: 12 }),
-      sets,
-    );
-    expect(state.workingE1rm).toBeCloseTo(102.5);
-    expect(state.currentTargetReps).toBe(8);
-    expect(state.failureStreak).toBe(0);
+    const evaluation = evaluateDouble(params, doubleState(12), sets);
+    expect(evaluation.weightProgressed).toBe(true);
+    expect(evaluation.nextTargetReps).toBe(8);
   });
 
   it("advances the rep target from the worst set, never backwards", () => {
-    const sets = [
+    const advancing = evaluateDouble(params, doubleState(9), [
       makeSet(10, 10, undefined, undefined, 50),
       makeSet(9, 9, undefined, undefined, 50),
-    ];
-    const advanced = advanceProgression(
-      DP_CONFIG,
-      makeState({ currentTargetReps: 9 }),
-      sets,
-    );
-    expect(advanced.currentTargetReps).toBe(10);
+    ]);
+    expect(advancing.weightProgressed).toBe(false);
+    expect(advancing.nextTargetReps).toBe(10);
 
-    const badDay = advanceProgression(
-      DP_CONFIG,
-      makeState({ currentTargetReps: 11 }),
-      [makeSet(7, 7, undefined, undefined, 50)],
-    );
-    expect(badDay.currentTargetReps).toBe(11);
+    const badDay = evaluateDouble(params, doubleState(11), [
+      makeSet(7, 7, undefined, undefined, 50),
+    ]);
+    expect(badDay.nextTargetReps).toBe(11); // never moves backward
   });
 
-  it("fires the intensity reset on exactly the third consecutive failure", () => {
-    // Reps short AND RPE over at same weight → failure each session
-    const failSets3 = () => [
+  it("reports failure when a set is short on reps and over on RPE", () => {
+    const evaluation = evaluateDouble(params, doubleState(8), [
       failSet(7, 8, 9, 8, 50),
-      failSet(7, 8, 9, 8, 50),
-      failSet(7, 8, 9, 8, 50),
-    ];
-    let state = makeState();
-    state = advanceProgression(DP_CONFIG, state, failSets3());
-    state = advanceProgression(DP_CONFIG, state, failSets3());
-    expect(state.failureStreak).toBe(2);
-    expect(state.resetModifiers).toHaveLength(0);
-
-    state = advanceProgression(DP_CONFIG, state, failSets3());
-    expect(state.resetModifiers).toHaveLength(1);
-    expect(state.resetModifiers[0].kind).toBe("intensity");
-    expect(state.workingE1rm).toBeCloseTo(90);
-    expect(state.failureStreak).toBe(0);
-  });
-
-  it("neutral session (no failure, no maxReps) clears the failure streak", () => {
-    const neutralSets = () => [
-      makeSet(10, 10, 8, 8, 50),
-      makeSet(10, 10, 8, 8, 50),
-    ];
-    const state = advanceProgression(
-      DP_CONFIG,
-      makeState({ failureStreak: 2 }),
-      neutralSets(),
-    );
-    expect(state.failureStreak).toBe(0);
-    expect(state.resetModifiers).toHaveLength(0);
+    ]);
+    expect(evaluation.outcome).toBe("failure");
+    expect(evaluation.weightProgressed).toBe(false);
   });
 });

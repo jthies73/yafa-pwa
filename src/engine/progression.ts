@@ -1,22 +1,14 @@
 import type {
   DoubleProgressionParams,
-  LinearProgressionParams,
   ProgressionState,
-  RoutineExerciseConfig,
   Set as LoggedSet,
-  TopSetProgressionParams,
 } from "../db/types";
-import {
-  DEFAULT_TARGET_RPE,
-  DOUBLE_FAILURE_RESET_TRIGGER,
-  LP_FAILURE_RESET_TRIGGER,
-  TOP_SET_FAILURE_RESET_TRIGGER,
-} from "./config";
-import { createIntensityResetModifier, intensityResetE1rm } from "./resets";
+import { DEFAULT_TARGET_RPE } from "./config";
 
 // ----------------------------------------------
-// Progression models: session evaluation and state transitions. Pure — the
-// service layer feeds logged sets in and persists the returned state.
+// Progression models: pure per-session OUTCOME evaluation. These decide
+// success/failure (and double's rep-cursor advance) from logged sets; the fold
+// reducer (engine/fold.ts) owns every state transition that follows.
 // ----------------------------------------------
 
 export type SessionOutcome = "success" | "failure";
@@ -94,87 +86,4 @@ export function evaluateDouble(
 
   const outcome = sets.some(setFailed) ? "failure" : "success";
   return { weightProgressed, nextTargetReps, outcome };
-}
-
-const applyIntensityReset = (state: ProgressionState): void => {
-  if (state.workingE1rm !== null) {
-    state.workingE1rm = intensityResetE1rm(state.workingE1rm);
-  }
-  state.resetModifiers = [
-    ...state.resetModifiers,
-    createIntensityResetModifier(),
-  ];
-  state.failureStreak = 0;
-};
-
-/**
- * Post-session state transition for an exercise: applies the model's outcome
- * (e1RM increment, streak bookkeeping) and fires a reset when a streak hits
- * its trigger. Pure — returns a new state object.
- */
-export function advanceProgression(
-  config: RoutineExerciseConfig,
-  state: ProgressionState,
-  sets: LoggedSet[],
-): ProgressionState {
-  const next: ProgressionState = {
-    ...state,
-    resetModifiers: [...state.resetModifiers],
-  };
-  if (!sets.length) return next;
-
-  switch (config.progressionModel) {
-    case "linear": {
-      const params = config.progressionParams as LinearProgressionParams;
-      const outcome = evaluateLinear(sets);
-      if (outcome === "success") {
-        next.workingE1rm = (next.workingE1rm ?? 0) + params.weightIncrement;
-        next.failureStreak = 0;
-      } else {
-        next.failureStreak += 1;
-        if (next.failureStreak >= LP_FAILURE_RESET_TRIGGER) {
-          applyIntensityReset(next);
-        }
-      }
-      break;
-    }
-
-    case "topset_backoff": {
-      const params = config.progressionParams as TopSetProgressionParams;
-      const outcome = evaluateTopSet(sets);
-      if (outcome === "success") {
-        next.workingE1rm = (next.workingE1rm ?? 0) + params.weightIncrement;
-        next.failureStreak = 0;
-      } else {
-        next.failureStreak += 1;
-        if (next.failureStreak >= TOP_SET_FAILURE_RESET_TRIGGER) {
-          applyIntensityReset(next);
-        }
-      }
-      break;
-    }
-
-    case "double": {
-      const params = config.progressionParams as DoubleProgressionParams;
-      const evaluation = evaluateDouble(params, state, sets);
-      if (evaluation.weightProgressed) {
-        next.workingE1rm = (next.workingE1rm ?? 0) + params.weightIncrement;
-        next.failureStreak = 0;
-      } else if (evaluation.outcome === "failure") {
-        next.failureStreak += 1;
-        if (next.failureStreak >= DOUBLE_FAILURE_RESET_TRIGGER) {
-          applyIntensityReset(next);
-        }
-      } else {
-        next.failureStreak = 0;
-      }
-      next.currentTargetReps = evaluation.nextTargetReps;
-      break;
-    }
-
-    case "none":
-      break;
-  }
-
-  return next;
 }

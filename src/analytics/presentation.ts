@@ -50,15 +50,6 @@ export const TIMEFRAME_OPTIONS: { value: Timeframe; label: string }[] = [
   { value: "week", label: "Week" },
 ];
 
-// Lowercase nouns for tooltip sentences ("10 direct sets", "240 kg volume").
-const METRIC_NOUNS: Record<AnalyticsMetric, string> = {
-  workouts: "workouts",
-  sets: "sets",
-  reps: "reps",
-  volume: "volume",
-  e1rm: "e1RM",
-  value: "value",
-};
 
 export interface TooltipContext {
   bucket: AnalyticsBucket;
@@ -70,20 +61,9 @@ export interface TooltipContext {
 const bucketPrefix = (bucket: AnalyticsBucket, point: BucketPoint): string =>
   bucket === "week" ? `Week of ${point.label}` : point.label;
 
-/** Headline, e.g. "Week of Mar 4 — Triceps sets: 10 total". */
+/** Headline: period label and formatted value — scope/metric are in the card header already. */
 export function tooltipTitle(point: BucketPoint, ctx: TooltipContext): string {
-  const where = bucketPrefix(ctx.bucket, point);
-  const value = ctx.formatValue(point.value);
-  switch (ctx.metric) {
-    case "value":
-      return `${where} — ${ctx.scopeLabel}: ${value}`;
-    case "e1rm":
-      return `${where} — ${ctx.scopeLabel} e1RM: ${value}`;
-    case "workouts":
-      return `${where} — Workouts: ${value}`;
-    default:
-      return `${where} — ${ctx.scopeLabel} ${METRIC_NOUNS[ctx.metric]}: ${value} total`;
-  }
+  return `${bucketPrefix(ctx.bucket, point)}: ${ctx.formatValue(point.value)}`;
 }
 
 // Cap the per-exercise listing so a busy global bucket can't produce a
@@ -112,7 +92,6 @@ export function tooltipLines(
   }
   if (ctx.metric === "workouts") return [];
 
-  const noun = METRIC_NOUNS[ctx.metric];
   const lines: string[] = [];
   for (const role of ["direct", "indirect"] as const) {
     const group = point.contributions.filter((c) => c.role === role);
@@ -126,7 +105,7 @@ export function tooltipLines(
       group.length > MAX_BREAKDOWN_EXERCISES
         ? `, +${group.length - MAX_BREAKDOWN_EXERCISES} more`
         : "";
-    lines.push(`${ctx.formatValue(total)} ${role} ${noun} (${shown}${more})`);
+    lines.push(`${ctx.formatValue(total)} ${role} (${shown}${more})`);
   }
   return lines;
 }

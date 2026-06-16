@@ -141,7 +141,7 @@ const save = async () => {
       </div>
     </template>
 
-    <div ref="wrapper" class="w-full overflow-hidden relative">
+    <div ref="wrapper" class="w-full overflow-x-hidden relative">
       <div
         class="flex w-[200%] items-start transition-transform duration-300 ease-in-out"
         :style="{

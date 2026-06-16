@@ -442,7 +442,7 @@ const onLogSet = () => {
               Manual Set
             </p>
             <p class="mt-0.5 font-mono text-2xl font-bold text-accent">
-              {{ reps }} × {{ weight }} {{ weightUnit }} @ RPE {{ rpe }}
+              {{ reps }} × {{ weight }}{{ weightUnit }} @ {{ rpe }}
             </p>
           </div>
           <div class="text-right">

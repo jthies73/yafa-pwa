@@ -1,51 +1,58 @@
 # Yafa Project Gemini Instructions
 
-This file contains base instructions and technical guidelines for Google Gemini to pair-program on the Yafa project.
+Base instructions and technical guidelines for Google Gemini to pair-program on the Yafa project.
 
-> **Instructions sync**: This project maintains two parallel instruction files — `CLAUDE.md` (Claude Code) and `.gemini/instructions.md` (Gemini). Whenever instructions are added or changed in one file, apply the same change to the other.
+> **Instructions sync**: `CLAUDE.md` (Claude Code) and `.gemini/instructions.md` (Gemini) are parallel files. Apply any instruction change to both.
 
----
+> **Read [README.md](../README.md)** for the design rationale, workout engine concepts (e1RM, RPE matrix, progression models, resets, mesocycles), and feature overview. Don't duplicate that here.
 
-## 🎨 Design Language & Visual Aesthetics
+## Architecture
 
-- **Minimalistic, Flat, & Technical Style**: Always maintain a highly polished, minimalistic, flat, and technical/clean aesthetic across the entire application. Avoid unnecessary gradients, heavy skeuomorphism, or bloated decorations.
-- **Harmonious Palette**: Use `#1fc7b9` (turquoise) as the primary accent color. Support dark/light mode configurations smoothly using Tailwind v4 theme variables.
-- **Mobile-First Design**: Design all layouts, user experiences, and screen components primarily optimized for mobile viewports, ensuring a seamless phone interface before scaling upwards.
-- **Responsive Breakpoints**: Use exactly three breakpoint tiers — mobile (default), tablet (`md:`), desktop (`lg:`). Do not use `sm:`, `xl:`, `2xl:`, or any other intermediate breakpoints.
-- **Alignment & Consistency**: When creating new components or populating pages, align the new designs seamlessly with existing stylings, typography, and spacing.
-- **Asset Integrity**: Never use generic image placeholders. Prefer inline SVGs or clean programmatic graphics styled with Tailwind utility classes.
-- **Interactive Cursor**: Explicitly apply the `cursor-pointer` utility class (or `cursor: pointer` in CSS) to all clickable elements (buttons, links, triggers, interactive controls) to ensure clear visual feedback.
-- **Interactive Feedback**: Clickable elements must change color slightly on hover to indicate clickability (in addition to having `cursor-pointer`). There should be no animation (such as scale or translate transitions) on hover.
-- **Navigation Highlighting**: Navigation links in headers or menus must remain highlighted (using the active/accent style) when navigating into subroutes or details pages corresponding to that section (e.g., keeping "Plans" highlighted when on `/plans/:id` or `/routines/:id`).
-- **Animations and Transitions**: Never use animations or transitions. Only use animations and transitions when specifically asked to do so.
+- **`src/engine/`** — Core workout logic. Pure, no Vue deps, independently testable (`service`, `prescription`, `calculator`, `matrix`, `adjustment`).
+- **`src/db/`** — Dexie/IndexedDB data layer. Schema (`db.ts`), interfaces (`types.ts`), CRUD (`repository.ts`), seed/backup helpers.
+- **`src/composables/`** — Vue 3 logic: refs, computed, watchers, side effects, gestures, unit fields.
+- **`src/components/`** — Vue SFCs. `Dashboard.vue` is the main shell. Modals and forms build on `AppBottomSheet.vue` (drag-to-dismiss, optional drag-to-dock, `useBottomSheetGestures`) — reuse it instead of rolling a new dialog. `WorkoutBottomSheet.vue` is the minimizable running-workout variant.
+- **`src/router/`** — Client-side routing.
+- **`src/analytics/`** — Workout history aggregation and Chart.js rendering.
 
----
+`index.html` is a static landing page (inline styles + ~3s redirect) kept static for SEO before JS runs — don't convert it into a Vue route. The app mounts at `#app`.
 
-## 🛠️ Stack & Technologies
+Persistence: all data is offline via IndexedDB. Save/restore the route `fullPath` (e.g. `/plans/123`) so reloads return to the exact page. PWA uses "prompt" mode.
 
-- **Framework**: Vue 3 (Composition API using `<script setup lang="ts">`).
-- **Build System**: Vite.
-- **Styling**: Tailwind CSS v4. Always prefer Tailwind utility classes over custom CSS.
-- **Component Library**: Use **Reka UI** components (installed in the project) when applicable instead of writing complex UI controls or accessible structures from scratch.
-- **PWA**: Integrated using `vite-plugin-pwa`.
-- **State Persistence / Database**: **Dexie.js** (IndexedDB wrapper) for robust, offline persistence of all app-related state (workouts, exercises, routines, RPE grids).
-- **Navigation Persistence**: Always save and restore the `fullPath` (e.g. `/plans/123`) of the current page to the persistent app state instead of just the route name, ensuring dynamic routes with parameters remain persistent across reloads.
+## Stack
 
----
+- Vue 3 Composition API (`<script setup lang="ts">`), Vite, strict TypeScript
+- Tailwind CSS v4 — prefer utility classes, no custom CSS
+- Reka UI for complex/accessible controls
+- Dexie.js (IndexedDB), `vite-plugin-pwa`
 
-## 📂 Structural Layout & SEO
+## Code Guidelines
 
-- **Static Landing Page**: The landing page is contained entirely in `index.html` (including styling, logo, and 3-second redirect logic) to optimize search engine crawling and SEO before JavaScript execution.
-- **Vue App Entry**: Mounts to `#app` inside `index.html` and resolves to `Dashboard.vue` directly.
-- **Dashboard Component**: Positioned inside `src/components/Dashboard.vue` containing only a beautiful, centered gradient headline.
+- Reuse existing components; keep them focused and single-purpose.
+- Engine functions stay pure; all DB access goes through `repository.ts`; types live in `types.ts`.
+- Composables for Vue-specific logic only; plain functions for domain logic.
+- New feature flow follows the dependency direction: types (`types.ts`) → CRUD (`repository.ts`) → composable → component → route.
+- No barrel exports unless grouping related types.
+- Colocate tests under `__tests__/`.
+- Comment only when the **why** is non-obvious. No multi-paragraph docstrings. Use template section comments (`<!-- ... -->`) for navigation.
+- Run `yarn format` before finalizing.
 
----
+## Design Language
 
-## 🚀 Component Creation & Reuse Rules
+- Minimalistic, flat, technical. No gradients/skeuomorphism. Accent color `#1fc7b9` (turquoise); support dark/light via Tailwind v4 theme vars.
+- Mobile-first. Use only three breakpoints: default, `md:`, `lg:` — never `sm:`, `xl:`, `2xl:`.
+- Apply `cursor-pointer` to all clickable elements; they must shift color on hover (no scale/translate animations).
+- Keep nav links highlighted on their subroutes (e.g. "Plans" while on `/plans/:id`).
+- Never use placeholder images — prefer inline SVG / programmatic graphics.
 
-- **Component Reuse**: Reuse existing components whenever possible to avoid duplicate logic or styling.
-- **Code Splitting**: Keep components focused, reusable, and single-purpose.
-- **TypeScript Best Practices**: Always use strict typing, interface definitions, and reactive primitives (`ref`, `computed`).
-- **Code Formatting**: Ensure all code is cleanly formatted using Prettier (`yarn format`) before finalizing changes.
-- **Refactoring & Simplification**: When explicitly prompted, proactively refactor, modularize, and simplify any code created or modified during the current session. Remove unnecessary or redundant code, extract complex logic into reusable composables or smaller components, and focus strictly on an elegant, concise, and highly maintainable code structure. Always prioritize simplicity and clarity over complex abstractions.
-- **Comments**: Keep comments when they genuinely aid understanding — e.g. non-obvious logic, subtle invariants, or tricky workarounds. In templates, keep section comments (e.g. `<!-- Exercise selector -->`) to aid navigation. Do not add comments that merely restate what the code already says.
+## Commands
+
+```bash
+yarn test:unit                 # all tests
+yarn test:unit:watch           # watch mode
+yarn test:unit -- <file>       # specific file
+yarn type-check                # Vue templates + TS
+yarn format && yarn lint
+```
+
+Run `yarn test:unit` before committing.

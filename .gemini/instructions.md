@@ -11,7 +11,7 @@ Base instructions and technical guidelines for Google Gemini to pair-program on 
 - **`src/engine/`** — Core workout logic. Pure, no Vue deps, independently testable (`service`, `prescription`, `calculator`, `matrix`, `adjustment`).
 - **`src/db/`** — Dexie/IndexedDB data layer. Schema (`db.ts`), interfaces (`types.ts`), CRUD (`repository.ts`), seed/backup helpers.
 - **`src/composables/`** — Vue 3 logic: refs, computed, watchers, side effects, gestures, unit fields.
-- **`src/components/`** — Vue SFCs. `Dashboard.vue` is the main shell. Modals and forms build on `AppBottomSheet.vue` (drag-to-dismiss, optional drag-to-dock, `useBottomSheetGestures`) — reuse it instead of rolling a new dialog. `WorkoutBottomSheet.vue` is the minimizable running-workout variant.
+- **`src/components/`** — Vue SFCs. `Dashboard.vue` is the main shell. Modals and forms build on `AppBottomSheet.vue` (drag-to-dismiss, optional drag-to-dock, `useBottomSheetGestures`) — reuse it instead of rolling a new dialog. `WorkoutBottomSheet.vue` is the minimizable running-workout variant. A destructive "Delete" action in a bottom sheet belongs in the sheet header (the `#title` slot, right-aligned) — never in a footer — and confirms via `ConfirmDialog.vue`.
 - **`src/router/`** — Client-side routing.
 - **`src/analytics/`** — Workout history aggregation and Chart.js rendering.
 

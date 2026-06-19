@@ -273,6 +273,7 @@ const recordCoffeeClick = () => {
               match: ['plans', 'plan-details', 'routine-details'],
             },
             { name: 'analytics', label: 'Analytics', match: ['analytics'] },
+            { name: 'history', label: 'History', match: ['history'] },
             { name: 'exercises', label: 'Exercises', match: ['exercises'] },
             {
               name: 'measurements',
@@ -360,6 +361,29 @@ const recordCoffeeClick = () => {
             "
           >
             <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+          </svg>
+          <!-- History icon -->
+          <svg
+            v-else-if="item.name === 'history'"
+            xmlns="http://www.w3.org/2000/svg"
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            class="w-5 h-5 transition-colors"
+            :class="
+              isActive(item.match)
+                ? 'text-accent'
+                : 'text-text-light/70 dark:text-text-dark/70 group-hover:text-accent'
+            "
+          >
+            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+            <path d="M3 3v5h5" />
+            <path d="M12 7v5l4 2" />
           </svg>
           <!-- Exercises icon -->
           <svg

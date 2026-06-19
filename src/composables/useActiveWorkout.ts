@@ -39,7 +39,8 @@ function buildPlannedCounts(
   for (const ex of r?.exercises ?? []) {
     const prescribed = prescriptions[ex.exerciseId]?.sets.length;
     counts[ex.exerciseId] =
-      (counts[ex.exerciseId] ?? 0) + (prescribed ?? getConfigSetCount(ex.config));
+      (counts[ex.exerciseId] ?? 0) +
+      (prescribed ?? getConfigSetCount(ex.config));
   }
   return counts;
 }

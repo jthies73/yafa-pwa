@@ -1,9 +1,6 @@
 import { ref, watch } from "vue";
 import { getConfigSetCount } from "../utils/progression";
-import type {
-  Set as LoggedSet,
-  WorkoutExercise,
-} from "../db/types";
+import type { Set as LoggedSet, WorkoutExercise } from "../db/types";
 import type { PrescribedSet } from "../engine/prescription";
 import { DEFAULT_RPE_MATRIX } from "../db/rpeMatrix";
 import { proposeSetAdjustment, type SetAdjustment } from "../engine/adjustment";

@@ -11,5 +11,7 @@ export function getConfigSetCount(config?: RoutineExerciseConfig): number {
   if (config.progressionModel === "topset_backoff") {
     return 1 + ((p as TopSetProgressionParams).backOffSets ?? 0);
   }
-  return (p as LinearProgressionParams | DoubleProgressionParams).targetSets ?? 3;
+  return (
+    (p as LinearProgressionParams | DoubleProgressionParams).targetSets ?? 3
+  );
 }

@@ -125,7 +125,6 @@ export function useSortableList(
     if (scrollParent) scrollParent.scrollTop += delta;
   };
 
-
   // px/frame, ramping up the deeper the pointer pushes into the edge zone.
   const edgeVelocity = (): number => {
     if (!autoScroll) return 0;

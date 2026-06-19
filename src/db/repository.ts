@@ -1,5 +1,5 @@
 import { db } from "./db";
-import type { Exercise, Plan, Routine, MesocycleWeek } from "./types";
+import type { Exercise, Plan, Routine, MesocycleWeek, Workout } from "./types";
 import type { RpeMatrix } from "./types"; // used by ExerciseInput
 
 // ----------------------------------------------
@@ -256,4 +256,16 @@ export async function deleteExercise(id: string): Promise<void> {
     }
     await db.exercises.delete(id);
   });
+}
+
+// ---- Workouts ----
+
+/** Completed workouts, newest first (indexed on startTime). */
+export async function getWorkouts(): Promise<Workout[]> {
+  return db.workouts.orderBy("startTime").reverse().toArray();
+}
+
+/** Removes a logged session. Nothing references a workout, so no cascade. */
+export async function deleteWorkout(id: string): Promise<void> {
+  await db.workouts.delete(id);
 }

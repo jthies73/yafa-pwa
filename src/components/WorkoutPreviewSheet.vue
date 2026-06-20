@@ -6,7 +6,6 @@ import type { PrescribedSet } from "../engine/prescription";
 import {
   previewWorkout,
   type ExercisePreview,
-  type ResetEffect,
   type WorkoutPreview,
 } from "../engine/service";
 import AppBottomSheet from "./AppBottomSheet.vue";
@@ -67,8 +66,6 @@ const ROLE_LABELS: Record<PrescribedSet["role"], string> = {
   backoff: "Back-off",
 };
 
-const fmtMult = (m: number) => `×${Math.round(m * 100) / 100}`;
-
 interface SetGroup {
   count: number;
   set: PrescribedSet;
@@ -119,13 +116,6 @@ const FIELD_LABELS: Record<string, string> = {
 
 const lockedLine = (e: ExercisePreview): string =>
   (e.config?.lockedFields ?? []).map((f) => FIELD_LABELS[f] ?? f).join(", ");
-
-const resetLine = (r: ResetEffect): string =>
-  `${r.kind === "intensity" ? "Intensity" : "Volume"} reset ${fmtMult(
-    r.multiplier,
-  )} — ${r.sessionsRemaining} session${
-    r.sessionsRemaining === 1 ? "" : "s"
-  } left`;
 
 // The c1RM is the planning scalar every prescribed weight derives from,
 // so it is the honest "calculation input" to show here. The observed e1RM (the
@@ -304,8 +294,33 @@ const intensityArrow = computed<ArrowConfig | null>(() => {
               <span class="text-text-light dark:text-text-dark opacity-60"
                 >c1RM</span
               >
-              <span class="font-mono text-text-h-light dark:text-text-h-dark">
-                {{ c1rmLine(e) }}
+              <span class="font-mono text-text-h-light dark:text-text-h-dark flex items-center gap-1.5">
+                <template v-if="e.resetPending && e.originalC1rm != null && e.c1rm != null">
+                  <span class="text-text-light dark:text-text-dark opacity-50 line-through">
+                    {{ fmtWeight(e.originalC1rm) }}
+                  </span>
+                  <span class="opacity-40">→</span>
+                  <span class="font-bold text-amber-500">
+                    {{ fmtWeight(e.c1rm) }}
+                  </span>
+                </template>
+                <template v-else>
+                  {{ c1rmLine(e) }}
+                </template>
+              </span>
+            </div>
+            <div
+              v-if="e.config.progressionModel !== 'none' && e.failureStreak >= 1"
+              class="flex items-center justify-between gap-3"
+            >
+              <span class="text-text-light dark:text-text-dark opacity-60"
+                >Regression streak</span
+              >
+              <span
+                class="font-mono text-text-h-light dark:text-text-h-dark"
+                :class="e.failureStreak >= 3 ? 'text-amber-500 font-bold' : ''"
+              >
+                {{ e.failureStreak }}/3
               </span>
             </div>
             <div
@@ -319,13 +334,6 @@ const intensityArrow = computed<ArrowConfig | null>(() => {
                 {{ lockedLine(e) }}
               </span>
             </div>
-            <p
-              v-for="r in e.resetEffects"
-              :key="r.kind + r.sessionsRemaining"
-              class="font-semibold text-amber-600 dark:text-amber-400"
-            >
-              {{ resetLine(r) }}
-            </p>
           </div>
         </div>
       </template>

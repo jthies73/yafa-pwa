@@ -61,6 +61,8 @@ export interface ExercisePreview {
   name: string;
   config?: RoutineExerciseConfig;
   c1rm: number | null;
+  originalC1rm?: number | null;
+  resetPending?: boolean;
   failureStreak: number;
   currentTargetReps?: number;
   resetEffects: ResetEffect[];
@@ -219,8 +221,10 @@ export async function previewWorkout(
     if (!exercise) continue;
 
     let state = await getProgressionState(re.exerciseId);
-    const hadReset = state.resetPending;
-    if (hadReset) state = consumeReset(state, at); // in memory only — preview never writes
+    const originalC1rm = state.c1rm;
+    const resetPending = state.resetPending;
+    const failureStreak = state.regressionStreak;
+    if (resetPending) state = consumeReset(state, at); // in memory only — preview never writes
 
     const eff = effectiveConfig(re.config, mods);
     exercises.push({
@@ -228,9 +232,11 @@ export async function previewWorkout(
       name: exercise.name,
       config: re.config,
       c1rm: state.c1rm,
-      failureStreak: state.regressionStreak,
+      originalC1rm: resetPending ? originalC1rm : undefined,
+      resetPending,
+      failureStreak,
       currentTargetReps: state.doubleRepCursor,
-      resetEffects: hadReset
+      resetEffects: resetPending
         ? [
             {
               kind: "intensity",

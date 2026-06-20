@@ -1,102 +1,151 @@
 import type { RpeMatrix, Set as LoggedSet } from "../db/types";
 import {
-  RPE_MIN,
-  RPE_MAX,
-  LOOKUP_REPS_MIN,
-  LOOKUP_REPS_MAX,
-  QUALIFYING_MIN_RPE,
-  QUALIFYING_MAX_REPS,
-  OBSERVED_E1RM_WINDOW,
-  MATRIX_EMA_ALPHA,
-  MATRIX_SMOOTHING_KERNEL,
   LOADABLE_INCREMENT_KG,
-} from "./config";
+  MATRIX_MAX_REPS,
+  MATRIX_MIN_REPS,
+  QUALIFYING_MAX_REPS,
+  QUALIFYING_MIN_RPE,
+  RPE_STEP,
+} from "./constants";
 
 // ----------------------------------------------
-// RPE matrix + e1RM subsystem: pure lookup, derivation, and learning logic.
-// Persistence-free so it can be tested in isolation.
+// RPE matrix + e1RM math. The matrix maps (reps, RPE) → percentage of 1RM as a
+// decimal (0..1); see src/db/rpeMatrix.ts for the default RTS grid (reps 1–10,
+// RPE 6–10 in 0.5 steps, monotone). Everything the engine does with weight goes
+// through these helpers.
+//
+// Pipeline stage: math foundation — feeds prescription (load = pct × c1RM),
+// evaluation/seeding (impliedE1rm), the manual calculator, and analytics.
+//
+// Two invariants worth stating up front:
+//   • c1RM (the progression anchor) is abstract and kept UNROUNDED; only the
+//     rendered prescribed weight is rounded (roundToLoadable). So matrix helpers
+//     never round on their own — weightFromE1rm returns a raw weight and the
+//     caller rounds after any ceiling cap.
+//   • impliedE1rm here is the ANALYTICS e1RM; it never feeds prescription (which
+//     uses c1RM). The two are deliberately separate values.
 // ----------------------------------------------
 
-/** Clamp an RPE into the matrix grid and snap it to the 0.5 step. */
+/** Round half-up to the 0.5 RPE grid, then clamp to the matrix's RPE range. */
 export function snapRpe(rpe: number): number {
-  const clamped = Math.min(RPE_MAX, Math.max(RPE_MIN, rpe));
-  return Math.round(clamped * 2) / 2;
+  const snapped = Math.round(rpe / RPE_STEP) * RPE_STEP;
+  // Clamp against the grid via the matrix isn't possible here (no matrix), so use
+  // the canonical 6–10 bounds; matrixPct re-clamps to a row's actual keys anyway.
+  return Math.min(10, Math.max(6, snapped));
 }
 
-/** Clamp a rep count to the rows the matrix actually has (1–10). */
+/** Round to an integer rep count and clamp to the matrix rows (1–10). */
 export function clampLookupReps(reps: number): number {
-  return Math.min(LOOKUP_REPS_MAX, Math.max(LOOKUP_REPS_MIN, Math.round(reps)));
+  return Math.min(MATRIX_MAX_REPS, Math.max(MATRIX_MIN_REPS, Math.round(reps)));
 }
 
-/** Percentage of e1RM the matrix assigns to (reps, rpe), grid-clamped. */
+/** Sorted numeric keys of an object whose keys are numbers-as-strings. */
+function numericKeys(obj: Record<number, number>): number[] {
+  return Object.keys(obj)
+    .map(Number)
+    .sort((a, b) => a - b);
+}
+
+/**
+ * Percentage of 1RM at (reps, rpe), as a decimal.
+ *
+ * Strategy: integer rep rows are looked up EXACTLY (reps are always integers in
+ * prescription and logging, and the rows are user-editable, so interpolating
+ * between rows would invent values nobody entered). Interpolation happens ONLY on
+ * the RPE axis, linearly between the two bracketing columns. Off-grid RPE is
+ * clamped to the row's own min/max column — we never extrapolate past the matrix
+ * (an RPE above 10 or below 6 is not physically meaningful).
+ */
 export function matrixPct(
   matrix: RpeMatrix,
   reps: number,
   rpe: number,
 ): number {
-  return matrix[clampLookupReps(reps)][snapRpe(rpe)];
+  const r = clampLookupReps(reps);
+  // Exact row, or the nearest present row (custom matrices may omit some rows).
+  let row = matrix[r];
+  if (!row) {
+    const rows = Object.keys(matrix)
+      .map(Number)
+      .sort((a, b) => Math.abs(a - r) - Math.abs(b - r));
+    if (rows.length === 0) {
+      throw new Error("matrixPct: empty RPE matrix");
+    }
+    row = matrix[rows[0]];
+  }
+
+  const cols = numericKeys(row);
+  const lo = cols[0];
+  const hi = cols[cols.length - 1];
+  const clampedRpe = Math.min(hi, Math.max(lo, rpe));
+
+  // Exact column hit.
+  if (row[clampedRpe] !== undefined) return row[clampedRpe];
+
+  // Linear interpolation between the two bracketing RPE columns.
+  let lower = lo;
+  let upper = hi;
+  for (const c of cols) {
+    if (c <= clampedRpe) lower = c;
+    if (c >= clampedRpe) {
+      upper = c;
+      break;
+    }
+  }
+  if (upper === lower) return row[lower];
+  const t = (clampedRpe - lower) / (upper - lower);
+  return row[lower] + t * (row[upper] - row[lower]);
 }
 
-/** The e1RM a set implies, given the matrix's current calibration. */
+/**
+ * The e1RM a (weight, reps, rpe) set implies: weight ÷ percentage. This is the
+ * ANALYTICS e1RM (best honest set's estimated 1RM); it never feeds prescription.
+ */
 export function impliedE1rm(
   matrix: RpeMatrix,
   weight: number,
   reps: number,
   rpe: number,
 ): number {
-  return weight / matrixPct(matrix, reps, rpe);
+  if (weight <= 0) return 0;
+  const pct = matrixPct(matrix, reps, rpe);
+  return pct > 0 ? weight / pct : 0;
 }
 
-/** Matrix-derived weight for an e1RM at (reps, rpe), rounded to 0.1. */
+/**
+ * The weight a given e1RM (or c1RM) maps to at (reps, rpe): e1rm × percentage.
+ * Returns the RAW unrounded weight — callers round (roundToLoadable) only AFTER
+ * applying any ceiling cap, so the cap comparison stays on exact values.
+ */
 export function weightFromE1rm(
   matrix: RpeMatrix,
   e1rm: number,
   reps: number,
   rpe: number,
 ): number {
-  return Math.round(e1rm * matrixPct(matrix, reps, rpe) * 10) / 10;
+  return e1rm * matrixPct(matrix, reps, rpe);
 }
 
-/** Round a weight to what can physically be put on the bar. */
+/** Round a weight to the nearest loadable increment (2.5 kg by default). */
 export function roundToLoadable(
   weight: number,
   increment: number = LOADABLE_INCREMENT_KG,
 ): number {
-  return Math.round(weight / increment) * increment;
-}
-
-/** Mean of the rolling implied-e1RM window; null while the window is empty. */
-export function observedE1rm(observedE1rms: number[]): number | null {
-  if (!observedE1rms.length) return null;
-  return observedE1rms.reduce((sum, v) => sum + v, 0) / observedE1rms.length;
+  if (increment <= 0) return weight;
+  // toFixed(3) clears floating-point dust (e.g. 102.50000000000001).
+  return Number((Math.round(weight / increment) * increment).toFixed(3));
 }
 
 /**
- * Whether a logged set lands naturally on a matrix cell (no clamping): a real
- * RPE within the grid's RPE span, reps within the grid's rep span, and load on
- * the bar. Every such set calibrates its cell's shape. The raw RPE must be in
- * range so a genuine RPE 5.8 stays out of the grid rather than snapping up onto
- * the RPE-6 column.
- */
-export function isInGridSet(set: LoggedSet): boolean {
-  return (
-    set.actualRpe !== undefined &&
-    set.actualRpe >= RPE_MIN &&
-    set.actualRpe <= RPE_MAX &&
-    set.actualReps >= LOOKUP_REPS_MIN &&
-    set.actualReps <= LOOKUP_REPS_MAX &&
-    set.actualWeight > 0
-  );
-}
-
-/**
- * Whether a set is an honest, near-limit set trusted to move the observed e1RM
- * (a strict subset of in-grid sets). Applies to every set — top set or back-off
- * alike.
+ * Whether a set is honest and near-limit enough to imply a usable e1RM: it must
+ * carry an RPE ≥ 8 at ≤ 10 reps with real load. The shared gate for analytics'
+ * e1RM chart and the cold-start c1RM seed. RPE is optional on a logged set, so a
+ * set without one never qualifies.
  */
 export function isQualifyingSet(set: LoggedSet): boolean {
   return (
-    (set.actualRpe ?? 0) >= QUALIFYING_MIN_RPE &&
+    set.actualRpe != null &&
+    set.actualRpe >= QUALIFYING_MIN_RPE &&
     set.actualReps >= 1 &&
     set.actualReps <= QUALIFYING_MAX_REPS &&
     set.actualWeight > 0
@@ -109,9 +158,9 @@ export interface PeakE1rm {
 }
 
 /**
- * Peak implied e1RM across a set list, considering only honest near-limit
- * (qualifying) sets — the single number that best represents the capacity a
- * session demonstrated. null when no set qualifies.
+ * The highest implied e1RM across a set list (peak, not mean — the best honest
+ * set tracks capacity; averaging mixed-intent sets means nothing). Null when no
+ * set qualifies. Stable tie-break: the first set achieving the max wins.
  */
 export function peakImpliedE1rm(
   matrix: RpeMatrix,
@@ -126,49 +175,18 @@ export function peakImpliedE1rm(
       set.actualReps,
       set.actualRpe!,
     );
-    if (!best || e1rm > best.e1rm) best = { e1rm, set };
+    if (best === null || e1rm > best.e1rm) best = { e1rm, set };
   }
   return best;
 }
 
-export interface MatrixUpdateResult {
-  matrix: RpeMatrix;
-  observedE1rms: number[];
-  /** True iff at least one cell was nudged (lets the caller skip a no-op write). */
-  changed: boolean;
-}
-
-const cloneMatrix = (matrix: RpeMatrix): RpeMatrix => {
-  const out: RpeMatrix = {};
-  for (const reps of Object.keys(matrix)) {
-    out[Number(reps)] = { ...matrix[Number(reps)] };
-  }
-  return out;
-};
-
-/** Bleed a kernel-weighted fraction of a cell's delta into its ±1.0 RPE row neighbors. */
-const smoothNeighbors = (
-  matrix: RpeMatrix,
-  reps: number,
-  rpe: number,
-  delta: number,
-): void => {
-  for (const { offset, factor } of MATRIX_SMOOTHING_KERNEL) {
-    for (const direction of [-1, 1]) {
-      const neighborRpe = rpe + direction * offset;
-      if (neighborRpe >= RPE_MIN && neighborRpe <= RPE_MAX) {
-        matrix[reps][neighborRpe] += delta * factor;
-      }
-    }
-  }
-};
-
 /**
- * Direct (user-edit) cell write with the same neighbor smoothing the
- * post-session learning applies: the edited cell takes exactly the given
- * value, and the cells within ±1.0 RPE absorb a kernel-weighted fraction of
- * the change — so a manual edit bends the curve locally instead of leaving a
- * step in it. Pure: returns a fresh matrix.
+ * Set a single matrix cell and repair monotonicity on its two adjacent RPE
+ * columns in the SAME rep row, so a manual edit can't break the "pct rises with
+ * RPE" ordering the lookup relies on. Pure — returns a new matrix; the input is
+ * never mutated. Deliberately conservative: only the edited row's immediate
+ * neighbours are touched (cross-row smoothing would surprise the editor's
+ * deviation highlighting).
  */
 export function setMatrixCell(
   matrix: RpeMatrix,
@@ -176,69 +194,26 @@ export function setMatrixCell(
   rpe: number,
   value: number,
 ): RpeMatrix {
-  const next = cloneMatrix(matrix);
-  const row = clampLookupReps(reps);
-  const col = snapRpe(rpe);
-  const delta = value - next[row][col];
-  next[row][col] = value;
-  smoothNeighbors(next, row, col, delta);
-  return next;
-}
-
-/**
- * Post-session matrix learning. For each in-grid set, in lift order, EMA-nudge
- * the touched cell toward the percentage the set demonstrated relative to a
- * baseline e1RM, then bleed a fraction of that nudge into the cells within
- * ±1.0 RPE (see MATRIX_SMOOTHING_KERNEL for the kernel rationale). The baseline
- * differs by set:
- *
- * - Qualifying (honest, near-limit) sets roll their implied e1RM into the
- *   observed window first and nudge against the window mean — they calibrate
- *   both the matrix AND the observed e1RM.
- * - Off-anchor sets (in-grid but sub-qualifying RPE) leave the observed window
- *   untouched and nudge against the fixed working e1RM: too far from limit to
- *   estimate capacity, but a fine probe of the curve's SHAPE given a known
- *   e1RM. With no working e1RM yet (cold start) there is no baseline, so they
- *   are skipped.
- *
- * Pure: returns fresh copies, never mutates its inputs.
- */
-export function applyMatrixUpdates(
-  matrix: RpeMatrix,
-  observedE1rms: number[],
-  sets: LoggedSet[],
-  workingE1rm: number | null,
-): MatrixUpdateResult {
-  const next = cloneMatrix(matrix);
-  const observed = [...observedE1rms];
-  let changed = false;
-
-  const inGrid = [...sets]
-    .filter(isInGridSet)
-    .sort((a, b) => a.timestamp - b.timestamp);
-
-  for (const set of inGrid) {
-    const reps = clampLookupReps(set.actualReps);
-    const rpe = snapRpe(set.actualRpe!);
-
-    let baseline: number;
-    if (isQualifyingSet(set)) {
-      observed.push(set.actualWeight / next[reps][rpe]);
-      if (observed.length > OBSERVED_E1RM_WINDOW) {
-        observed.splice(0, observed.length - OBSERVED_E1RM_WINDOW);
-      }
-      baseline = observedE1rm(observed)!;
-    } else {
-      if (workingE1rm === null) continue;
-      baseline = workingE1rm;
-    }
-
-    const observedPct = set.actualWeight / baseline;
-    const delta = MATRIX_EMA_ALPHA * (observedPct - next[reps][rpe]);
-    next[reps][rpe] += delta;
-    smoothNeighbors(next, reps, rpe, delta);
-    changed = true;
+  // Deep clone so callers (and Vue reactivity) never see in-place mutation.
+  const next: RpeMatrix = {};
+  for (const r of Object.keys(matrix).map(Number)) {
+    next[r] = { ...matrix[r] };
   }
+  if (!next[reps]) next[reps] = {};
+  next[reps][rpe] = value;
 
-  return { matrix: next, observedE1rms: observed, changed };
+  // pct rises with RPE within a row, so clamp the two adjacent columns back into
+  // order if the edit broke it (conservative: neighbours only, no cascade).
+  const row = next[reps];
+  const cols = numericKeys(row);
+  const idx = cols.indexOf(rpe);
+  if (idx > 0) {
+    const lo = cols[idx - 1];
+    if (row[lo] > value) row[lo] = value; // lower RPE can't exceed the edit
+  }
+  if (idx < cols.length - 1) {
+    const hi = cols[idx + 1];
+    if (row[hi] < value) row[hi] = value; // higher RPE can't fall below the edit
+  }
+  return next;
 }

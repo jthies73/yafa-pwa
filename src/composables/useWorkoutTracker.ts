@@ -1,11 +1,6 @@
 import { ref, watch } from "vue";
-import type {
-  LinearProgressionParams,
-  DoubleProgressionParams,
-  TopSetProgressionParams,
-  Set as LoggedSet,
-  WorkoutExercise,
-} from "../db/types";
+import { getConfigSetCount } from "../utils/progression";
+import type { Set as LoggedSet, WorkoutExercise } from "../db/types";
 import type { PrescribedSet } from "../engine/prescription";
 import { DEFAULT_RPE_MATRIX } from "../db/rpeMatrix";
 import { proposeSetAdjustment, type SetAdjustment } from "../engine/adjustment";
@@ -19,6 +14,7 @@ export interface SetEntry {
   done: boolean;
   completedAt: number | null; // stamped when the set is marked done
   target?: PrescribedSet; // engine prescription backing this row, if any
+  represcribed?: boolean; // true once an in-session adjustment rewrote the target
 }
 
 export interface ExerciseCard {
@@ -94,15 +90,7 @@ export function useWorkoutTracker() {
   const addedNames = ref<Record<string, string>>({});
 
   function plannedSetCount(index: number): number {
-    const config = routine.value?.exercises[index]?.config;
-    if (!config) return 3;
-    const p = config.progressionParams;
-    if (config.progressionModel === "topset_backoff") {
-      return 1 + ((p as TopSetProgressionParams).backOffSets ?? 0);
-    }
-    return (
-      (p as LinearProgressionParams | DoubleProgressionParams).targetSets ?? 3
-    );
+    return getConfigSetCount(routine.value?.exercises[index]?.config);
   }
 
   function rebuild() {
@@ -239,6 +227,7 @@ export function useWorkoutTracker() {
     set.reps = String(proposal.reps);
     set.weight = String(proposal.weight);
     if (proposal.rpe != null) set.rpe = String(proposal.rpe);
+    set.represcribed = true; // mark the row as adjusted for the UI indicator
   }
 
   const addCardFor = (id: string, name: string) => {

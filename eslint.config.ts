@@ -22,6 +22,16 @@ export default tseslint.config(
       "vue/multi-word-component-names": "off",
       // Existing codebase uses `any` in several places; treat as warning not error
       "@typescript-eslint/no-explicit-any": "warn",
+      // Allow underscore-prefixed args/vars to be intentionally unused — used by
+      // stub/abstract functions that keep a signature without using the body.
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_",
+        },
+      ],
     },
   },
   // Must be last — disables ESLint formatting rules that conflict with Prettier

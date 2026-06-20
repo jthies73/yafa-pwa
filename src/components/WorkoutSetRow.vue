@@ -16,6 +16,8 @@ const props = defineProps<{
   target?: PrescribedSet;
   /** A re-prescription is available — surfaces a green dot on the index. */
   hasProposal?: boolean;
+  /** This row's target was adjusted in-session — surfaces an accent marker. */
+  represcribed?: boolean;
 }>();
 
 const { display: displayWeight } = useWeightUnit();
@@ -159,9 +161,14 @@ async function onWeightKeydown(e: KeyboardEvent) {
     </button>
     <span
       v-else
-      class="w-5 shrink-0 text-center text-xs font-mono font-bold text-text-light dark:text-text-dark opacity-50"
+      class="relative w-5 shrink-0 text-center text-xs font-mono font-bold text-text-light dark:text-text-dark opacity-50"
+      :title="represcribed ? 'Adjusted in-session' : undefined"
     >
       {{ index }}
+      <span
+        v-if="represcribed"
+        class="absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-full bg-accent"
+      />
     </span>
 
     <!-- Reps -->

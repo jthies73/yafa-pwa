@@ -5,6 +5,7 @@ import WorkoutBottomSheet from "./components/WorkoutBottomSheet.vue";
 import WorkoutSummarySheet from "./components/summary/WorkoutSummarySheet.vue";
 import NumericKeypad from "./components/NumericKeypad.vue";
 import { useActiveWorkout } from "./composables/useActiveWorkout";
+import { detectPlatform } from "./utils/platform";
 
 const { activeWorkout } = useActiveWorkout();
 
@@ -21,6 +22,24 @@ onMounted(() => {
       }).catch(() => {});
     }
   }
+
+  window.addEventListener("appinstalled", () => {
+    if (
+      ["development", "staging", "production"].includes(import.meta.env.MODE)
+    ) {
+      const baseUrl = import.meta.env.VITE_API_BASE_URL;
+      if (baseUrl) {
+        const platform = detectPlatform().os;
+        fetch(`${baseUrl}/pwa-installs`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ platform }),
+        }).catch(() => {});
+      }
+    }
+  });
 });
 </script>
 

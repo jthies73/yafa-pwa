@@ -1,20 +1,26 @@
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import type {
   RoutineExerciseConfig,
   ProgressionModelType,
   ProgressionParams,
+  WeightIncrementUnit,
 } from "../db/types";
 import { LOCKABLE_FIELDS } from "../config/periodization";
-import { useWeightUnit } from "../composables/useWeightUnit";
-import { useWeightField } from "../composables/useWeightField";
+import { normalizeProgressionParams } from "../config/progression";
 import AppBottomSheet from "./AppBottomSheet.vue";
 import ConfirmDialog from "./ConfirmDialog.vue";
 import LockToggle from "./LockToggle.vue";
 import ExerciseRpeMatrixEditor from "./ExerciseRpeMatrixEditor.vue";
+import WeightIncrementField from "./WeightIncrementField.vue";
 
 const showConfirm = ref(false);
 const matrixEditor = ref<InstanceType<typeof ExerciseRpeMatrixEditor> | null>(
+  null,
+);
+// Only one model's WeightIncrementField is mounted at a time (the others sit
+// behind v-if), so a single ref resolves to whichever is active.
+const incrementField = ref<InstanceType<typeof WeightIncrementField> | null>(
   null,
 );
 
@@ -34,23 +40,26 @@ const emit = defineEmits<{
 }>();
 
 const configModel = ref<ProgressionModelType>("linear");
-const configParams = ref<Record<string, number>>({});
+// Params now hold mixed value types (numbers + the increment-unit string). Each
+// model renders only the keys it owns; normalizeProgressionParams guarantees the
+// required fields (targetRpe/rpeCeiling/incrementUnit) are present even for
+// configs saved before those fields existed (see config/progression.ts).
+const configParams = ref<Record<string, number | WeightIncrementUnit>>({});
 const configNotes = ref("");
 const lockedFields = ref<Set<string>>(new Set());
+// Advanced (RPE target/ceiling + increment) starts collapsed on every open so
+// the sheet leads with the everyday Sets/Reps fields.
+const advancedOpen = ref(false);
 
-// weightIncrement is stored in kg; show/edit it in the active unit. One bridge
-// serves all three model variants (only one is rendered at a time).
-const { label: weightUnit } = useWeightUnit();
-const {
-  buffer: incrementBuffer,
-  onFocus: onIncrementFocus,
-  commit: commitIncrement,
-} = useWeightField({
-  getKg: () =>
-    typeof configParams.value.weightIncrement === "number"
-      ? configParams.value.weightIncrement
-      : null,
-  setKg: (kg) => (configParams.value.weightIncrement = kg ?? 0),
+// Typed bridges for the WeightIncrementField models — keeps its number/unit
+// contract clean against the loosely-typed configParams record.
+const incrementValue = computed<number>({
+  get: () => Number(configParams.value.weightIncrement ?? 0),
+  set: (v) => (configParams.value.weightIncrement = v),
+});
+const incrementUnit = computed<WeightIncrementUnit>({
+  get: () => (configParams.value.incrementUnit as WeightIncrementUnit) ?? "kg",
+  set: (v) => (configParams.value.incrementUnit = v),
 });
 
 const isLocked = (field: string) => lockedFields.value.has(field);
@@ -72,37 +81,33 @@ const PROGRESSION_MODELS: { value: ProgressionModelType; label: string }[] = [
   { value: "none", label: "None" },
 ];
 
-const DEFAULT_PARAMS: Record<ProgressionModelType, Record<string, number>> = {
-  linear: { targetSets: 3, targetReps: 5, targetRpe: 8, weightIncrement: 2.5 },
-  double: { targetSets: 3, minReps: 6, maxReps: 10, weightIncrement: 2.5 },
-  topset_backoff: {
-    topSetTargetReps: 3,
-    topSetTargetRpe: 8,
-    backOffSets: 3,
-    percentageDrop: 10,
-    weightIncrement: 2.5,
-  },
-  none: { targetSets: 3, targetReps: 8, targetRpe: 8 },
-};
+// Normalized params as the loose record the form binds to.
+const paramsFor = (
+  model: ProgressionModelType,
+  saved?: ProgressionParams,
+): Record<string, number | WeightIncrementUnit> =>
+  normalizeProgressionParams(model, saved) as unknown as Record<
+    string,
+    number | WeightIncrementUnit
+  >;
 
-// Reset form state every time the sheet opens, based on current props
+// Reset form state every time the sheet opens, based on current props.
 watch(
   open,
   (isOpen) => {
     if (!isOpen) return;
+    advancedOpen.value = false;
     if (props.initialConfig) {
       configModel.value = props.initialConfig.progressionModel;
-      configParams.value = {
-        ...(props.initialConfig.progressionParams as unknown as Record<
-          string,
-          number
-        >),
-      };
+      configParams.value = paramsFor(
+        props.initialConfig.progressionModel,
+        props.initialConfig.progressionParams,
+      );
       configNotes.value = props.initialConfig.notes ?? "";
       lockedFields.value = new Set(props.initialConfig.lockedFields ?? []);
     } else {
       configModel.value = "linear";
-      configParams.value = { ...DEFAULT_PARAMS.linear };
+      configParams.value = paramsFor("linear");
       configNotes.value = "";
       lockedFields.value = new Set();
     }
@@ -112,7 +117,7 @@ watch(
 
 const changeModel = (model: ProgressionModelType) => {
   configModel.value = model;
-  configParams.value = { ...DEFAULT_PARAMS[model] };
+  configParams.value = paramsFor(model);
   // Field keys differ per model, so drop any locks that no longer apply.
   lockedFields.value = new Set();
 };
@@ -122,7 +127,7 @@ const close = () => {
 };
 
 const save = async () => {
-  commitIncrement(); // flush the weight buffer to kg in case Save skipped blur
+  incrementField.value?.commit(); // flush the kg buffer in case Save skipped blur
   // The matrix editor owns its own override persistence.
   await matrixEditor.value?.persist();
   // Only persist locks for fields that are lockable under the current model.
@@ -224,7 +229,8 @@ const save = async () => {
 
       <!-- Linear params -->
       <div v-if="configModel === 'linear'" class="flex flex-col gap-4">
-        <div class="grid grid-cols-3 gap-4">
+        <!-- Basic -->
+        <div class="grid grid-cols-2 gap-4">
           <div class="flex flex-col gap-1.5">
             <div class="flex items-center justify-between gap-1 min-h-[18px]">
               <label
@@ -273,51 +279,103 @@ const save = async () => {
               class="bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-lg px-3 py-2.5 text-sm font-mono text-text-h-light dark:text-text-h-dark focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent/50"
             />
           </div>
-          <div class="flex flex-col gap-1.5">
-            <div class="flex items-center justify-between gap-1 min-h-[18px]">
-              <label
-                class="text-xs font-bold uppercase tracking-wider text-text-light dark:text-text-dark opacity-60"
-              >
-                Target RPE
-              </label>
-              <LockToggle
-                v-if="periodizationEnabled"
-                :locked="isLocked('targetRpe')"
-                @toggle="toggleLock('targetRpe')"
+        </div>
+
+        <!-- Advanced -->
+        <button
+          type="button"
+          class="flex items-center justify-between gap-2 cursor-pointer group"
+          @click="advancedOpen = !advancedOpen"
+        >
+          <span
+            class="text-xs font-bold uppercase tracking-wider text-text-light dark:text-text-dark opacity-60 group-hover:opacity-90 transition-opacity"
+          >
+            Advanced
+          </span>
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            class="text-text-light dark:text-text-dark opacity-50 transition-transform duration-150"
+            :class="advancedOpen ? 'rotate-90' : ''"
+          >
+            <polyline points="9 18 15 12 9 6" />
+          </svg>
+        </button>
+        <div
+          class="grid transition-[grid-template-rows,opacity] duration-150 ease-out"
+          :class="
+            advancedOpen
+              ? 'grid-rows-[1fr] opacity-100'
+              : 'grid-rows-[0fr] opacity-0'
+          "
+        >
+          <div class="min-h-0 overflow-hidden">
+            <div class="flex flex-col gap-4 pt-1">
+              <div class="grid grid-cols-2 gap-4">
+                <div class="flex flex-col gap-1.5">
+                  <div
+                    class="flex items-center justify-between gap-1 min-h-[18px]"
+                  >
+                    <label
+                      class="text-xs font-bold uppercase tracking-wider text-text-light dark:text-text-dark opacity-60"
+                    >
+                      Target RPE
+                    </label>
+                    <LockToggle
+                      v-if="periodizationEnabled"
+                      :locked="isLocked('targetRpe')"
+                      @toggle="toggleLock('targetRpe')"
+                    />
+                  </div>
+                  <input
+                    v-model.number="configParams.targetRpe"
+                    v-numpad="'decimal'"
+                    v-keynav
+                    type="number"
+                    min="5"
+                    max="10"
+                    step="0.5"
+                    class="bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-lg px-3 py-2.5 text-sm font-mono text-text-h-light dark:text-text-h-dark focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent/50"
+                  />
+                </div>
+                <div class="flex flex-col gap-1.5">
+                  <label
+                    class="text-xs font-bold uppercase tracking-wider text-text-light dark:text-text-dark opacity-60"
+                  >
+                    RPE Ceiling
+                  </label>
+                  <input
+                    v-model.number="configParams.rpeCeiling"
+                    v-numpad="'decimal'"
+                    v-keynav
+                    type="number"
+                    min="5"
+                    max="10"
+                    step="0.5"
+                    class="bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-lg px-3 py-2.5 text-sm font-mono text-text-h-light dark:text-text-h-dark focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent/50"
+                  />
+                </div>
+              </div>
+              <WeightIncrementField
+                ref="incrementField"
+                v-model:value="incrementValue"
+                v-model:unit="incrementUnit"
               />
             </div>
-            <input
-              v-model.number="configParams.targetRpe"
-              v-numpad
-              v-keynav
-              type="number"
-              min="5"
-              max="10"
-              step="0.5"
-              class="bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-lg px-3 py-2.5 text-sm font-mono text-text-h-light dark:text-text-h-dark focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent/50"
-            />
           </div>
-        </div>
-        <div class="flex flex-col gap-1.5">
-          <label
-            class="text-xs font-bold uppercase tracking-wider text-text-light dark:text-text-dark opacity-60"
-          >
-            Weight Increment ({{ weightUnit }})
-          </label>
-          <input
-            v-model="incrementBuffer"
-            v-numpad="'decimal'"
-            v-keynav
-            type="text"
-            class="bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-lg px-3 py-2.5 text-sm font-mono text-text-h-light dark:text-text-h-dark focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent/50"
-            @focus="onIncrementFocus"
-            @blur="commitIncrement"
-          />
         </div>
       </div>
 
       <!-- Double progression params -->
       <div v-else-if="configModel === 'double'" class="flex flex-col gap-4">
+        <!-- Basic -->
         <div class="grid grid-cols-3 gap-4">
           <div class="flex flex-col gap-1.5">
             <div class="flex items-center justify-between gap-1 min-h-[18px]">
@@ -378,21 +436,96 @@ const save = async () => {
             />
           </div>
         </div>
-        <div class="flex flex-col gap-1.5">
-          <label
-            class="text-xs font-bold uppercase tracking-wider text-text-light dark:text-text-dark opacity-60"
+
+        <!-- Advanced -->
+        <button
+          type="button"
+          class="flex items-center justify-between gap-2 cursor-pointer group"
+          @click="advancedOpen = !advancedOpen"
+        >
+          <span
+            class="text-xs font-bold uppercase tracking-wider text-text-light dark:text-text-dark opacity-60 group-hover:opacity-90 transition-opacity"
           >
-            Weight Increment ({{ weightUnit }})
-          </label>
-          <input
-            v-model="incrementBuffer"
-            v-numpad="'decimal'"
-            v-keynav
-            type="text"
-            class="bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-lg px-3 py-2.5 text-sm font-mono text-text-h-light dark:text-text-h-dark focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent/50"
-            @focus="onIncrementFocus"
-            @blur="commitIncrement"
-          />
+            Advanced
+          </span>
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            class="text-text-light dark:text-text-dark opacity-50 transition-transform duration-150"
+            :class="advancedOpen ? 'rotate-90' : ''"
+          >
+            <polyline points="9 18 15 12 9 6" />
+          </svg>
+        </button>
+        <div
+          class="grid transition-[grid-template-rows,opacity] duration-150 ease-out"
+          :class="
+            advancedOpen
+              ? 'grid-rows-[1fr] opacity-100'
+              : 'grid-rows-[0fr] opacity-0'
+          "
+        >
+          <div class="min-h-0 overflow-hidden">
+            <div class="flex flex-col gap-4 pt-1">
+              <div class="grid grid-cols-2 gap-4">
+                <div class="flex flex-col gap-1.5">
+                  <div
+                    class="flex items-center justify-between gap-1 min-h-[18px]"
+                  >
+                    <label
+                      class="text-xs font-bold uppercase tracking-wider text-text-light dark:text-text-dark opacity-60"
+                    >
+                      Target RPE
+                    </label>
+                    <LockToggle
+                      v-if="periodizationEnabled"
+                      :locked="isLocked('targetRpe')"
+                      @toggle="toggleLock('targetRpe')"
+                    />
+                  </div>
+                  <input
+                    v-model.number="configParams.targetRpe"
+                    v-numpad="'decimal'"
+                    v-keynav
+                    type="number"
+                    min="5"
+                    max="10"
+                    step="0.5"
+                    class="bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-lg px-3 py-2.5 text-sm font-mono text-text-h-light dark:text-text-h-dark focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent/50"
+                  />
+                </div>
+                <div class="flex flex-col gap-1.5">
+                  <label
+                    class="text-xs font-bold uppercase tracking-wider text-text-light dark:text-text-dark opacity-60"
+                  >
+                    RPE Ceiling
+                  </label>
+                  <input
+                    v-model.number="configParams.rpeCeiling"
+                    v-numpad="'decimal'"
+                    v-keynav
+                    type="number"
+                    min="5"
+                    max="10"
+                    step="0.5"
+                    class="bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-lg px-3 py-2.5 text-sm font-mono text-text-h-light dark:text-text-h-dark focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent/50"
+                  />
+                </div>
+              </div>
+              <WeightIncrementField
+                ref="incrementField"
+                v-model:value="incrementValue"
+                v-model:unit="incrementUnit"
+              />
+            </div>
+          </div>
         </div>
       </div>
 
@@ -401,6 +534,7 @@ const save = async () => {
         v-else-if="configModel === 'topset_backoff'"
         class="flex flex-col gap-4"
       >
+        <!-- Basic -->
         <div class="grid grid-cols-2 gap-4">
           <div class="flex flex-col gap-1.5">
             <div class="flex items-center justify-between gap-1 min-h-[18px]">
@@ -427,31 +561,22 @@ const save = async () => {
             />
           </div>
           <div class="flex flex-col gap-1.5">
-            <div class="flex items-center justify-between gap-1 min-h-[18px]">
-              <label
-                class="text-xs font-bold uppercase tracking-wider text-text-light dark:text-text-dark opacity-60"
-              >
-                Target RPE
-              </label>
-              <LockToggle
-                v-if="periodizationEnabled"
-                :locked="isLocked('topSetTargetRpe')"
-                @toggle="toggleLock('topSetTargetRpe')"
-              />
-            </div>
+            <label
+              class="text-xs font-bold uppercase tracking-wider text-text-light dark:text-text-dark opacity-60"
+            >
+              % Drop
+            </label>
             <input
-              v-model.number="configParams.topSetTargetRpe"
+              v-model.number="configParams.percentageDrop"
               v-numpad
               v-keynav
               type="number"
-              min="5"
-              max="10"
-              step="0.5"
+              min="1"
+              max="50"
+              step="1"
               class="bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-lg px-3 py-2.5 text-sm font-mono text-text-h-light dark:text-text-h-dark focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent/50"
             />
           </div>
-        </div>
-        <div class="grid grid-cols-2 gap-4">
           <div class="flex flex-col gap-1.5">
             <div class="flex items-center justify-between gap-1 min-h-[18px]">
               <label
@@ -477,38 +602,120 @@ const save = async () => {
             />
           </div>
           <div class="flex flex-col gap-1.5">
-            <label
-              class="text-xs font-bold uppercase tracking-wider text-text-light dark:text-text-dark opacity-60"
-            >
-              % Drop
-            </label>
+            <div class="flex items-center justify-between gap-1 min-h-[18px]">
+              <label
+                class="text-xs font-bold uppercase tracking-wider text-text-light dark:text-text-dark opacity-60"
+              >
+                Back-Off Reps
+              </label>
+              <LockToggle
+                v-if="periodizationEnabled"
+                :locked="isLocked('backOffReps')"
+                @toggle="toggleLock('backOffReps')"
+              />
+            </div>
             <input
-              v-model.number="configParams.percentageDrop"
+              v-model.number="configParams.backOffReps"
               v-numpad
               v-keynav
               type="number"
               min="1"
-              max="50"
+              max="100"
               step="1"
               class="bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-lg px-3 py-2.5 text-sm font-mono text-text-h-light dark:text-text-h-dark focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent/50"
             />
           </div>
         </div>
-        <div class="flex flex-col gap-1.5">
-          <label
-            class="text-xs font-bold uppercase tracking-wider text-text-light dark:text-text-dark opacity-60"
+
+        <!-- Advanced -->
+        <button
+          type="button"
+          class="flex items-center justify-between gap-2 cursor-pointer group"
+          @click="advancedOpen = !advancedOpen"
+        >
+          <span
+            class="text-xs font-bold uppercase tracking-wider text-text-light dark:text-text-dark opacity-60 group-hover:opacity-90 transition-opacity"
           >
-            Weight Increment ({{ weightUnit }})
-          </label>
-          <input
-            v-model="incrementBuffer"
-            v-numpad="'decimal'"
-            v-keynav
-            type="text"
-            class="bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-lg px-3 py-2.5 text-sm font-mono text-text-h-light dark:text-text-h-dark focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent/50"
-            @focus="onIncrementFocus"
-            @blur="commitIncrement"
-          />
+            Advanced
+          </span>
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            class="text-text-light dark:text-text-dark opacity-50 transition-transform duration-150"
+            :class="advancedOpen ? 'rotate-90' : ''"
+          >
+            <polyline points="9 18 15 12 9 6" />
+          </svg>
+        </button>
+        <div
+          class="grid transition-[grid-template-rows,opacity] duration-150 ease-out"
+          :class="
+            advancedOpen
+              ? 'grid-rows-[1fr] opacity-100'
+              : 'grid-rows-[0fr] opacity-0'
+          "
+        >
+          <div class="min-h-0 overflow-hidden">
+            <div class="flex flex-col gap-4 pt-1">
+              <div class="grid grid-cols-2 gap-4">
+                <div class="flex flex-col gap-1.5">
+                  <div
+                    class="flex items-center justify-between gap-1 min-h-[18px]"
+                  >
+                    <label
+                      class="text-xs font-bold uppercase tracking-wider text-text-light dark:text-text-dark opacity-60"
+                    >
+                      Target RPE
+                    </label>
+                    <LockToggle
+                      v-if="periodizationEnabled"
+                      :locked="isLocked('topSetTargetRpe')"
+                      @toggle="toggleLock('topSetTargetRpe')"
+                    />
+                  </div>
+                  <input
+                    v-model.number="configParams.topSetTargetRpe"
+                    v-numpad="'decimal'"
+                    v-keynav
+                    type="number"
+                    min="5"
+                    max="10"
+                    step="0.5"
+                    class="bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-lg px-3 py-2.5 text-sm font-mono text-text-h-light dark:text-text-h-dark focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent/50"
+                  />
+                </div>
+                <div class="flex flex-col gap-1.5">
+                  <label
+                    class="text-xs font-bold uppercase tracking-wider text-text-light dark:text-text-dark opacity-60"
+                  >
+                    RPE Ceiling
+                  </label>
+                  <input
+                    v-model.number="configParams.rpeCeiling"
+                    v-numpad="'decimal'"
+                    v-keynav
+                    type="number"
+                    min="5"
+                    max="10"
+                    step="0.5"
+                    class="bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-lg px-3 py-2.5 text-sm font-mono text-text-h-light dark:text-text-h-dark focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent/50"
+                  />
+                </div>
+              </div>
+              <WeightIncrementField
+                ref="incrementField"
+                v-model:value="incrementValue"
+                v-model:unit="incrementUnit"
+              />
+            </div>
+          </div>
         </div>
       </div>
 
@@ -578,7 +785,7 @@ const save = async () => {
             </div>
             <input
               v-model.number="configParams.targetRpe"
-              v-numpad
+              v-numpad="'decimal'"
               v-keynav
               type="number"
               min="5"
@@ -589,7 +796,8 @@ const save = async () => {
           </div>
         </div>
         <p class="text-xs text-text-light dark:text-text-dark opacity-55">
-          Weight targets are derived from your e1RM but won't auto-increment after sessions.
+          Weight targets are derived from your e1RM but won't auto-increment
+          after sessions.
         </p>
       </div>
 

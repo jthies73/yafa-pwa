@@ -1,151 +1,182 @@
 import { describe, it, expect } from "vitest";
 import { DEFAULT_RPE_MATRIX } from "../../db/rpeMatrix";
-import type { ProgressionState, RoutineExerciseConfig } from "../../db/types";
+import type {
+  DoubleProgressionParams,
+  LinearProgressionParams,
+  TopSetProgressionParams,
+} from "../../db/types";
+import { roundToLoadable, weightFromE1rm } from "../matrix";
 import { prescribeExercise } from "../prescription";
-import { createIntensityResetModifier } from "../resets";
 
-const makeState = (
-  overrides: Partial<ProgressionState> = {},
-): ProgressionState => ({
-  exerciseId: "ex",
-  workingE1rm: 100,
-  observedE1rms: [],
-  failureStreak: 0,
-  resetModifiers: [],
-  updated_at: 0,
-  ...overrides,
+const M = DEFAULT_RPE_MATRIX;
+
+const LINEAR: LinearProgressionParams = {
+  targetSets: 3,
+  targetReps: 5,
+  targetRpe: 8,
+  rpeCeiling: 9,
+  weightIncrement: 2.5,
+  incrementUnit: "kg",
+};
+
+describe("prescribeExercise — linear", () => {
+  it("renders N straight sets at the matrix-derived weight", () => {
+    const p = prescribeExercise({
+      exerciseId: "ex",
+      model: "linear",
+      params: LINEAR,
+      rpeCeiling: 9,
+      effectiveC1rm: 120,
+      matrix: M,
+    });
+    expect(p.sets).toHaveLength(3);
+    expect(p.sets[0]).toEqual({
+      reps: 5,
+      rpe: 8,
+      weight: roundToLoadable(weightFromE1rm(M, 120, 5, 8)),
+      role: "straight",
+    });
+    expect(p.workingE1rm).toBe(120);
+  });
+
+  it("cold start: weight null, reps/rpe present", () => {
+    const p = prescribeExercise({
+      exerciseId: "ex",
+      model: "linear",
+      params: LINEAR,
+      rpeCeiling: 9,
+      effectiveC1rm: null,
+      matrix: M,
+    });
+    expect(p.sets.every((s) => s.weight === null)).toBe(true);
+    expect(p.sets[0].reps).toBe(5);
+    expect(p.workingE1rm).toBeNull();
+  });
+
+  it("caps the load at the ceiling but keeps the displayed RPE at target", () => {
+    const capped = prescribeExercise({
+      exerciseId: "ex",
+      model: "linear",
+      params: { ...LINEAR, targetRpe: 9.5 },
+      rpeCeiling: 9,
+      effectiveC1rm: 120,
+      matrix: M,
+    });
+    expect(capped.sets[0].rpe).toBe(9.5); // target shown
+    expect(capped.sets[0].weight).toBe(
+      roundToLoadable(weightFromE1rm(M, 120, 5, 9)), // load at the ceiling
+    );
+  });
+
+  it("no cap when target is at/under the ceiling", () => {
+    const p = prescribeExercise({
+      exerciseId: "ex",
+      model: "linear",
+      params: LINEAR,
+      rpeCeiling: 9,
+      effectiveC1rm: 120,
+      matrix: M,
+    });
+    expect(p.sets[0].weight).toBe(
+      roundToLoadable(weightFromE1rm(M, 120, 5, 8)),
+    );
+  });
 });
 
-describe("prescription pipeline", () => {
-  it("derives top set and back-offs from the working e1RM via the matrix", () => {
-    const config: RoutineExerciseConfig = {
-      progressionModel: "topset_backoff",
-      progressionParams: {
-        topSetTargetReps: 5,
-        topSetTargetRpe: 9,
-        backOffSets: 3,
-        percentageDrop: 10,
-        weightIncrement: 2.5,
-      },
-    };
-    const { sets } = prescribeExercise({
+describe("prescribeExercise — double", () => {
+  const DOUBLE: DoubleProgressionParams = {
+    targetSets: 3,
+    minReps: 6,
+    maxReps: 10,
+    targetRpe: 8,
+    rpeCeiling: 9,
+    weightIncrement: 2.5,
+    incrementUnit: "kg",
+  };
+
+  it("shows the cursor reps but holds weight at maxReps", () => {
+    const p = prescribeExercise({
       exerciseId: "ex",
-      config,
-      state: makeState(),
-      matrix: DEFAULT_RPE_MATRIX,
+      model: "double",
+      params: DOUBLE,
+      rpeCeiling: 9,
+      effectiveC1rm: 100,
+      doubleRepCursor: 7,
+      matrix: M,
     });
-    // 100 × matrix[5][9] (0.82) = 82 → loadable 82.5; back-off −10% → 74.25 → 75.
-    expect(sets).toHaveLength(4);
-    expect(sets[0]).toEqual({ reps: 5, rpe: 9, weight: 82.5, role: "top" });
-    expect(sets[1]).toEqual({
-      reps: 5,
-      rpe: null,
-      weight: 75,
-      role: "backoff",
-    });
+    expect(p.sets[0].reps).toBe(7); // cursor
+    expect(p.sets[0].weight).toBe(
+      roundToLoadable(weightFromE1rm(M, 100, 10, 8)),
+    );
   });
 
-  it("applies deload multipliers only to unlocked fields, with clamps", () => {
-    const config: RoutineExerciseConfig = {
-      progressionModel: "linear",
-      progressionParams: {
-        targetSets: 3,
-        targetReps: 5,
-        targetRpe: 8,
-        weightIncrement: 2.5,
-      },
-      lockedFields: ["targetReps"],
-    };
-    const { sets } = prescribeExercise({
-      exerciseId: "ex",
-      config,
-      state: makeState(),
-      matrix: DEFAULT_RPE_MATRIX,
-      week: { focus: "deload" },
-    });
-    // volume ×0.5: sets 3→2 (reps locked at 5); intensity ×0.85: RPE 6.8→7.
-    expect(sets).toHaveLength(2);
-    expect(sets[0].reps).toBe(5);
-    expect(sets[0].rpe).toBe(7);
+  it("weight is identical across cursor values (constant load cycle)", () => {
+    const w = (cursor: number) =>
+      prescribeExercise({
+        exerciseId: "ex",
+        model: "double",
+        params: DOUBLE,
+        rpeCeiling: 9,
+        effectiveC1rm: 100,
+        doubleRepCursor: cursor,
+        matrix: M,
+      }).sets[0].weight;
+    expect(w(6)).toBe(w(10));
   });
 
-  it("never prescribes below one set and never above RPE 10", () => {
-    const config: RoutineExerciseConfig = {
-      progressionModel: "linear",
-      progressionParams: {
-        targetSets: 1,
-        targetReps: 5,
-        targetRpe: 9.5,
-        weightIncrement: 2.5,
-      },
-    };
-    const deload = prescribeExercise({
+  it("defaults the cursor to minReps when absent", () => {
+    const p = prescribeExercise({
       exerciseId: "ex",
-      config,
-      state: makeState(),
-      matrix: DEFAULT_RPE_MATRIX,
-      week: { focus: "deload" },
+      model: "double",
+      params: DOUBLE,
+      rpeCeiling: 9,
+      effectiveC1rm: 100,
+      matrix: M,
     });
-    expect(deload.sets).toHaveLength(1);
+    expect(p.sets[0].reps).toBe(6);
+  });
+});
 
-    const peaking = prescribeExercise({
+describe("prescribeExercise — top set", () => {
+  const TOPSET: TopSetProgressionParams = {
+    topSetTargetReps: 5,
+    topSetTargetRpe: 8,
+    rpeCeiling: 9,
+    backOffSets: 2,
+    backOffReps: 8,
+    percentageDrop: 10,
+    weightIncrement: 2.5,
+    incrementUnit: "kg",
+  };
+
+  it("renders a top set plus dropped back-offs (rpe null)", () => {
+    const p = prescribeExercise({
       exerciseId: "ex",
-      config,
-      state: makeState(),
-      matrix: DEFAULT_RPE_MATRIX,
-      week: { focus: "peaking" },
+      model: "topset_backoff",
+      params: TOPSET,
+      rpeCeiling: 9,
+      effectiveC1rm: 120,
+      matrix: M,
     });
-    expect(peaking.sets[0].rpe).toBe(10); // 9.5 × 1.05 snapped and capped
+    expect(p.sets).toHaveLength(3);
+    const top = p.sets[0];
+    expect(top.role).toBe("top");
+    expect(p.sets[1].role).toBe("backoff");
+    expect(p.sets[1].rpe).toBeNull();
+    expect(p.sets[1].weight).toBe(
+      roundToLoadable((top.weight as number) * 0.9),
+    );
   });
 
-  it("a fresh intensity reset reduces prescribed weight for double progression", () => {
-    const config: RoutineExerciseConfig = {
-      progressionModel: "double",
-      progressionParams: {
-        targetSets: 3,
-        minReps: 8,
-        maxReps: 12,
-        weightIncrement: 2.5,
-      },
-    };
-    const baseline = prescribeExercise({
+  it("cold start: all weights null", () => {
+    const p = prescribeExercise({
       exerciseId: "ex",
-      config,
-      state: makeState({ currentTargetReps: 10 }),
-      matrix: DEFAULT_RPE_MATRIX,
+      model: "topset_backoff",
+      params: TOPSET,
+      rpeCeiling: 9,
+      effectiveC1rm: null,
+      matrix: M,
     });
-    const withReset = prescribeExercise({
-      exerciseId: "ex",
-      config,
-      state: makeState({
-        currentTargetReps: 10,
-        resetModifiers: [createIntensityResetModifier()],
-      }),
-      matrix: DEFAULT_RPE_MATRIX,
-    });
-    // Intensity reset at full strength applies a ×0.9 multiplier to the e1RM,
-    // so the prescribed weight should be lower than the baseline.
-    expect(withReset.sets[0].weight).toBeLessThan(baseline.sets[0].weight!);
-  });
-
-  it("prescribes structure but no weight before a working e1RM is seeded", () => {
-    const config: RoutineExerciseConfig = {
-      progressionModel: "linear",
-      progressionParams: {
-        targetSets: 3,
-        targetReps: 5,
-        targetRpe: 8,
-        weightIncrement: 2.5,
-      },
-    };
-    const { sets, workingE1rm } = prescribeExercise({
-      exerciseId: "ex",
-      config,
-      matrix: DEFAULT_RPE_MATRIX,
-    });
-    expect(workingE1rm).toBeNull();
-    expect(sets).toHaveLength(3);
-    expect(sets[0].weight).toBeNull();
-    expect(sets[0].reps).toBe(5);
+    expect(p.sets.every((s) => s.weight === null)).toBe(true);
   });
 });

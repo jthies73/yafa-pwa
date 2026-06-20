@@ -5,6 +5,7 @@ import { useFeatureFlags } from "../../config/features";
 import { useAppUpdate } from "../../composables/useAppUpdate";
 import UpdateSheet from "../UpdateSheet.vue";
 import ImportExportSheet from "../ImportExportSheet.vue";
+import FeedbackSheet from "../FeedbackSheet.vue";
 
 defineProps<{ isDark: boolean }>();
 defineEmits<{ (e: "toggle-theme"): void }>();
@@ -19,6 +20,12 @@ const sidebarOpen = ref(false);
 const sidebarEl = ref<HTMLElement | null>(null);
 const showUpdateSheet = ref(false);
 const showImportExportSheet = ref(false);
+const showFeedbackSheet = ref(false);
+
+const openFeedbackSheet = () => {
+  closeSidebar();
+  showFeedbackSheet.value = true;
+};
 
 const closeSidebar = () => (sidebarOpen.value = false);
 
@@ -273,6 +280,7 @@ const recordCoffeeClick = () => {
               match: ['plans', 'plan-details', 'routine-details'],
             },
             { name: 'analytics', label: 'Analytics', match: ['analytics'] },
+            { name: 'history', label: 'History', match: ['history'] },
             { name: 'exercises', label: 'Exercises', match: ['exercises'] },
             {
               name: 'measurements',
@@ -360,6 +368,29 @@ const recordCoffeeClick = () => {
             "
           >
             <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+          </svg>
+          <!-- History icon -->
+          <svg
+            v-else-if="item.name === 'history'"
+            xmlns="http://www.w3.org/2000/svg"
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            class="w-5 h-5 transition-colors"
+            :class="
+              isActive(item.match)
+                ? 'text-accent'
+                : 'text-text-light/70 dark:text-text-dark/70 group-hover:text-accent'
+            "
+          >
+            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+            <path d="M3 3v5h5" />
+            <path d="M12 7v5l4 2" />
           </svg>
           <!-- Exercises icon -->
           <svg
@@ -549,8 +580,8 @@ const recordCoffeeClick = () => {
         href="https://buymeacoffee.com/jthies73"
         target="_blank"
         rel="noopener noreferrer"
-        @click="recordCoffeeClick"
         class="flex items-center justify-between px-4 py-2.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/15 border border-amber-500/20 dark:border-amber-500/15 text-amber-700 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-300 transition-all duration-300 group cursor-pointer shadow-sm hover:shadow-amber-500/5"
+        @click="recordCoffeeClick"
       >
         <div class="flex items-center gap-3">
           <svg
@@ -589,6 +620,53 @@ const recordCoffeeClick = () => {
           <path d="M7 17 17 7" />
         </svg>
       </a>
+
+      <!-- Feedback -->
+      <button
+        v-if="
+          ['development', 'staging', 'production'].includes(
+            features.environment,
+          )
+        "
+        class="flex items-center justify-between px-4 py-2.5 rounded-xl bg-indigo-500/10 hover:bg-indigo-500/15 border border-indigo-500/20 dark:border-indigo-500/15 text-indigo-700 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 transition-all duration-300 group cursor-pointer shadow-sm hover:shadow-indigo-500/5 text-left w-full"
+        @click="openFeedbackSheet"
+      >
+        <div class="flex items-center gap-3">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            class="w-5 h-5 text-indigo-600 dark:text-indigo-400 transition-transform group-hover:scale-110"
+          >
+            <path
+              d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
+            />
+          </svg>
+          <span class="text-sm font-semibold tracking-wide"
+            >Feedback &amp; Requests</span
+          >
+        </div>
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          class="w-3.5 h-3.5 text-indigo-600/50 dark:text-indigo-400/50 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform"
+        >
+          <path d="m9 18 6-6-6-6" />
+        </svg>
+      </button>
 
       <!-- Theme toggle -->
       <div class="flex items-center justify-between px-1">
@@ -648,4 +726,5 @@ const recordCoffeeClick = () => {
 
   <UpdateSheet v-model:open="showUpdateSheet" />
   <ImportExportSheet v-model:open="showImportExportSheet" />
+  <FeedbackSheet v-model:open="showFeedbackSheet" />
 </template>

@@ -1,4 +1,5 @@
 import { onBeforeUnmount, watch, type Ref } from "vue";
+import { findScrollParent } from "../utils/dom";
 
 export interface SortableListOptions {
   /** Called on drop with the original and target indices (only when they differ). */
@@ -124,23 +125,6 @@ export function useSortableList(
     if (scrollParent) scrollParent.scrollTop += delta;
   };
 
-  // First scrollable ancestor (vertical), falling back to the document scroller.
-  const findScrollParent = (el: HTMLElement | null): HTMLElement => {
-    let node = el?.parentElement ?? null;
-    while (node) {
-      const oy = getComputedStyle(node).overflowY;
-      if (
-        (oy === "auto" || oy === "scroll") &&
-        node.scrollHeight > node.clientHeight
-      )
-        return node;
-      node = node.parentElement;
-    }
-    return (
-      (document.scrollingElement as HTMLElement) ?? document.documentElement
-    );
-  };
-
   // px/frame, ramping up the deeper the pointer pushes into the edge zone.
   const edgeVelocity = (): number => {
     if (!autoScroll) return 0;
@@ -234,7 +218,10 @@ export function useSortableList(
     heights = rects.map((r) => r.height);
     toIndex = fromIndex;
 
-    scrollParent = findScrollParent(container.value);
+    scrollParent = findScrollParent(
+      container.value,
+      (document.scrollingElement as HTMLElement) ?? document.documentElement,
+    );
     startScroll = currentScroll();
 
     // How far the row drifted up while folding away — added to every translate so

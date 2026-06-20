@@ -24,6 +24,13 @@ const onDisplayModeChange = () => (installed.value = isStandalone());
 onMounted(() => {
   mql = window.matchMedia("(display-mode: standalone)");
   mql.addEventListener("change", onDisplayModeChange);
+
+  if (["development", "staging", "production"].includes(import.meta.env.MODE)) {
+    const baseUrl = import.meta.env.VITE_API_BASE_URL;
+    if (baseUrl) {
+      fetch(`${baseUrl}/install-visits`, { method: "POST" }).catch(() => {});
+    }
+  }
 });
 onUnmounted(() => mql?.removeEventListener("change", onDisplayModeChange));
 

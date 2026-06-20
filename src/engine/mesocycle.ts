@@ -1,41 +1,128 @@
-import type { MesocycleWeek, Plan } from "../db/types";
+import type {
+  DoubleProgressionParams,
+  LinearProgressionParams,
+  MesocycleWeek,
+  NoneProgressionParams,
+  PeriodizationFocus,
+  ProgressionModelType,
+  ProgressionParams,
+  TopSetProgressionParams,
+} from "../db/types";
+import { LOCKABLE_FIELDS } from "../config/periodization";
+import { MESO_REP_DELTA, MESO_RPE_DELTA, MESO_SET_DELTA } from "./constants";
+import { snapRpe } from "./matrix";
 
-const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+// ----------------------------------------------
+// Mesocycle modifiers. A plan's mesocycle gives each week a focus
+// (hypertrophy/strength/peaking/deload); this module turns the active week's
+// focus into shifts on an exercise's TARGETS — never a direct load multiplier.
+// The load always re-renders downstream from the shifted targets via
+// matrixPct × c1RM, so "more intensity" means a higher targetRpe / fewer reps,
+// and "more volume" means more sets.
+//
+// Pipeline stage: mesocycle config → feeds prescription. Locks are honoured:
+// a field the user locked, or a field this model never periodizes, is left as-is.
+// ----------------------------------------------
+
+export interface MesoModifiers {
+  rpeDelta: number; // added to (top-set) targetRpe — intensity
+  repDelta: number; // added to the rep target — negative trims reps
+  setDelta: number; // added to the working-set count — volume
+}
+
+/** The target shifts for a week focus. Pulls from the tunable constants. */
+export function focusModifiers(focus: PeriodizationFocus): MesoModifiers {
+  return {
+    rpeDelta: MESO_RPE_DELTA[focus],
+    repDelta: MESO_REP_DELTA[focus],
+    setDelta: MESO_SET_DELTA[focus],
+  };
+}
 
 /**
- * 0-based index of the mesocycle week a point in time falls into, or null when
- * the plan has no mesocycle. Anchored to the plan's created_at (plans don't
- * carry an explicit start date yet — when one lands, only this module changes)
- * and wrapping, so a finished mesocycle repeats from week 1 until the user
- * edits the plan.
+ * The focus governing a given week. Wraps past the mesocycle length (a repeating
+ * cycle) and is negative-safe. Null when there is no mesocycle configured.
  */
-export function mesocycleWeekIndex(
-  plan: Plan | undefined,
-  at: number,
-): number | null {
-  const weeks = plan?.mesocycle;
-  if (!plan || !weeks?.length) return null;
-  const weeksElapsed = Math.max(
-    0,
-    Math.floor((at - plan.created_at) / WEEK_MS),
-  );
-  return weeksElapsed % weeks.length;
+export function weekFocus(
+  mesocycle: MesocycleWeek[] | undefined,
+  weekIndex: number,
+): PeriodizationFocus | null {
+  if (!mesocycle || mesocycle.length === 0) return null;
+  const len = mesocycle.length;
+  const i = ((weekIndex % len) + len) % len;
+  return mesocycle[i].focus;
 }
 
-/** The mesocycle week a point in time falls into (see mesocycleWeekIndex). */
-export function resolveMesocycleWeek(
-  plan: Plan | undefined,
-  at: number,
-): MesocycleWeek | undefined {
-  const index = mesocycleWeekIndex(plan, at);
-  return index === null ? undefined : plan!.mesocycle![index];
+/** Whether periodization may touch `field` for this model given the user's locks. */
+function isAdjustable(
+  model: ProgressionModelType,
+  field: string,
+  lockedFields: string[],
+): boolean {
+  return (
+    LOCKABLE_FIELDS[model].includes(field) && !lockedFields.includes(field)
+  );
 }
 
-/** Start of the training week `at` falls in, on the plan's week grid. */
-export function weekStart(plan: Plan, at: number): number {
-  const weeksElapsed = Math.max(
-    0,
-    Math.floor((at - plan.created_at) / WEEK_MS),
-  );
-  return plan.created_at + weeksElapsed * WEEK_MS;
+const clampReps = (n: number) => Math.max(1, Math.round(n));
+const clampSets = (n: number) => Math.max(1, Math.round(n));
+const clampRpe = (n: number) => snapRpe(n); // snaps to 0.5 grid + clamps 6–10
+
+/**
+ * Apply a week's modifiers to an exercise's (already normalized) params, honoring
+ * locks. Returns a NEW params object; the input is untouched. The resulting
+ * targetRpe (or topSetTargetRpe) is the `effectiveTargetRpe` the prescription
+ * uses for both load and the ceiling comparison.
+ *
+ * Note: double progression's rep range (minReps/maxReps) is intentionally NOT
+ * periodized — it is engine-driven state (the rep cursor advances it), so the
+ * mesocycle only shifts its targetSets and targetRpe.
+ */
+export function applyMesoToParams(
+  model: ProgressionModelType,
+  params: ProgressionParams,
+  mods: MesoModifiers,
+  lockedFields: string[] = [],
+): ProgressionParams {
+  const adj = (field: string) => isAdjustable(model, field, lockedFields);
+
+  switch (model) {
+    case "linear": {
+      const p = { ...(params as LinearProgressionParams) };
+      if (adj("targetSets"))
+        p.targetSets = clampSets(p.targetSets + mods.setDelta);
+      if (adj("targetReps"))
+        p.targetReps = clampReps(p.targetReps + mods.repDelta);
+      if (adj("targetRpe")) p.targetRpe = clampRpe(p.targetRpe + mods.rpeDelta);
+      return p;
+    }
+    case "double": {
+      const p = { ...(params as DoubleProgressionParams) };
+      if (adj("targetSets"))
+        p.targetSets = clampSets(p.targetSets + mods.setDelta);
+      if (adj("targetRpe")) p.targetRpe = clampRpe(p.targetRpe + mods.rpeDelta);
+      // minReps/maxReps deliberately left untouched (engine-owned rep cursor).
+      return p;
+    }
+    case "topset_backoff": {
+      const p = { ...(params as TopSetProgressionParams) };
+      if (adj("backOffSets"))
+        p.backOffSets = clampSets(p.backOffSets + mods.setDelta);
+      if (adj("topSetTargetReps"))
+        p.topSetTargetReps = clampReps(p.topSetTargetReps + mods.repDelta);
+      if (adj("topSetTargetRpe"))
+        p.topSetTargetRpe = clampRpe(p.topSetTargetRpe + mods.rpeDelta);
+      // backOffReps is lockable but not a natural meso target — left untouched.
+      return p;
+    }
+    case "none": {
+      const p = { ...(params as NoneProgressionParams) };
+      if (adj("targetSets"))
+        p.targetSets = clampSets(p.targetSets + mods.setDelta);
+      if (adj("targetReps"))
+        p.targetReps = clampReps(p.targetReps + mods.repDelta);
+      if (adj("targetRpe")) p.targetRpe = clampRpe(p.targetRpe + mods.rpeDelta);
+      return p;
+    }
+  }
 }

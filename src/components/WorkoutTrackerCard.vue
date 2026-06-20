@@ -143,6 +143,7 @@ defineExpose({
             :state="setState(setIndex)"
             :target="set.target"
             :has-proposal="proposalFlags?.[setIndex] ?? false"
+            :represcribed="set.represcribed ?? false"
             @toggle="emit('toggle-set', setIndex)"
             @complete="emit('complete', setIndex)"
             @edit-rpe="emit('edit-rpe', setIndex)"

@@ -5,10 +5,10 @@ import type {
   Routine,
   Plan,
   Workout,
-  ProgressionState,
   MeasurementType,
   MeasurementEntry,
   AnalyticsChartConfig,
+  ProgressionState,
 } from "./types";
 
 /**
@@ -25,13 +25,14 @@ export interface BackupFile {
     routines: Routine[];
     plans: Plan[];
     workouts: Workout[];
-    // Optional so backups created before the progression engine still import.
-    progressionStates?: ProgressionState[];
     // Optional so backups created before body measurements still import.
     measurementTypes?: MeasurementType[];
     measurementEntries?: MeasurementEntry[];
     // Optional so backups created before analytics charts still import.
     analyticsCharts?: AnalyticsChartConfig[];
+    // Optional so backups created before the engine rebuild still import; a
+    // missing list just means exercises re-seed their c1RM on first prescribe.
+    progressionStates?: ProgressionState[];
   };
 }
 
@@ -42,19 +43,19 @@ export async function exportData(): Promise<BackupFile> {
     routines,
     plans,
     workouts,
-    progressionStates,
     measurementTypes,
     measurementEntries,
     analyticsCharts,
+    progressionStates,
   ] = await Promise.all([
     db.exercises.toArray(),
     db.routines.toArray(),
     db.plans.toArray(),
     db.workouts.toArray(),
-    db.progressionStates.toArray(),
     db.measurementTypes.toArray(),
     db.measurementEntries.toArray(),
     db.analyticsCharts.toArray(),
+    db.progressionStates.toArray(),
   ]);
   return {
     app: "yafa",
@@ -65,10 +66,10 @@ export async function exportData(): Promise<BackupFile> {
       routines,
       plans,
       workouts,
-      progressionStates,
       measurementTypes,
       measurementEntries,
       analyticsCharts,
+      progressionStates,
     },
   };
 }
@@ -89,10 +90,10 @@ export async function importData(backup: BackupFile): Promise<void> {
       db.routines,
       db.plans,
       db.workouts,
-      db.progressionStates,
       db.measurementTypes,
       db.measurementEntries,
       db.analyticsCharts,
+      db.progressionStates,
     ],
     async () => {
       await Promise.all([
@@ -100,19 +101,19 @@ export async function importData(backup: BackupFile): Promise<void> {
         db.routines.clear(),
         db.plans.clear(),
         db.workouts.clear(),
-        db.progressionStates.clear(),
         db.measurementTypes.clear(),
         db.measurementEntries.clear(),
         db.analyticsCharts.clear(),
+        db.progressionStates.clear(),
       ]);
       await db.exercises.bulkAdd(data.exercises ?? []);
       await db.routines.bulkAdd(data.routines ?? []);
       await db.plans.bulkAdd(data.plans ?? []);
       await db.workouts.bulkAdd(data.workouts ?? []);
-      await db.progressionStates.bulkAdd(data.progressionStates ?? []);
       await db.measurementTypes.bulkAdd(data.measurementTypes ?? []);
       await db.measurementEntries.bulkAdd(data.measurementEntries ?? []);
       await db.analyticsCharts.bulkAdd(data.analyticsCharts ?? []);
+      await db.progressionStates.bulkAdd(data.progressionStates ?? []);
     },
   );
 }

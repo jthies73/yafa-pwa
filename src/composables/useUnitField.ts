@@ -1,4 +1,5 @@
 import { ref, watch, type WatchSource } from "vue";
+import { roundTo } from "../utils/number";
 
 // Generic bridge between a base-unit model (kg, cm, …) and a text input shown
 // in the user's chosen display unit. The model stays in the base unit (the
@@ -19,18 +20,13 @@ export function useUnitField(opts: {
   const buffer = ref("");
   const editing = ref(false);
 
-  const round = (v: number) => {
-    const f = 10 ** decimals;
-    return Math.round(v * f) / f;
-  };
-
   const sync = () => {
     if (editing.value) return;
     const base = opts.getBase();
     buffer.value =
       base == null || !Number.isFinite(base)
         ? ""
-        : String(round(opts.toDisplay(base)));
+        : String(roundTo(opts.toDisplay(base), decimals));
   };
 
   watch([opts.unit, () => opts.getBase()], sync, { immediate: true });

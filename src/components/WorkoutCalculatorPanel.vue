@@ -1,12 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
 import { db } from "../db/db";
-import type {
-  Exercise,
-  ProgressionState,
-  Set as LoggedSet,
-  RpeMatrix,
-} from "../db/types";
+import type { Exercise, Set as LoggedSet, RpeMatrix } from "../db/types";
 import { DEFAULT_RPE_MATRIX } from "../db/rpeMatrix";
 import { createExercise, type ExerciseInput } from "../db/repository";
 import {
@@ -29,7 +24,6 @@ const { logCalculatorSet, removeCalculatorSet, calculatorSets } =
 // ── Exercise selection ────────────────────────────────────────────────────────
 
 const selected = ref<Exercise | null>(null);
-const progressionState = ref<ProgressionState | null>(null);
 const showPicker = ref(false);
 const showForm = ref(false);
 
@@ -37,10 +31,8 @@ const matrix = computed<RpeMatrix>(
   () => selected.value?.rpeMatrix ?? DEFAULT_RPE_MATRIX,
 );
 
-const workingE1rm = computed(() => progressionState.value?.workingE1rm ?? null);
-
-// Implied e1RM from the most recent calculator set logged for this exercise this
-// session — lets uncalibrated exercises calculate after the first manual set.
+// The persisted working e1RM was removed with the engine teardown; until the
+// engine is rewritten the calculator anchors only to this session's logged sets.
 const sessionE1rm = computed(() => {
   if (!selected.value) return null;
   const sets = calculatorSets.value.filter(
@@ -49,13 +41,7 @@ const sessionE1rm = computed(() => {
   return sets.length ? sets[sets.length - 1].e1rm : null;
 });
 
-const effectiveE1rm = computed(() => workingE1rm.value ?? sessionE1rm.value);
-
-watch(selected, async (ex) => {
-  progressionState.value = null;
-  if (!ex) return;
-  progressionState.value = (await db.progressionStates.get(ex.id)) ?? null;
-});
+const effectiveE1rm = computed(() => sessionE1rm.value);
 
 const onSelect = (exercise: Exercise) => {
   selected.value = exercise;

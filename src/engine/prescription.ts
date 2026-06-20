@@ -1,33 +1,37 @@
 import type {
   DoubleProgressionParams,
   LinearProgressionParams,
-  MesocycleWeek,
   NoneProgressionParams,
   ProgressionModelType,
-  ProgressionState,
-  RoutineExerciseConfig,
+  ProgressionParams,
   RpeMatrix,
   TopSetProgressionParams,
 } from "../db/types";
-import { FOCUS_MODIFIERS } from "../config/periodization";
-import { DEFAULT_TARGET_RPE } from "./config";
-import { roundToLoadable, snapRpe, weightFromE1rm } from "./matrix";
-import { resetMultiplier } from "./resets";
+import { roundToLoadable, weightFromE1rm } from "./matrix";
 
 // ----------------------------------------------
-// Per-session prescription pipeline:
-//   1. base targets from the progression model's config (+ engine state)
-//   2. mesocycle modifiers (multiplicative, lock-gated)
-//   3. active reset modifiers (multiplicative, decaying — never lock-gated:
-//      locks protect user config from periodization, not from fatigue safety)
-//   4. weight from the matrix at the final reps/RPE, via working e1RM
-//   5. top set + back-off expansion
+// Prescription. Turns an exercise's EFFECTIVE config (already normalized and
+// mesocycle-shifted) plus its c1RM into the concrete sets the tracker renders.
+//
+// Pipeline stage: prescription. The service applies any pending reset to the
+// c1RM BEFORE calling this, so prescribeExercise just renders from the effective
+// c1RM it is handed — it is pure and stateless.
+//
+// Decisions encoded here:
+//   • "Target judges, Ceiling caps load": the load aims for targetRpe, but if the
+//     (possibly meso-raised) targetRpe exceeds rpeCeiling, the WEIGHT is rendered
+//     at the ceiling. The set's displayed rpe still shows targetRpe — only the
+//     load is capped.
+//   • Double progression holds the weight CONSTANT across the rep cycle: the load
+//     is computed at maxReps while the displayed rep target is the cursor.
+//   • Cold start (c1rm == null): sets carry reps/rpe but weight: null, so the
+//     tracker shows a free-entry row and the first qualifying session seeds c1RM.
 // ----------------------------------------------
 
 export interface PrescribedSet {
   reps: number;
   rpe: number | null;
-  weight: number | null; // null until a working e1RM has been seeded
+  weight: number | null; // null until a working c1RM has been seeded
   role: "straight" | "top" | "backoff";
 }
 
@@ -35,165 +39,98 @@ export interface ExercisePrescription {
   exerciseId: string;
   model: ProgressionModelType;
   sets: PrescribedSet[];
-  workingE1rm: number | null;
+  workingE1rm: number | null; // carries the c1RM (field name kept for back-compat)
 }
 
 export interface PrescriptionInput {
   exerciseId: string;
-  config: RoutineExerciseConfig;
-  state?: ProgressionState;
+  model: ProgressionModelType;
+  params: ProgressionParams; // normalized + mesocycle-shifted (effective targets)
+  rpeCeiling: number; // raw guardrail (not periodized)
+  effectiveC1rm: number | null; // reset already applied by the service if pending
+  doubleRepCursor?: number; // double model only
   matrix: RpeMatrix;
-  week?: MesocycleWeek;
 }
-
-const clampSets = (value: number): number => Math.max(1, Math.round(value));
-const clampReps = (value: number): number => Math.max(1, Math.round(value));
-// snapRpe also enforces the RPE ≤ 10 clamp (and the matrix floor of 6).
-const clampRpe = (value: number): number => snapRpe(value);
 
 export function prescribeExercise(
   input: PrescriptionInput,
 ): ExercisePrescription {
-  const { exerciseId, config, state, matrix, week } = input;
-  const locked = config.lockedFields ?? [];
-  const focus = week ? FOCUS_MODIFIERS[week.focus] : null;
-  const modifiers = state?.resetModifiers ?? [];
-  const volumeReset = resetMultiplier(modifiers, "volume");
-  const intensityReset = resetMultiplier(modifiers, "intensity");
+  const { model, params, rpeCeiling, effectiveC1rm: c1rm, matrix } = input;
 
-  // Steps 2 + 3 for one target value. Mesocycle modifiers respect field locks;
-  // reset modifiers always apply. Rounding/clamping happens once at the end so
-  // the two multiplicative layers don't accumulate rounding bias.
-  const adjust = (
-    value: number,
-    axis: "volume" | "intensity",
-    lockKey: string | null,
-  ): number => {
-    let adjusted = value;
-    if (focus && lockKey !== null && !locked.includes(lockKey)) {
-      adjusted *= focus[axis];
-    }
-    adjusted *= axis === "volume" ? volumeReset : intensityReset;
-    return adjusted;
+  // Weight at (reps, targetRpe), capped so its expected RPE never exceeds the
+  // ceiling. Null until c1RM is seeded.
+  const load = (reps: number, targetRpe: number): number | null => {
+    if (c1rm == null) return null;
+    const loadRpe = Math.min(targetRpe, rpeCeiling);
+    return roundToLoadable(weightFromE1rm(matrix, c1rm, reps, loadRpe));
   };
 
-  // The matrix derives the loadable weight from the working e1RM at the given
-  // reps/RPE, rounded to the bar.
-  const weightFor = (reps: number, rpe: number): number | null =>
-    state?.workingE1rm == null
-      ? null
-      : roundToLoadable(weightFromE1rm(matrix, state.workingE1rm, reps, rpe));
+  const sets = buildSets(model, params, input.doubleRepCursor, load);
+  return { exerciseId: input.exerciseId, model, sets, workingE1rm: c1rm };
+}
 
-  switch (config.progressionModel) {
+function buildSets(
+  model: ProgressionModelType,
+  params: ProgressionParams,
+  cursor: number | undefined,
+  load: (reps: number, targetRpe: number) => number | null,
+): PrescribedSet[] {
+  switch (model) {
     case "linear": {
-      const params = config.progressionParams as LinearProgressionParams;
-      const sets = clampSets(adjust(params.targetSets, "volume", "targetSets"));
-      const reps = clampReps(adjust(params.targetReps, "volume", "targetReps"));
-      const rpe = clampRpe(
-        adjust(
-          params.targetRpe ?? DEFAULT_TARGET_RPE,
-          "intensity",
-          "targetRpe",
-        ),
-      );
-      const weight = weightFor(reps, rpe);
-      return {
-        exerciseId,
-        model: "linear",
-        workingE1rm: state?.workingE1rm ?? null,
-        sets: Array.from({ length: sets }, () => ({
-          reps,
-          rpe,
-          weight,
-          role: "straight" as const,
-        })),
-      };
+      const p = params as LinearProgressionParams;
+      return Array.from({ length: p.targetSets }, () => ({
+        reps: p.targetReps,
+        rpe: p.targetRpe,
+        weight: load(p.targetReps, p.targetRpe),
+        role: "straight" as const,
+      }));
     }
-
     case "double": {
-      const params = config.progressionParams as DoubleProgressionParams;
-      const sets = clampSets(adjust(params.targetSets, "volume", "targetSets"));
-      // The rep goal is engine state (advancing minReps → maxReps), so the
-      // mesocycle never touches it (lockKey null) — only volume resets do.
-      const reps = clampReps(
-        adjust(state?.currentTargetReps ?? params.minReps, "volume", null),
-      );
-      const rpe = clampRpe(adjust(DEFAULT_TARGET_RPE, "intensity", null));
-      const weight = weightFor(reps, rpe);
-      return {
-        exerciseId,
-        model: "double",
-        workingE1rm: state?.workingE1rm ?? null,
-        sets: Array.from({ length: sets }, () => ({
-          reps,
-          rpe,
-          weight,
-          role: "straight" as const,
-        })),
-      };
+      const p = params as DoubleProgressionParams;
+      const reps = cursor ?? p.minReps;
+      // Weight is fixed at maxReps so it holds across the whole rep cycle.
+      const weight = load(p.maxReps, p.targetRpe);
+      return Array.from({ length: p.targetSets }, () => ({
+        reps,
+        rpe: p.targetRpe,
+        weight,
+        role: "straight" as const,
+      }));
     }
-
     case "topset_backoff": {
-      const params = config.progressionParams as TopSetProgressionParams;
-      const topReps = clampReps(
-        adjust(params.topSetTargetReps, "volume", "topSetTargetReps"),
-      );
-      const topRpe = clampRpe(
-        adjust(params.topSetTargetRpe, "intensity", "topSetTargetRpe"),
-      );
-      // The top set itself satisfies the sets ≥ 1 clamp, so back-offs may
-      // legitimately be modified down to zero.
-      const backOffCount = Math.max(
-        0,
-        Math.round(adjust(params.backOffSets, "volume", "backOffSets")),
-      );
-      const topWeight = weightFor(topReps, topRpe);
-      // Back-off load is re-derived from the top-set weight every session, so
-      // it automatically follows e1RM movement and intensity modifiers.
-      const backOffWeight =
-        topWeight === null
+      const p = params as TopSetProgressionParams;
+      const topWeight = load(p.topSetTargetReps, p.topSetTargetRpe);
+      const backWeight =
+        topWeight == null
           ? null
-          : roundToLoadable(topWeight * (1 - params.percentageDrop / 100));
-      return {
-        exerciseId,
-        model: "topset_backoff",
-        workingE1rm: state?.workingE1rm ?? null,
-        sets: [
-          {
-            reps: topReps,
-            rpe: topRpe,
-            weight: topWeight,
-            role: "top" as const,
-          },
-          ...Array.from({ length: backOffCount }, () => ({
-            reps: topReps,
-            rpe: null, // back-offs are load-prescribed; RPE is whatever it costs
-            weight: backOffWeight,
-            role: "backoff" as const,
-          })),
-        ],
-      };
+          : roundToLoadable(topWeight * (1 - p.percentageDrop / 100));
+      const sets: PrescribedSet[] = [
+        {
+          reps: p.topSetTargetReps,
+          rpe: p.topSetTargetRpe,
+          weight: topWeight,
+          role: "top",
+        },
+      ];
+      for (let i = 0; i < p.backOffSets; i++) {
+        sets.push({
+          reps: p.backOffReps,
+          rpe: null, // back-off RPE is a consequence of the dropped load, not a target
+          weight: backWeight,
+          role: "backoff",
+        });
+      }
+      return sets;
     }
-
     case "none": {
-      const params = config.progressionParams as NoneProgressionParams;
-      const sets = clampSets(adjust(params.targetSets, "volume", "targetSets"));
-      const reps = clampReps(adjust(params.targetReps, "volume", "targetReps"));
-      const rpe = clampRpe(
-        adjust(params.targetRpe ?? DEFAULT_TARGET_RPE, "intensity", "targetRpe"),
-      );
-      const weight = weightFor(reps, rpe);
-      return {
-        exerciseId,
-        model: "none",
-        workingE1rm: state?.workingE1rm ?? null,
-        sets: Array.from({ length: sets }, () => ({
-          reps,
-          rpe,
-          weight,
-          role: "straight" as const,
-        })),
-      };
+      const p = params as NoneProgressionParams;
+      // "none" never prescribes above target → load at targetRpe (no ceiling cap).
+      return Array.from({ length: p.targetSets }, () => ({
+        reps: p.targetReps,
+        rpe: p.targetRpe,
+        weight: load(p.targetReps, p.targetRpe),
+        role: "straight" as const,
+      }));
     }
   }
 }

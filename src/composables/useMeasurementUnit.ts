@@ -1,5 +1,6 @@
 import { computed, type Ref } from "vue";
 import type { MeasurementCategory } from "../db/types";
+import { roundTo } from "../utils/number";
 import { useWeightUnit } from "./useWeightUnit";
 import { useLengthUnit } from "./useLengthUnit";
 import { useUnitField } from "./useUnitField";
@@ -8,11 +9,6 @@ import { useUnitField } from "./useUnitField";
 // reuse the global kg/lbs and cm/in systems (source of truth stays kg / cm);
 // PERCENTAGE is unit-less and never converted. Everything here is reactive, so
 // flipping a unit in Settings reformats every measurement at once.
-
-const roundTo = (value: number, decimals: number): number => {
-  const f = 10 ** decimals;
-  return Math.round(value * f) / f;
-};
 
 /** Read-only formatting helpers for displaying stored (source-of-truth) values. */
 export function useMeasurementFormat() {

@@ -50,7 +50,6 @@ export const TIMEFRAME_OPTIONS: { value: Timeframe; label: string }[] = [
   { value: "week", label: "Week" },
 ];
 
-
 export interface TooltipContext {
   bucket: AnalyticsBucket;
   metric: AnalyticsMetric;

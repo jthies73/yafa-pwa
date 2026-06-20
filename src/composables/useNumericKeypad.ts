@@ -1,4 +1,5 @@
 import { ref, computed } from "vue";
+import { findScrollParent } from "../utils/dom";
 
 export type KeypadMode = "integer" | "decimal";
 
@@ -24,21 +25,6 @@ function register(el: HTMLInputElement, m: KeypadMode) {
   requestAnimationFrame(() => ensureVisible(el));
 }
 
-// The nearest ancestor that actually scrolls — where the field lives.
-function scrollParent(el: HTMLElement): HTMLElement | null {
-  let node = el.parentElement;
-  while (node) {
-    const oy = getComputedStyle(node).overflowY;
-    if (
-      (oy === "auto" || oy === "scroll") &&
-      node.scrollHeight > node.clientHeight
-    )
-      return node;
-    node = node.parentElement;
-  }
-  return null;
-}
-
 // Scroll the focused field clear of the on-screen keypad. Unlike a plain
 // scrollIntoView, the keypad overlays the bottom of the viewport, so a field
 // that is technically "visible" can still be hidden behind it.
@@ -57,7 +43,7 @@ function ensureVisible(el: HTMLInputElement) {
   else if (rect.top < margin) delta = rect.top - margin;
   if (delta === 0) return;
 
-  const scroller = scrollParent(el);
+  const scroller = findScrollParent(el, null);
   if (scroller) scroller.scrollBy({ top: delta, behavior: "smooth" });
   else window.scrollBy({ top: delta, behavior: "smooth" });
 }

@@ -2,32 +2,59 @@
 // Planning
 // ----------------------------------------------
 
+// Exercise configuration is the HEAD of the yafa planning pipeline:
+//   config → mesocycle → prescription → execution → finish → c1RM update → next prescription
+// Everything the (future) engine prescribes for an exercise derives from these
+// params, so they are the contract the rest of the pipeline reads against.
+//
+// Two RPE knobs work together (decision: "Target judges, Ceiling caps load"):
+//   • targetRpe  — the RPE the prescribed load AIMS for, and the threshold the
+//                  progression rules judge success/regression against.
+//   • rpeCeiling — a prescription guardrail ONLY: never prescribe a load whose
+//                  expected RPE would exceed it. It never enters the success/
+//                  regression decision.
+// Both are REQUIRED here so the engine never has to special-case a missing RPE;
+// older stored configs predating these fields are backfilled at read time by
+// normalizeProgressionParams (src/config/progression.ts) — there is no migration.
+
+// The weight increment can be expressed two ways; `incrementUnit` discriminates
+// how `weightIncrement` is interpreted when the engine raises the c1RM on a win.
+export type WeightIncrementUnit = "kg" | "percent";
+
 export interface LinearProgressionParams {
   targetSets: number;
   targetReps: number;
-  targetRpe?: number;
-  weightIncrement: number;
+  targetRpe: number; // aims the load + judges the outcome (default 8)
+  rpeCeiling: number; // only caps the prescribed load (default 9)
+  weightIncrement: number; // kg, or a raw percent of c1RM when incrementUnit === "percent"
+  incrementUnit: WeightIncrementUnit;
 }
 
 export interface DoubleProgressionParams {
   targetSets: number;
   minReps: number;
   maxReps: number;
+  targetRpe: number; // default 8
+  rpeCeiling: number; // default 9
   weightIncrement: number;
+  incrementUnit: WeightIncrementUnit;
 }
 
 export interface TopSetProgressionParams {
   topSetTargetReps: number;
-  topSetTargetRpe: number;
+  topSetTargetRpe: number; // "Target RPE" for the top set (name kept for back-compat)
+  rpeCeiling: number; // default 9
   backOffSets: number;
+  backOffReps: number; // rep target for each back-off set
   percentageDrop: number;
   weightIncrement: number;
+  incrementUnit: WeightIncrementUnit;
 }
 
 export interface NoneProgressionParams {
   targetSets: number;
   targetReps: number;
-  targetRpe?: number;
+  targetRpe: number; // default 8; no ceiling — "none" never prescribes above target
 }
 
 export type ProgressionParams =
@@ -36,7 +63,11 @@ export type ProgressionParams =
   | TopSetProgressionParams
   | NoneProgressionParams;
 
-export type ProgressionModelType = "linear" | "double" | "topset_backoff" | "none";
+export type ProgressionModelType =
+  | "linear"
+  | "double"
+  | "topset_backoff"
+  | "none";
 
 // Record<reps, Record<rpe, percentage_of_1rm>> — percentages stored as decimals (0..1).
 export type RpeMatrix = Record<number, Record<number, number>>;
@@ -130,45 +161,19 @@ export interface Workout {
   exercises: WorkoutExercise[];
 }
 
-// ----------------------------------------------
-// Progression Engine State
-// ----------------------------------------------
-
-export type ResetKind = "intensity" | "volume";
-
-// Corrective layer applied on top of a prescription after a reset. Its
-// strength tapers linearly to zero over `decaySessions` post-reset sessions
-// (effective = initialMagnitude × (1 − sessionsElapsed / decaySessions)),
-// after which it is dropped from the queue.
-export interface ResetModifier {
-  kind: ResetKind;
-  initialMagnitude: number; // fraction removed at full strength (0.1 ⇒ −10%)
-  decaySessions: number;
-  sessionsElapsed: number;
-}
-
-/**
- * Persistent per-exercise engine state. The engine tracks TWO distinct e1RM
- * concepts — they must never be conflated:
- *
- * - `workingE1rm` is the planning scalar: every weight prescription is derived
- *   from it via the RPE matrix. It moves deliberately — up by the configured
- *   `weightIncrement` on a successful session, down (lastingly) by an
- *   intensity reset. It is the single source of truth for prescriptions.
- * - `observedE1rms` holds the implied e1RMs of the last 10 qualifying sets
- *   (reps ≤ 10 AND RPE ≥ 8). It is INTERNAL to matrix learning: the rolling
- *   mean is the reference baseline each qualifying set's demonstrated
- *   percentage is measured against as the RPE matrix self-calibrates. It never
- *   drives prescriptions and is not surfaced to the user — divergence between
- *   demonstrated and working e1RM is reconciled by the recalibration flow.
- */
+// Per-exercise progression state — one row per exercise, keyed by exerciseId.
+// c1RM ("calculative 1RM") is the working anchor every prescribed weight derives
+// from (load = matrixPct(reps, targetRpe) × c1rm) and the ONLY value progression
+// advances. The analytics e1RM (impliedE1rm) is a separate, display-only number
+// and is never stored here. State is persisted (not folded from history each time)
+// because percentage increments and resets make the c1RM path-dependent.
 export interface ProgressionState {
   exerciseId: string;
-  workingE1rm: number | null; // null until seeded from the first logged session
-  observedE1rms: number[];
-  failureStreak: number; // consecutive failed sessions (all progression models)
-  currentTargetReps?: number; // double: rep goal advancing from minReps to maxReps
-  resetModifiers: ResetModifier[];
+  c1rm: number | null; // null until seeded from the first qualifying session
+  regressionStreak: number; // consecutive regressed sessions; 3 arms a reset
+  resetPending: boolean; // set at the 3rd regression; consumed (−10% c1RM) at next prescribe
+  doubleRepCursor?: number; // double model only: the rep target advancing minReps → maxReps
+  lastWorkoutId: string | null; // idempotency guard for applyWorkoutResults
   updated_at: number;
 }
 

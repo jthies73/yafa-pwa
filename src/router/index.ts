@@ -47,6 +47,11 @@ const router = createRouter({
       component: () => import("../components/MeasurementsPage.vue"),
     },
     {
+      path: "/history",
+      name: "history",
+      component: () => import("../components/WorkoutHistoryPage.vue"),
+    },
+    {
       path: "/install",
       name: "install",
       component: () => import("../components/InstallPage.vue"),

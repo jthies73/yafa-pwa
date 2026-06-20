@@ -1,4 +1,5 @@
 import { computed, ref } from "vue";
+import { roundTo } from "../utils/number";
 
 // Weight unit is a pure DISPLAY concern: kg is the single source of truth for
 // every stored weight (DB, engine, prescriptions, bodyweight). This module is
@@ -15,11 +16,6 @@ const readStored = (): WeightUnit =>
 
 // Module-scoped singleton: every component shares (and reacts to) one unit.
 const unit = ref<WeightUnit>(readStored());
-
-const roundTo = (value: number, decimals: number): number => {
-  const f = 10 ** decimals;
-  return Math.round(value * f) / f;
-};
 
 export function useWeightUnit() {
   const setUnit = (next: WeightUnit) => {

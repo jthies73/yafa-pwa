@@ -1,4 +1,5 @@
 import { computed, ref } from "vue";
+import { roundTo } from "../utils/number";
 
 // Length unit is a pure DISPLAY concern: centimeters are the single source of
 // truth for every stored length/height. This module is the one place that
@@ -15,11 +16,6 @@ const readStored = (): LengthUnit =>
 
 // Module-scoped singleton: every component shares (and reacts to) one unit.
 const unit = ref<LengthUnit>(readStored());
-
-const roundTo = (value: number, decimals: number): number => {
-  const f = 10 ** decimals;
-  return Math.round(value * f) / f;
-};
 
 export function useLengthUnit() {
   const setUnit = (next: LengthUnit) => {

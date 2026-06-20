@@ -1,7 +1,5 @@
 import { describe, it, expect } from "vitest";
 import type { Exercise, Set as LoggedSet, Workout } from "../../db/types";
-import { DEFAULT_RPE_MATRIX } from "../../db/rpeMatrix";
-import { impliedE1rm } from "../../engine/matrix";
 import {
   computeMeasurementSeries,
   computeWorkoutSeries,
@@ -149,75 +147,9 @@ describe("fractional coefficient application", () => {
   });
 });
 
-describe("e1RM bucketing", () => {
-  const bench = makeExercise({ name: "Bench Press" });
-  const exercisesById = byId(bench);
-
-  it("uses max, not mean, across a multi-session week", () => {
-    const workouts = [
-      makeWorkout(TUE, [
-        {
-          exerciseId: bench.id,
-          sets: [makeSet({ actualWeight: 100, actualReps: 5, actualRpe: 9 })],
-        },
-      ]),
-      makeWorkout(THU, [
-        {
-          exerciseId: bench.id,
-          sets: [
-            makeSet({ actualWeight: 105, actualReps: 5, actualRpe: 9 }),
-            // Heavier but below the qualifying RPE — must not count.
-            makeSet({ actualWeight: 110, actualReps: 5, actualRpe: 7 }),
-          ],
-        },
-      ]),
-    ];
-    const points = computeWorkoutSeries({
-      scope: { kind: "exercise", exerciseId: bench.id },
-      metric: "e1rm",
-      bucket: "week",
-      workouts,
-      exercisesById,
-    });
-    expect(points).toHaveLength(1);
-
-    const low = impliedE1rm(DEFAULT_RPE_MATRIX, 100, 5, 9);
-    const high = impliedE1rm(DEFAULT_RPE_MATRIX, 105, 5, 9);
-    expect(points[0].value).toBeCloseTo(high);
-    expect(points[0].value).not.toBeCloseTo((low + high) / 2);
-    expect(points[0].bestSet).toEqual({ weight: 105, reps: 5, rpe: 9 });
-  });
-
-  it("omits buckets without a qualifying set instead of interpolating", () => {
-    const workouts = [
-      makeWorkout(TUE, [
-        {
-          exerciseId: bench.id,
-          // RPE 7 and 12 reps: neither set qualifies (rpe ≥ 8, reps ≤ 10).
-          sets: [
-            makeSet({ actualRpe: 7 }),
-            makeSet({ actualReps: 12, actualRpe: 9 }),
-          ],
-        },
-      ]),
-      makeWorkout(NEXT_TUE, [
-        {
-          exerciseId: bench.id,
-          sets: [makeSet({ actualWeight: 100, actualReps: 5, actualRpe: 9 })],
-        },
-      ]),
-    ];
-    const points = computeWorkoutSeries({
-      scope: { kind: "exercise", exerciseId: bench.id },
-      metric: "e1rm",
-      bucket: "week",
-      workouts,
-      exercisesById,
-    });
-    expect(points).toHaveLength(1);
-    expect(points[0].start).toBe(weekStart(NEXT_TUE));
-  });
-});
+// NOTE: e1RM bucketing tests were removed with the engine teardown — the e1RM
+// metric depends on the (now stubbed) matrix math and will return once the
+// engine is rewritten.
 
 describe("measurement bucket alignment", () => {
   it("averages all entries inside a time bucket", () => {

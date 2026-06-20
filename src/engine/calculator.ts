@@ -1,22 +1,37 @@
 import type { RpeMatrix } from "../db/types";
-import { matrixPct, weightFromE1rm } from "./matrix";
-import { RPE_MIN, RPE_MAX, LOOKUP_REPS_MIN, LOOKUP_REPS_MAX } from "./config";
+import {
+  MATRIX_MAX_REPS,
+  MATRIX_MIN_REPS,
+  MATRIX_MAX_RPE,
+  MATRIX_MIN_RPE,
+  RPE_STEP,
+} from "./constants";
+import { matrixPct, roundToLoadable } from "./matrix";
 
-// Pure solvers — all weights in kg.
+// ----------------------------------------------
+// Manual calculator solvers. Given an e1RM anchor and two of the three knobs
+// (reps, weight, RPE), solve the third. Pure matrix math; all weights in kg.
+//
+// Pipeline stage: standalone tool (WorkoutCalculatorPanel) — not part of the
+// progression loop, but reuses the same matrix so a calculated load matches what
+// the engine would prescribe.
+// ----------------------------------------------
 
-/** Weight (kg) for a given e1RM, rep count, and RPE. */
+/** Weight (kg) for a given e1RM, rep count, and RPE — rounded to a loadable bar. */
 export function solveWeight(
   matrix: RpeMatrix,
   e1rm: number,
   reps: number,
   rpe: number,
 ): number {
-  return weightFromE1rm(matrix, e1rm, reps, rpe);
+  if (e1rm <= 0) return 0;
+  return roundToLoadable(e1rm * matrixPct(matrix, reps, rpe));
 }
 
 /**
- * Rep count (1–10) that best fits the observed total load at the given RPE.
- * Ties resolve to the lower rep count.
+ * The integer rep count whose matrix load (at the given RPE) best matches the
+ * observed total weight. Searches the matrix domain (1–10 reps) and returns the
+ * closest fit, clamped to that domain.
  */
 export function solveReps(
   matrix: RpeMatrix,
@@ -24,22 +39,22 @@ export function solveReps(
   totalWeight: number,
   rpe: number,
 ): number {
-  const target = totalWeight / e1rm;
-  let best = LOOKUP_REPS_MIN;
+  if (e1rm <= 0) return 0;
+  let bestReps = MATRIX_MIN_REPS;
   let bestDiff = Infinity;
-  for (let r = LOOKUP_REPS_MIN; r <= LOOKUP_REPS_MAX; r++) {
-    const diff = Math.abs(matrixPct(matrix, r, rpe) - target);
+  for (let reps = MATRIX_MIN_REPS; reps <= MATRIX_MAX_REPS; reps++) {
+    const diff = Math.abs(e1rm * matrixPct(matrix, reps, rpe) - totalWeight);
     if (diff < bestDiff) {
       bestDiff = diff;
-      best = r;
+      bestReps = reps;
     }
   }
-  return best;
+  return bestReps;
 }
 
 /**
- * RPE (6–10 in 0.5 steps) that best fits the observed total load at the given rep count.
- * Ties resolve to the lower RPE.
+ * The RPE (snapped to the 0.5 grid the panel offers) whose matrix load at the
+ * given rep count best matches the observed total weight. Clamped to 6–10.
  */
 export function solveRpe(
   matrix: RpeMatrix,
@@ -47,16 +62,15 @@ export function solveRpe(
   totalWeight: number,
   reps: number,
 ): number {
-  const target = totalWeight / e1rm;
-  let best = RPE_MIN;
+  if (e1rm <= 0) return 0;
+  let bestRpe = MATRIX_MIN_RPE;
   let bestDiff = Infinity;
-  for (let i = RPE_MIN * 2; i <= RPE_MAX * 2; i++) {
-    const rpe = i / 2;
-    const diff = Math.abs(matrixPct(matrix, reps, rpe) - target);
+  for (let rpe = MATRIX_MIN_RPE; rpe <= MATRIX_MAX_RPE; rpe += RPE_STEP) {
+    const diff = Math.abs(e1rm * matrixPct(matrix, reps, rpe) - totalWeight);
     if (diff < bestDiff) {
       bestDiff = diff;
-      best = rpe;
+      bestRpe = rpe;
     }
   }
-  return best;
+  return bestRpe;
 }

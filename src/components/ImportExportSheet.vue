@@ -2,6 +2,7 @@
 import { ref, watch } from "vue";
 import AppBottomSheet from "./AppBottomSheet.vue";
 import { exportData, importData, type BackupFile } from "../db/backup";
+import { exportToExcelCsv } from "../utils/csvExport";
 
 const open = defineModel<boolean>("open", { required: true });
 
@@ -37,6 +38,19 @@ const exportBackup = async () => {
     URL.revokeObjectURL(url);
     status.value = "done";
     message.value = "Backup exported.";
+  } catch (err) {
+    status.value = "error";
+    message.value = (err as Error).message;
+  }
+};
+
+const exportExcel = async () => {
+  status.value = "idle";
+  message.value = null;
+  try {
+    await exportToExcelCsv();
+    status.value = "done";
+    message.value = "Excel CSV exported.";
   } catch (err) {
     status.value = "error";
     message.value = (err as Error).message;
@@ -91,27 +105,52 @@ const close = () => {
         >
           Export
         </span>
-        <button
-          class="flex items-center justify-center gap-2 rounded-lg border border-border-light dark:border-border-dark py-3 text-sm font-bold text-text-light dark:text-text-dark transition-colors duration-150 hover:bg-surface-light dark:hover:bg-surface-dark cursor-pointer"
-          @click="exportBackup"
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
+        <div class="flex gap-3">
+          <button
+            class="flex-1 flex items-center justify-center gap-2 rounded-lg border border-border-light dark:border-border-dark py-3 text-sm font-bold text-text-light dark:text-text-dark transition-colors duration-150 hover:bg-surface-light dark:hover:bg-surface-dark cursor-pointer"
+            @click="exportBackup"
           >
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-            <polyline points="7 10 12 15 17 10" />
-            <line x1="12" y1="15" x2="12" y2="3" />
-          </svg>
-          Export backup
-        </button>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            Export backup
+          </button>
+          <button
+            class="flex-1 flex items-center justify-center gap-2 rounded-lg border border-border-light dark:border-border-dark py-3 text-sm font-bold text-text-light dark:text-text-dark transition-colors duration-150 hover:bg-surface-light dark:hover:bg-surface-dark cursor-pointer"
+            @click="exportExcel"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+              <polyline points="14 2 14 8 20 8" />
+              <line x1="16" y1="13" x2="8" y2="13" />
+              <line x1="16" y1="17" x2="8" y2="17" />
+              <polyline points="10 9 9 9 8 9" />
+            </svg>
+            Excel
+          </button>
+        </div>
       </div>
 
       <!-- Import -->

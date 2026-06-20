@@ -4,6 +4,12 @@ import { useRouter } from "vue-router";
 import { liveQuery } from "dexie";
 import { db } from "../db/db";
 import type { Plan, Routine } from "../db/types";
+import { getWorkouts } from "../db/repository";
+import {
+  computeRoutineStats,
+  formatLastPerformed,
+  type RoutineWeekStats,
+} from "../analytics/routineStats";
 import { useActiveWorkout } from "../composables/useActiveWorkout";
 import WorkoutPreviewSheet from "./WorkoutPreviewSheet.vue";
 import { isStandalone } from "../utils/platform";
@@ -34,23 +40,45 @@ const {
 
 const activePlan = ref<Plan | null>(null);
 const planRoutines = ref<Routine[]>([]);
+const routineStats = ref<Map<string, RoutineWeekStats>>(new Map());
 const loading = ref(true);
 let subscription: { unsubscribe(): void } | undefined;
+
+const EMPTY_STATS: RoutineWeekStats = { thisWeek: 0, lastPerformed: null };
+const statsFor = (routineId: string): RoutineWeekStats =>
+  routineStats.value.get(routineId) ?? EMPTY_STATS;
+
+// A routine only "lights up" once its weekly target is set and reached.
+const targetMet = (routine: Routine): boolean =>
+  !!routine.weeklyTarget && statsFor(routine.id).thisWeek >= routine.weeklyTarget;
+
+// Total sessions logged across the active plan's routines this calendar week.
+const weekTotal = computed(() =>
+  planRoutines.value.reduce((sum, r) => sum + statsFor(r.id).thisWeek, 0),
+);
 
 onMounted(() => {
   subscription = liveQuery(async () => {
     const plans = await db.plans.toArray();
     const plan = plans.find((p) => p.active) ?? null;
-    if (!plan) return { plan: null, routines: [] };
-    const routines = (
-      await Promise.all(plan.routineIds.map((id) => db.routines.get(id)))
-    ).filter((r): r is Routine => !!r);
-    return { plan, routines };
+    if (!plan) return { plan: null, routines: [], stats: new Map() };
+    // Reading workouts here makes Dexie re-run this query (and the counts
+    // update) the moment a session is logged.
+    const [routines, workouts] = await Promise.all([
+      Promise.all(plan.routineIds.map((id) => db.routines.get(id))),
+      getWorkouts(),
+    ]);
+    return {
+      plan,
+      routines: routines.filter((r): r is Routine => !!r),
+      stats: computeRoutineStats(workouts, Date.now()),
+    };
   }).subscribe({
     next: (result) => {
       loading.value = false;
       activePlan.value = result.plan;
       planRoutines.value = result.routines;
+      routineStats.value = result.stats;
     },
     error: () => {
       loading.value = false;
@@ -228,33 +256,30 @@ watch(
           </div>
           <div
             v-if="!loading && activePlan"
-            class="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-accent/15 text-accent text-xs font-bold uppercase tracking-wider shrink-0"
+            class="px-2.5 py-1 rounded-md bg-accent/15 text-accent text-xs font-bold uppercase tracking-wider shrink-0"
           >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="11"
-              height="11"
-              viewBox="0 0 24 24"
-              fill="currentColor"
-            >
-              <circle cx="12" cy="12" r="10" />
-            </svg>
-            Active
+            {{ weekTotal }} this week
           </div>
         </div>
 
         <!-- Active plan routines -->
         <div v-if="!loading && activePlan" class="flex flex-col gap-2">
           <p
-            class="text-xs font-bold uppercase tracking-wider text-text-light dark:text-text-dark opacity-45"
+            class="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-text-light dark:text-text-dark opacity-45"
           >
+            <span class="w-1.5 h-1.5 rounded-full bg-accent shrink-0"></span>
             {{ activePlan.name }}
           </p>
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
             <button
               v-for="routine in planRoutines"
               :key="routine.id"
-              class="flex items-center justify-between px-4 py-3 bg-black/5 dark:bg-white/5 border border-border-light dark:border-border-dark rounded-lg hover:bg-surface-light-hover dark:hover:bg-surface-dark-hover cursor-pointer transition-colors duration-150 text-left"
+              class="flex items-center justify-between px-4 py-3 border rounded-lg cursor-pointer transition-colors duration-150 text-left"
+              :class="
+                targetMet(routine)
+                  ? 'bg-accent/5 border-accent/30 hover:bg-accent/10'
+                  : 'bg-black/5 dark:bg-white/5 border-border-light dark:border-border-dark hover:bg-surface-light-hover dark:hover:bg-surface-dark-hover'
+              "
               @click="startRoutine(routine.id)"
             >
               <div class="min-w-0">
@@ -264,27 +289,59 @@ watch(
                   {{ routine.name }}
                 </span>
                 <span
-                  class="text-xs text-text-light dark:text-text-dark opacity-50"
+                  class="text-xs text-text-light dark:text-text-dark opacity-50 truncate block"
                 >
                   {{ routine.exercises.length }} exercise{{
                     routine.exercises.length !== 1 ? "s" : ""
                   }}
+                  ·
+                  {{
+                    statsFor(routine.id).lastPerformed === null
+                      ? "never done"
+                      : "last: " +
+                        formatLastPerformed(
+                          statsFor(routine.id).lastPerformed,
+                          Date.now(),
+                        )
+                  }}
                 </span>
               </div>
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2.5"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                class="text-accent shrink-0 ml-3"
-              >
-                <polygon points="5 3 19 12 5 21 5 3" />
-              </svg>
+              <div class="flex items-center gap-2.5 shrink-0 ml-3">
+                <span
+                  v-if="routine.weeklyTarget || statsFor(routine.id).thisWeek > 0"
+                  class="px-2 py-0.5 rounded-md text-xs font-bold"
+                  :class="
+                    targetMet(routine)
+                      ? 'bg-accent/15 text-accent'
+                      : 'bg-black/5 dark:bg-white/10 text-text-light dark:text-text-dark'
+                  "
+                  :title="
+                    routine.weeklyTarget
+                      ? `${statsFor(routine.id).thisWeek} of ${routine.weeklyTarget} sessions done this week`
+                      : `Performed ${statsFor(routine.id).thisWeek} time${statsFor(routine.id).thisWeek !== 1 ? 's' : ''} this week`
+                  "
+                >
+                  {{
+                    routine.weeklyTarget
+                      ? `${statsFor(routine.id).thisWeek}/${routine.weeklyTarget}`
+                      : `${statsFor(routine.id).thisWeek}×`
+                  }}
+                </span>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.5"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  class="text-accent"
+                >
+                  <polygon points="5 3 19 12 5 21 5 3" />
+                </svg>
+              </div>
             </button>
             <p
               v-if="planRoutines.length === 0"

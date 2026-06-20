@@ -5,7 +5,7 @@ import AppBottomSheet from "./AppBottomSheet.vue";
 
 const props = defineProps<{
   isEditing: boolean;
-  initial?: { name: string };
+  initial?: { name: string; weeklyTarget?: number };
 }>();
 
 const open = defineModel<boolean>("open", { required: true });
@@ -15,12 +15,14 @@ const emit = defineEmits<{
 }>();
 
 const name = ref("");
+const weeklyTarget = ref(0); // 0 ⇒ no target
 
 watch(
   open,
   (isOpen) => {
     if (!isOpen) return;
     name.value = props.initial?.name ?? "";
+    weeklyTarget.value = props.initial?.weeklyTarget ?? 0;
   },
   { immediate: true },
 );
@@ -33,7 +35,11 @@ const close = () => {
 
 const save = () => {
   if (!canSave.value) return;
-  emit("save", { name: name.value });
+  const target = Number(weeklyTarget.value);
+  emit("save", {
+    name: name.value,
+    weeklyTarget: target > 0 ? target : undefined,
+  });
 };
 
 const dismissKeyboard = (e: KeyboardEvent) => {
@@ -60,6 +66,28 @@ const dismissKeyboard = (e: KeyboardEvent) => {
           class="rounded-lg border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2.5 text-sm text-text-h-light dark:text-text-h-dark placeholder-text-light/40 dark:placeholder-text-dark/40 focus:border-accent/50 focus:outline-none focus:ring-2 focus:ring-accent/40"
           @keyup.enter="dismissKeyboard"
         />
+      </div>
+
+      <div class="flex flex-col gap-1.5">
+        <label
+          class="text-xs font-bold uppercase tracking-wider text-text-light dark:text-text-dark opacity-60"
+        >
+          Weekly Session Target
+        </label>
+        <input
+          v-model.number="weeklyTarget"
+          v-numpad
+          v-keynav
+          type="number"
+          min="0"
+          max="14"
+          step="1"
+          class="rounded-lg border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2.5 text-sm font-mono text-text-h-light dark:text-text-h-dark focus:border-accent/50 focus:outline-none focus:ring-2 focus:ring-accent/40"
+          @keyup.enter="dismissKeyboard"
+        />
+        <p class="text-xs text-text-light dark:text-text-dark opacity-50">
+          Sessions per week to aim for. 0 = no target.
+        </p>
       </div>
 
       <div class="h-2"></div>

@@ -31,6 +31,7 @@ export interface PlanInput {
 
 export interface RoutineInput {
   name: string;
+  weeklyTarget?: number;
 }
 
 export interface ExerciseInput {
@@ -148,6 +149,7 @@ export async function createRoutine(
     id,
     name: input.name.trim(),
     exercises: [],
+    weeklyTarget: input.weeklyTarget,
     created_at: Date.now(),
   };
 
@@ -170,7 +172,10 @@ export async function updateRoutine(
   id: string,
   input: RoutineInput,
 ): Promise<void> {
-  await db.routines.update(id, { name: input.name.trim() });
+  await db.routines.update(id, {
+    name: input.name.trim(),
+    weeklyTarget: input.weeklyTarget,
+  });
 }
 
 /**

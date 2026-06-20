@@ -106,6 +106,7 @@ export interface Routine {
   id: string;
   name: string;
   exercises: RoutineExercise[]; // Ordered list of exercises (allows duplicate movements per day)
+  weeklyTarget?: number; // Sessions/week to aim for; absent ⇒ no target
   created_at: number;
 }
 

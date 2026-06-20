@@ -91,7 +91,9 @@ const goBack = () => router.back();
 const showRoutineForm = ref(false);
 
 const routineFormInitial = computed(() =>
-  routine.value ? { name: routine.value.name } : undefined,
+  routine.value
+    ? { name: routine.value.name, weeklyTarget: routine.value.weeklyTarget }
+    : undefined,
 );
 
 const handleRenameRoutine = async (input: RoutineInput) => {

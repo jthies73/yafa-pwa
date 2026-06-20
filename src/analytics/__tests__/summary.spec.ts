@@ -53,18 +53,18 @@ describe("computeWorkoutSummary — adherence", () => {
     });
   });
 
-  it("missing prescribed sets cut the score (moderate ≈ 16/set)", () => {
-    // 2 of 4 prescribed sets done, both perfect → −32 → 68.
+  it("missing prescribed sets cut the score proportionally", () => {
+    // 2 of 4 prescribed sets done, both perfect → −50 → 50.
     const a = computeWorkoutSummary(
       input([{ exerciseId: "ex1", sets: [set(), set()] }], { ex1: 4 }),
     ).adherence;
     expect(a.missingSets).toBe(2);
-    expect(a.deductions.missing).toBe(32);
-    expect(a.score).toBe(68);
+    expect(a.deductions.missing).toBe(50);
+    expect(a.score).toBe(50);
   });
 
   it("an entirely skipped exercise counts its planned sets as missing", () => {
-    // ex1 done perfectly; ex2 (planned 2) never logged → 2 missing → −32.
+    // ex1 done perfectly (planned 3); ex2 (planned 2) never logged → 2 missing of 5 total → −40.
     const a = computeWorkoutSummary(
       input([{ exerciseId: "ex1", sets: [set(), set(), set()] }], {
         ex1: 3,
@@ -72,12 +72,12 @@ describe("computeWorkoutSummary — adherence", () => {
       }),
     ).adherence;
     expect(a.missingSets).toBe(2);
-    expect(a.score).toBe(68);
+    expect(a.score).toBe(60);
   });
 
   it("deductions decompose the score exactly", () => {
     // 2 of 3 done: one perfect, one RPE 9 (overshoot 1 → 12, meaned over 2 = 6);
-    // 1 missing → 16. total 22 → score 78.
+    // 1 missing of 3 total → 33. total 39 → score 61.
     const a = computeWorkoutSummary(
       input([{ exerciseId: "ex1", sets: [set(), set({ actualRpe: 9 })] }], {
         ex1: 3,
@@ -85,9 +85,9 @@ describe("computeWorkoutSummary — adherence", () => {
     ).adherence;
     const d = a.deductions;
     expect(d.rpe).toBe(6);
-    expect(d.missing).toBe(16);
+    expect(d.missing).toBe(33);
     expect(d.rpe + d.reps + d.load + d.missing + d.trash).toBe(100 - a.score);
-    expect(a.score).toBe(78);
+    expect(a.score).toBe(61);
   });
 
   it("off-script extra sets add a capped trash penalty", () => {

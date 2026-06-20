@@ -77,7 +77,6 @@ export const ADHERENCE_WEIGHTS = {
   rpeUnder: 3, // per RPE point below target
   rep: 4, // per rep off target
   load: 0.5, // per percent off the target weight
-  missingPerSet: 16, // per prescribed set never performed (skipping the work hurts)
   trashPerExtraSet: 5,
   trashCap: 20,
 };
@@ -151,11 +150,15 @@ function computeAdherence(input: SummaryInput): AdherenceResult {
       : judged.reduce((sum, s) => sum + pick(penaltyForSet(s)), 0) /
         judged.length;
 
+  const totalPlanned = Object.values(plannedCounts).reduce((a, b) => a + b, 0);
+
   const deductions: AdherenceDeductions = {
     rpe: Math.round(mean((p) => p.rpe)),
     reps: Math.round(mean((p) => p.reps)),
     load: Math.round(mean((p) => p.load)),
-    missing: Math.round(missingSets * ADHERENCE_WEIGHTS.missingPerSet),
+    missing: Math.round(
+      totalPlanned > 0 ? (missingSets / totalPlanned) * 100 : 0,
+    ),
     trash: Math.round(
       Math.min(
         ADHERENCE_WEIGHTS.trashCap,

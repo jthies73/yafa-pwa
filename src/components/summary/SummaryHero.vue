@@ -100,7 +100,7 @@ const volumeLabel = computed(
             row.label
           }}</span>
           <span class="font-mono font-semibold text-red-500"
-            >−{{ row.value }}</span
+            >−{{ row.value }} %</span
           >
         </div>
       </div>

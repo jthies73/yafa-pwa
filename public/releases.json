@@ -1,6 +1,10 @@
 {
-  "latest": "0.5.14",
+  "latest": "0.7.3",
   "releases": [
+    {
+      "version": "0.7.3",
+      "notes": "- Rebuild Engine (/w Claude ;D)"
+    },
     {
       "version": "0.5.14",
       "notes": "- Rebuild Engine."

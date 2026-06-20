@@ -4,6 +4,7 @@ import type { Set as LoggedSet, WorkoutExercise } from "../db/types";
 import type { PrescribedSet } from "../engine/prescription";
 import { DEFAULT_RPE_MATRIX } from "../db/rpeMatrix";
 import { proposeSetAdjustment, type SetAdjustment } from "../engine/adjustment";
+import { roundToLoadable } from "../engine/matrix";
 import { useActiveWorkout } from "./useActiveWorkout";
 
 export interface SetEntry {
@@ -203,6 +204,18 @@ export function useWorkoutTracker() {
     for (let j = 1; j < card.sets.length; j++) {
       const s = card.sets[j];
       if (isDone(s) || !s.target || s.target.weight != null) continue;
+
+      // Back-off sets carry no target RPE to re-anchor against — their load is a
+      // fixed drop off the top set, so fill it directly from the demonstrated
+      // top weight rather than the RPE-derived path below.
+      if (s.target.role === "backoff" && s.target.backoffFraction != null) {
+        const weight = roundToLoadable(gWeight * s.target.backoffFraction);
+        if (weight > 0) {
+          applyAdjustmentToSet(s, { reps: s.target.reps, weight, rpe: null });
+        }
+        continue;
+      }
+
       const proposal = proposeSetAdjustment(
         matrix,
         { weight: gWeight, reps: gReps, rpe: gRpe },

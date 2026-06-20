@@ -116,7 +116,9 @@ const close = () => {
           >
             Type
           </label>
-          <div class="flex gap-2">
+          <div
+            class="flex gap-1 p-1 bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-xl"
+          >
             <button
               v-for="opt in [
                 { id: 'feedback', label: 'General' },
@@ -125,12 +127,12 @@ const close = () => {
               ]"
               :key="opt.id"
               type="button"
-              class="flex-1 py-2 text-xs font-bold rounded-lg border cursor-pointer transition-colors duration-150"
               :class="
                 type === opt.id
-                  ? 'bg-accent border-accent text-bg-dark font-extrabold'
-                  : 'border-border-light dark:border-border-dark text-text-light dark:text-text-dark hover:bg-surface-light dark:hover:bg-surface-dark'
+                  ? 'bg-accent text-bg-dark'
+                  : 'text-text-light dark:text-text-dark hover:text-text-h-light dark:hover:text-text-h-dark'
               "
+              class="flex-1 text-xs font-bold py-2 px-2 rounded-lg cursor-pointer transition-colors duration-150"
               @click="type = opt.id as Type"
             >
               {{ opt.label }}

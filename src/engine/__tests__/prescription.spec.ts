@@ -168,7 +168,7 @@ describe("prescribeExercise — top set", () => {
     );
   });
 
-  it("cold start: all weights null", () => {
+  it("cold start: all weights null but back-offs carry the drop fraction", () => {
     const p = prescribeExercise({
       exerciseId: "ex",
       model: "topset_backoff",
@@ -178,5 +178,9 @@ describe("prescribeExercise — top set", () => {
       matrix: M,
     });
     expect(p.sets.every((s) => s.weight === null)).toBe(true);
+    // The fraction lets the tracker fill back-off weights once the cold-start
+    // top set is logged (its demonstrated weight × fraction).
+    expect(p.sets[1].backoffFraction).toBe(0.9);
+    expect(p.sets[2].backoffFraction).toBe(0.9);
   });
 });

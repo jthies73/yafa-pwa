@@ -3,6 +3,7 @@ import { ref } from "vue";
 import type { ExerciseCard } from "../composables/useWorkoutTracker";
 import { isDone } from "../composables/useWorkoutTracker";
 import WorkoutSetRow from "./WorkoutSetRow.vue";
+import InfoIcon from "./InfoIcon.vue";
 
 const props = defineProps<{
   card: ExerciseCard;
@@ -125,10 +126,13 @@ defineExpose({
               >Weight</span
             >
             <span class="text-xs opacity-0">@</span>
-            <span
-              class="w-14 shrink-0 text-center text-xs font-bold uppercase tracking-wider text-text-light dark:text-text-dark opacity-40"
-              >RPE</span
-            >
+            <span class="flex w-14 shrink-0 items-center justify-center gap-1">
+              <span
+                class="text-xs font-bold uppercase tracking-wider text-text-light dark:text-text-dark opacity-40"
+                >RPE</span
+              >
+              <InfoIcon topic="rpe" />
+            </span>
             <span class="w-9 shrink-0" />
           </div>
 

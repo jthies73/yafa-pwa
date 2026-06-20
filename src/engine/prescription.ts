@@ -33,6 +33,9 @@ export interface PrescribedSet {
   rpe: number | null;
   weight: number | null; // null until a working c1RM has been seeded
   role: "straight" | "top" | "backoff";
+  // Back-off only: load as a fraction of the top set's. Lets the tracker fill the
+  // weight once a cold-start top set is logged (no c1RM yet → weight is null).
+  backoffFraction?: number;
 }
 
 export interface ExercisePrescription {
@@ -100,10 +103,9 @@ function buildSets(
     case "topset_backoff": {
       const p = params as TopSetProgressionParams;
       const topWeight = load(p.topSetTargetReps, p.topSetTargetRpe);
+      const backoffFraction = 1 - p.percentageDrop / 100;
       const backWeight =
-        topWeight == null
-          ? null
-          : roundToLoadable(topWeight * (1 - p.percentageDrop / 100));
+        topWeight == null ? null : roundToLoadable(topWeight * backoffFraction);
       const sets: PrescribedSet[] = [
         {
           reps: p.topSetTargetReps,
@@ -118,6 +120,7 @@ function buildSets(
           rpe: null, // back-off RPE is a consequence of the dropped load, not a target
           weight: backWeight,
           role: "backoff",
+          backoffFraction,
         });
       }
       return sets;

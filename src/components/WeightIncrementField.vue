@@ -45,6 +45,8 @@ const setUnit = (next: WeightIncrementUnit) => {
   unit.value = next;
 };
 
+const toggleUnit = () => setUnit(unit.value === "kg" ? "percent" : "kg");
+
 // Let the parent flush the kg buffer on Save without a blur (matches the
 // matrix-editor persist pattern). No-op in percent mode — that input is bound
 // directly to the model and is always current.
@@ -95,34 +97,35 @@ const inputClass =
       </div>
 
       <!-- kg / % unit toggle -->
-      <div
-        class="flex gap-1 p-1 bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-lg shrink-0"
+      <button
+        type="button"
+        class="flex items-center border border-border-light dark:border-border-dark rounded-lg overflow-hidden bg-black/5 dark:bg-white/5 w-24 cursor-pointer select-none shrink-0"
+        role="switch"
+        :aria-checked="unit === 'percent'"
+        aria-label="Toggle increment unit"
+        @click="toggleUnit"
       >
-        <button
-          type="button"
+        <span
+          class="flex-1 text-center py-1.5 text-xs font-semibold transition-colors duration-150"
           :class="
             unit === 'kg'
-              ? 'bg-accent text-bg-dark'
-              : 'text-text-light dark:text-text-dark hover:text-text-h-light dark:hover:text-text-h-dark'
+              ? 'bg-accent text-bg-dark font-bold'
+              : 'text-text-h-light dark:text-text-h-dark hover:bg-surface-light-hover/40 dark:hover:bg-surface-dark-hover/40'
           "
-          class="px-3 text-xs font-bold rounded-md cursor-pointer transition-colors duration-150"
-          @click="setUnit('kg')"
         >
           {{ weightUnit }}
-        </button>
-        <button
-          type="button"
+        </span>
+        <span
+          class="flex-1 text-center py-1.5 text-xs font-semibold transition-colors duration-150"
           :class="
             unit === 'percent'
-              ? 'bg-accent text-bg-dark'
-              : 'text-text-light dark:text-text-dark hover:text-text-h-light dark:hover:text-text-h-dark'
+              ? 'bg-accent text-bg-dark font-bold'
+              : 'text-text-h-light dark:text-text-h-dark hover:bg-surface-light-hover/40 dark:hover:bg-surface-dark-hover/40'
           "
-          class="px-3 text-xs font-bold rounded-md cursor-pointer transition-colors duration-150"
-          @click="setUnit('percent')"
         >
           %
-        </button>
-      </div>
+        </span>
+      </button>
     </div>
   </div>
 </template>

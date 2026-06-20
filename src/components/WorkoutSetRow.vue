@@ -61,6 +61,10 @@ const {
 } = useWeightField({
   getKg: () => (weight.value === "" ? null : parseFloat(weight.value)),
   setKg: (kg) => (weight.value = kg == null ? "" : String(kg)),
+  // Match the 1-decimal precision of the prescription placeholder and every
+  // other weight readout — a loadable kg value (0.1 kg) otherwise renders with
+  // a spurious second decimal once converted to lbs.
+  decimals: 1,
 });
 
 const repsInput = ref<HTMLInputElement | null>(null);
@@ -74,8 +78,14 @@ defineExpose({ focusReps });
 const repsValid = computed(() => parseInt(reps.value, 10) >= 1);
 const weightValid = computed(() => parseFloat(weight.value) > 0);
 const rpeValid = computed(() => rpe.value !== "");
+// Back-off sets carry no target RPE — their load is a consequence of the top
+// set, not a target — so RPE is optional to complete them.
+const rpeRequired = computed(() => props.target?.role !== "backoff");
 const canComplete = computed(
-  () => repsValid.value && weightValid.value && rpeValid.value,
+  () =>
+    repsValid.value &&
+    weightValid.value &&
+    (!rpeRequired.value || rpeValid.value),
 );
 
 const repsError = ref(false);
@@ -100,7 +110,7 @@ function flashErrors() {
       weightError.value = false;
     }, 600);
   }
-  if (!rpeValid.value) {
+  if (rpeRequired.value && !rpeValid.value) {
     clearTimeout(rpeTimer);
     rpeError.value = true;
     rpeTimer = window.setTimeout(() => {
@@ -109,7 +119,7 @@ function flashErrors() {
   }
   if (!repsValid.value) repsInput.value?.focus();
   else if (!weightValid.value) weightInput.value?.focus();
-  else if (!rpeValid.value) emit("edit-rpe");
+  else if (rpeRequired.value && !rpeValid.value) emit("edit-rpe");
 }
 
 function tryComplete() {

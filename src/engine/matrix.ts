@@ -126,7 +126,7 @@ export function weightFromE1rm(
   return e1rm * matrixPct(matrix, reps, rpe);
 }
 
-/** Round a weight to the nearest loadable increment (2.5 kg by default). */
+/** Round a weight to the nearest loadable increment (LOADABLE_INCREMENT_KG = 0.1 kg by default). */
 export function roundToLoadable(
   weight: number,
   increment: number = LOADABLE_INCREMENT_KG,

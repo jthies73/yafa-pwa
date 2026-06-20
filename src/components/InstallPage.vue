@@ -97,6 +97,22 @@ const STEPS: Record<OS, Step[]> = {
 
 const heading = computed(() => HEADINGS[os]);
 const steps = computed(() => STEPS[os]);
+
+// Web Share API: on iOS the native share sheet is exactly where "Add to Home
+// Screen" lives, so surfacing it here is the fastest path to installing.
+const canShare = typeof navigator !== "undefined" && "share" in navigator;
+
+const share = async () => {
+  try {
+    await navigator.share({
+      title: "YAFA",
+      text: "Add YAFA to your home screen",
+      url: window.location.href,
+    });
+  } catch {
+    // User dismissed the share sheet, or it's unavailable — nothing to do.
+  }
+};
 </script>
 
 <template>
@@ -145,6 +161,32 @@ const steps = computed(() => STEPS[os]);
       </div>
 
       <template v-else>
+        <!-- Native share: opens the OS share sheet, where "Add to Home Screen"
+             lives on iOS. Shown only where the Web Share API is supported. -->
+        <button
+          v-if="canShare"
+          type="button"
+          class="flex items-center justify-center gap-2 rounded-xl bg-accent px-4 py-3 text-sm font-semibold text-white shadow-sm cursor-pointer hover:bg-accent/90 transition-colors duration-150"
+          @click="share"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M12 2v13" />
+            <path d="m8 6 4-4 4 4" />
+            <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
+          </svg>
+          Open share menu
+        </button>
+
         <!-- iOS-in-a-non-Safari-browser warning: installation needs Safari -->
         <div
           v-if="isIOSNonSafari"

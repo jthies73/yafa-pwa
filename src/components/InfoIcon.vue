@@ -11,6 +11,38 @@ const props = defineProps<{ topic: string }>();
 
 const open = ref(false);
 const info = computed(() => INFO_TOPICS[props.topic]);
+
+// The topic bodies encode structure with blank lines (paragraphs) and `•` lines
+// (bullet lists). Parse that into blocks so we can render real spacing and lists
+// instead of one preformatted blob. Bullets shaped "Term — explanation" get the
+// term emphasised, giving the lists a definition-list feel.
+type Block =
+  | { type: "para"; text: string }
+  | { type: "list"; items: { term: string | null; text: string }[] };
+
+const blocks = computed<Block[]>(() => {
+  if (!info.value) return [];
+  return info.value.body
+    .split(/\n\s*\n/)
+    .map((raw) => raw.trim())
+    .filter(Boolean)
+    .map((block): Block => {
+      const lines = block.split("\n").map((l) => l.trim());
+      if (lines.length && lines.every((l) => l.startsWith("•"))) {
+        return {
+          type: "list",
+          items: lines.map((l) => {
+            const text = l.replace(/^•\s*/, "");
+            const [term, ...rest] = text.split(" — ");
+            return rest.length
+              ? { term, text: rest.join(" — ") }
+              : { term: null, text };
+          }),
+        };
+      }
+      return { type: "para", text: block };
+    });
+});
 </script>
 
 <template>
@@ -36,10 +68,30 @@ const info = computed(() => INFO_TOPICS[props.topic]);
   </button>
 
   <AppBottomSheet v-if="info" v-model:open="open" :title="info.title">
-    <p
-      class="whitespace-pre-line px-5 py-4 text-sm leading-relaxed text-text-light dark:text-text-dark"
+    <div
+      class="flex flex-col gap-4 px-5 pb-8 pt-5 text-[15px] leading-relaxed text-text-light dark:text-text-dark"
     >
-      {{ info.body }}
-    </p>
+      <template v-for="(block, i) in blocks" :key="i">
+        <ul v-if="block.type === 'list'" class="flex flex-col gap-3">
+          <li
+            v-for="(item, j) in block.items"
+            :key="j"
+            class="flex items-start gap-3"
+          >
+            <span
+              class="mt-[0.55em] h-1.5 w-1.5 shrink-0 rounded-full bg-accent"
+            />
+            <span>
+              <span
+                v-if="item.term"
+                class="font-semibold text-text-h-light dark:text-text-h-dark"
+                >{{ item.term }} — </span
+              >{{ item.text }}
+            </span>
+          </li>
+        </ul>
+        <p v-else>{{ block.text }}</p>
+      </template>
+    </div>
   </AppBottomSheet>
 </template>

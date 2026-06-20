@@ -44,6 +44,8 @@ Persistence: all data is offline via IndexedDB. Save/restore the route `fullPath
 - Apply `cursor-pointer` to all clickable elements; they must shift color on hover (no scale/translate animations).
 - Keep nav links highlighted on their subroutes (e.g. "Plans" while on `/plans/:id`).
 - Never use placeholder images — prefer inline SVG / programmatic graphics.
+- Segmented selectors (tabs / multi-option pickers in a sheet or form) reuse the `ExerciseConfigSheet.vue` progression-model pattern: a `flex gap-1 p-1 … rounded-xl` container of `flex-1 rounded-lg` buttons, active = `bg-accent text-bg-dark`.
+- Binary unit/setting toggles reuse the `SettingsPage.vue` pattern: one `role="switch"` button wrapping two equal `flex-1` spans, active span = `bg-accent text-bg-dark font-bold`.
 
 ## Commands
 

@@ -14,6 +14,7 @@ export interface SetEntry {
   done: boolean;
   completedAt: number | null; // stamped when the set is marked done
   target?: PrescribedSet; // engine prescription backing this row, if any
+  represcribed?: boolean; // true once an in-session adjustment rewrote the target
 }
 
 export interface ExerciseCard {
@@ -226,6 +227,7 @@ export function useWorkoutTracker() {
     set.reps = String(proposal.reps);
     set.weight = String(proposal.weight);
     if (proposal.rpe != null) set.rpe = String(proposal.rpe);
+    set.represcribed = true; // mark the row as adjusted for the UI indicator
   }
 
   const addCardFor = (id: string, name: string) => {

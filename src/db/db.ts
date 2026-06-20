@@ -7,6 +7,7 @@ import type {
   MeasurementType,
   MeasurementEntry,
   AnalyticsChartConfig,
+  ProgressionState,
 } from "./types";
 
 export class YafaDatabase extends Dexie {
@@ -17,6 +18,7 @@ export class YafaDatabase extends Dexie {
   measurementTypes!: Table<MeasurementType, string>;
   measurementEntries!: Table<MeasurementEntry, string>;
   analyticsCharts!: Table<AnalyticsChartConfig, string>;
+  progressionStates!: Table<ProgressionState, string>;
 
   constructor() {
     super("YafaDatabase");
@@ -98,6 +100,14 @@ export class YafaDatabase extends Dexie {
     this.version(8).stores({
       progressionStates: null,
       recalibrations: null,
+    });
+
+    // v9: progression engine rebuild. Re-introduces per-exercise progression
+    // state keyed by exerciseId (c1RM anchor, regression streak, reset flag,
+    // double rep cursor). No upgrade — v8 dropped the table, so there is no
+    // legacy data; rows are created lazily as each exercise is first prescribed.
+    this.version(9).stores({
+      progressionStates: "exerciseId",
     });
   }
 }

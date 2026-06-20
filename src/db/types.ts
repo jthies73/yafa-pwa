@@ -161,9 +161,21 @@ export interface Workout {
   exercises: WorkoutExercise[];
 }
 
-// NOTE: Per-exercise engine state (ProgressionState/DeloadState) and confirmed
-// recalibrations (Recalibration) were removed with the core engine teardown.
-// They will be reintroduced when the engine is rewritten.
+// Per-exercise progression state — one row per exercise, keyed by exerciseId.
+// c1RM ("calculative 1RM") is the working anchor every prescribed weight derives
+// from (load = matrixPct(reps, targetRpe) × c1rm) and the ONLY value progression
+// advances. The analytics e1RM (impliedE1rm) is a separate, display-only number
+// and is never stored here. State is persisted (not folded from history each time)
+// because percentage increments and resets make the c1RM path-dependent.
+export interface ProgressionState {
+  exerciseId: string;
+  c1rm: number | null; // null until seeded from the first qualifying session
+  regressionStreak: number; // consecutive regressed sessions; 3 arms a reset
+  resetPending: boolean; // set at the 3rd regression; consumed (−10% c1RM) at next prescribe
+  doubleRepCursor?: number; // double model only: the rep target advancing minReps → maxReps
+  lastWorkoutId: string | null; // idempotency guard for applyWorkoutResults
+  updated_at: number;
+}
 
 // ----------------------------------------------
 // Body Measurements

@@ -35,7 +35,7 @@ describe("groupByWeek", () => {
 
   it("formats the label with a pipe separator and full month name", () => {
     const [group] = groupByWeek([makeWorkout(at(2026, 5, 15))]);
-    expect(group.label).toBe("Week 3 | June 2026");
+    expect(group.label).toBe("Week 3 · June 2026");
   });
 
   it("separates the same week-of-month across different months and years", () => {

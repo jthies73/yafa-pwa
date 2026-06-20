@@ -1,5 +1,12 @@
 import { db } from "./db";
-import type { Exercise, Plan, Routine, MesocycleWeek, Workout } from "./types";
+import type {
+  Exercise,
+  Plan,
+  Routine,
+  MesocycleWeek,
+  Workout,
+  ProgressionState,
+} from "./types";
 import type { RpeMatrix } from "./types"; // used by ExerciseInput
 
 // ----------------------------------------------
@@ -245,17 +252,24 @@ export async function countExerciseUsage(id: string): Promise<number> {
  * Deletes an exercise and removes every reference to it from all routines.
  */
 export async function deleteExercise(id: string): Promise<void> {
-  await db.transaction("rw", [db.exercises, db.routines], async () => {
-    const routines = await db.routines.toArray();
-    for (const r of routines) {
-      if (r.exercises.some((e) => e.exerciseId === id)) {
-        await db.routines.update(r.id, {
-          exercises: r.exercises.filter((e) => e.exerciseId !== id),
-        });
+  await db.transaction(
+    "rw",
+    [db.exercises, db.routines, db.progressionStates],
+    async () => {
+      const routines = await db.routines.toArray();
+      for (const r of routines) {
+        if (r.exercises.some((e) => e.exerciseId === id)) {
+          await db.routines.update(r.id, {
+            exercises: r.exercises.filter((e) => e.exerciseId !== id),
+          });
+        }
       }
-    }
-    await db.exercises.delete(id);
-  });
+      // The progression state is a pure orphan once the exercise is gone (a
+      // re-created exercise gets a fresh UUID and seeds anew).
+      await db.progressionStates.delete(id);
+      await db.exercises.delete(id);
+    },
+  );
 }
 
 // ---- Workouts ----
@@ -268,4 +282,47 @@ export async function getWorkouts(): Promise<Workout[]> {
 /** Removes a logged session. Nothing references a workout, so no cascade. */
 export async function deleteWorkout(id: string): Promise<void> {
   await db.workouts.delete(id);
+}
+
+// ---- Progression state ----
+//
+// One row per exercise holding the c1RM anchor and progression bookkeeping. The
+// engine service reads/writes these; the helpers here keep the default-row shape
+// in one place so reads never have to special-case a never-trained exercise.
+
+/** A blank progression row for an exercise that has never been trained. */
+export function freshProgressionState(exerciseId: string): ProgressionState {
+  return {
+    exerciseId,
+    c1rm: null,
+    regressionStreak: 0,
+    resetPending: false,
+    lastWorkoutId: null,
+    updated_at: Date.now(),
+  };
+}
+
+/**
+ * The stored state for an exercise, or a fresh default if none exists yet. Pure
+ * read — it never persists the default (callers persist explicitly when they
+ * actually change something).
+ */
+export async function getProgressionState(
+  exerciseId: string,
+): Promise<ProgressionState> {
+  return (
+    (await db.progressionStates.get(exerciseId)) ??
+    freshProgressionState(exerciseId)
+  );
+}
+
+export async function getAllProgressionStates(): Promise<ProgressionState[]> {
+  return db.progressionStates.toArray();
+}
+
+/** Persist a progression row, stamping updated_at. */
+export async function putProgressionState(
+  state: ProgressionState,
+): Promise<void> {
+  await db.progressionStates.put({ ...state, updated_at: Date.now() });
 }

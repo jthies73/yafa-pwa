@@ -8,6 +8,7 @@ import type {
   MeasurementType,
   MeasurementEntry,
   AnalyticsChartConfig,
+  ProgressionState,
 } from "./types";
 
 /**
@@ -29,6 +30,9 @@ export interface BackupFile {
     measurementEntries?: MeasurementEntry[];
     // Optional so backups created before analytics charts still import.
     analyticsCharts?: AnalyticsChartConfig[];
+    // Optional so backups created before the engine rebuild still import; a
+    // missing list just means exercises re-seed their c1RM on first prescribe.
+    progressionStates?: ProgressionState[];
   };
 }
 
@@ -42,6 +46,7 @@ export async function exportData(): Promise<BackupFile> {
     measurementTypes,
     measurementEntries,
     analyticsCharts,
+    progressionStates,
   ] = await Promise.all([
     db.exercises.toArray(),
     db.routines.toArray(),
@@ -50,6 +55,7 @@ export async function exportData(): Promise<BackupFile> {
     db.measurementTypes.toArray(),
     db.measurementEntries.toArray(),
     db.analyticsCharts.toArray(),
+    db.progressionStates.toArray(),
   ]);
   return {
     app: "yafa",
@@ -63,6 +69,7 @@ export async function exportData(): Promise<BackupFile> {
       measurementTypes,
       measurementEntries,
       analyticsCharts,
+      progressionStates,
     },
   };
 }
@@ -86,6 +93,7 @@ export async function importData(backup: BackupFile): Promise<void> {
       db.measurementTypes,
       db.measurementEntries,
       db.analyticsCharts,
+      db.progressionStates,
     ],
     async () => {
       await Promise.all([
@@ -96,6 +104,7 @@ export async function importData(backup: BackupFile): Promise<void> {
         db.measurementTypes.clear(),
         db.measurementEntries.clear(),
         db.analyticsCharts.clear(),
+        db.progressionStates.clear(),
       ]);
       await db.exercises.bulkAdd(data.exercises ?? []);
       await db.routines.bulkAdd(data.routines ?? []);
@@ -104,6 +113,7 @@ export async function importData(backup: BackupFile): Promise<void> {
       await db.measurementTypes.bulkAdd(data.measurementTypes ?? []);
       await db.measurementEntries.bulkAdd(data.measurementEntries ?? []);
       await db.analyticsCharts.bulkAdd(data.analyticsCharts ?? []);
+      await db.progressionStates.bulkAdd(data.progressionStates ?? []);
     },
   );
 }

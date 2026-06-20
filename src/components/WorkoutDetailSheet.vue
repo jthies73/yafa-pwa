@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
-import type { Exercise, Workout } from "../db/types";
-import type { WorkoutSummary } from "../analytics/summary";
+import type { Exercise, Workout, Set as LoggedSet } from "../db/types";
+import type { PrType, WorkoutSummary } from "../analytics/summary";
 import { deleteWorkout } from "../db/repository";
+import { impliedE1rm, isQualifyingSet } from "../engine/matrix";
+import { DEFAULT_RPE_MATRIX } from "../db/rpeMatrix";
 import { useWeightUnit } from "../composables/useWeightUnit";
 import AppBottomSheet from "./AppBottomSheet.vue";
 import ConfirmDialog from "./ConfirmDialog.vue";
@@ -25,10 +27,23 @@ const { display: displayWeight, format: formatWeight, label } = useWeightUnit();
 const exerciseName = (id: string): string =>
   props.exercisesById.get(id)?.name ?? "Exercise";
 
-// Engine summary marks PRs per exercise (stubbed today → empty set).
-const prExerciseIds = computed(
-  () => new Set((props.summary?.prs ?? []).map((p) => p.exerciseId)),
-);
+// An exercise can earn several PR kinds in one session (e.g. e1RM + Volume);
+// group them so each kind gets its own badge.
+const prTypesByExercise = computed(() => {
+  const map = new Map<string, PrType[]>();
+  for (const pr of props.summary?.prs ?? []) {
+    const list = map.get(pr.exerciseId);
+    if (list) list.push(pr.type);
+    else map.set(pr.exerciseId, [pr.type]);
+  }
+  return map;
+});
+
+const PR_LABELS: Record<PrType, string> = {
+  e1rm: "e1RM PR",
+  rep: "Rep PR",
+  volume: "Volume PR",
+};
 
 const formatDate = (ts: number): string =>
   new Date(ts).toLocaleDateString(undefined, {
@@ -41,31 +56,18 @@ const formatDate = (ts: number): string =>
 const formatDuration = (ms: number): string =>
   ms > 0 ? `${Math.round(ms / 60000)} min` : "—";
 
-/** "100 × 8 @ 8" — actual values in the user's unit. */
-const setLine = (set: {
-  actualWeight: number;
-  actualReps: number;
-  actualRpe?: number;
-}): string => {
-  const base = `${displayWeight(set.actualWeight)} ${label.value} × ${set.actualReps}`;
-  return set.actualRpe != null ? `${base} @ ${set.actualRpe}` : base;
-};
-
-const targetDiffers = (set: {
-  targetWeight: number;
-  actualWeight: number;
-  targetReps: number;
-  actualReps: number;
-}): boolean =>
-  set.targetWeight !== set.actualWeight || set.targetReps !== set.actualReps;
-
-const targetLine = (set: {
-  targetWeight: number;
-  targetReps: number;
-  targetRpe?: number;
-}): string => {
-  const base = `target ${displayWeight(set.targetWeight)} × ${set.targetReps}`;
-  return set.targetRpe != null ? `${base} @ ${set.targetRpe}` : base;
+/** Implied e1RM (raw kg) for a near-limit set; null when the set isn't honest enough to count. */
+const setE1rm = (set: LoggedSet, exerciseId: string): number | null => {
+  if (!isQualifyingSet(set)) return null;
+  const matrix =
+    props.exercisesById.get(exerciseId)?.rpeMatrix ?? DEFAULT_RPE_MATRIX;
+  const e1rm = impliedE1rm(
+    matrix,
+    set.actualWeight,
+    set.actualReps,
+    set.actualRpe!,
+  );
+  return e1rm > 0 ? e1rm : null;
 };
 
 // --- Delete ---
@@ -106,61 +108,122 @@ const onConfirmDelete = async () => {
       </div>
     </template>
 
-    <!-- Summary row -->
+    <!-- Summary strip -->
     <div
       v-if="summary"
-      class="flex flex-wrap gap-x-6 gap-y-1 border-b border-border-light dark:border-border-dark px-5 py-4 font-mono text-sm text-text-light dark:text-text-dark"
+      class="grid grid-cols-4 gap-3 border-b border-border-light dark:border-border-dark px-5 py-4"
     >
-      <span>{{ formatDuration(summary.durationMs) }}</span>
-      <span>{{ formatWeight(summary.volumeLoad, 0) }}</span>
-      <span>{{ summary.sets.completed }} sets</span>
-      <span>{{ workout?.exercises.length ?? 0 }} exercises</span>
+      <div class="flex flex-col gap-1">
+        <span
+          class="text-[10px] font-bold uppercase tracking-wider text-text-light dark:text-text-dark opacity-40"
+        >
+          Duration
+        </span>
+        <span class="font-mono text-sm text-text-h-light dark:text-text-h-dark">
+          {{ formatDuration(summary.durationMs) }}
+        </span>
+      </div>
+      <div class="flex flex-col gap-1">
+        <span
+          class="text-[10px] font-bold uppercase tracking-wider text-text-light dark:text-text-dark opacity-40"
+        >
+          Volume
+        </span>
+        <span class="font-mono text-sm text-text-h-light dark:text-text-h-dark">
+          {{ formatWeight(summary.volumeLoad, 0) }}
+        </span>
+      </div>
+      <div class="flex flex-col gap-1">
+        <span
+          class="text-[10px] font-bold uppercase tracking-wider text-text-light dark:text-text-dark opacity-40"
+        >
+          Sets
+        </span>
+        <span class="font-mono text-sm text-text-h-light dark:text-text-h-dark">
+          {{ summary.sets.completed }}
+        </span>
+      </div>
+      <div class="flex flex-col gap-1">
+        <span
+          class="text-[10px] font-bold uppercase tracking-wider text-text-light dark:text-text-dark opacity-40"
+        >
+          Exercises
+        </span>
+        <span class="font-mono text-sm text-text-h-light dark:text-text-h-dark">
+          {{ workout?.exercises.length ?? 0 }}
+        </span>
+      </div>
     </div>
 
     <!-- Per-exercise breakdown -->
-    <div v-if="workout" class="flex flex-col gap-5 px-5 py-4">
+    <div v-if="workout" class="flex flex-col px-5 py-4">
       <div
         v-for="(ex, exIndex) in workout.exercises"
         :key="`${ex.exerciseId}-${exIndex}`"
-        class="flex flex-col gap-2"
+        class="flex flex-col gap-2 border-b border-border-light dark:border-border-dark py-4 first:pt-0 last:border-0 last:pb-0"
       >
-        <div class="flex items-center gap-2">
+        <div class="flex flex-wrap items-center gap-2">
           <h3 class="text-sm font-bold text-text-h-light dark:text-text-h-dark">
             {{ exerciseName(ex.exerciseId) }}
           </h3>
           <span
-            v-if="prExerciseIds.has(ex.exerciseId)"
+            v-for="prType in prTypesByExercise.get(ex.exerciseId) ?? []"
+            :key="prType"
             class="rounded-md bg-accent/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-accent"
           >
-            PR
+            {{ PR_LABELS[prType] }}
           </span>
         </div>
-        <ul class="flex flex-col gap-1">
+        <ul class="flex flex-col gap-1.5">
           <li
             v-for="(set, setIndex) in ex.sets"
             :key="set.id"
-            class="flex items-center gap-2 font-mono text-sm"
+            class="flex items-center gap-3"
           >
             <span
-              class="w-5 shrink-0 text-text-light dark:text-text-dark opacity-40"
+              class="w-4 shrink-0 font-mono text-xs text-text-light dark:text-text-dark opacity-40"
             >
               {{ setIndex + 1 }}
             </span>
-            <span class="text-text-h-light dark:text-text-h-dark">
-              {{ setLine(set) }}
-            </span>
-            <span
-              v-if="targetDiffers(set)"
-              class="text-xs text-text-light dark:text-text-dark opacity-50"
+            <!-- Performance: weight × reps @ rpe, operators dimmed for breathing room -->
+            <div
+              class="flex min-w-0 flex-1 items-baseline gap-1.5 font-mono text-sm text-text-h-light dark:text-text-h-dark"
             >
-              {{ targetLine(set) }}
-            </span>
+              <span>
+                {{ displayWeight(set.actualWeight) }}
+                <span
+                  class="text-[10px] text-text-light dark:text-text-dark opacity-40"
+                >
+                  {{ label }}
+                </span>
+              </span>
+              <span class="opacity-30">×</span>
+              <span>{{ set.actualReps }}</span>
+              <template v-if="set.actualRpe != null">
+                <span class="opacity-30">@</span>
+                <span>{{ set.actualRpe }}</span>
+              </template>
+            </div>
             <span
               v-if="set.failure"
-              class="rounded bg-red-500/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-red-500"
+              class="shrink-0 rounded bg-red-500/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-red-500"
             >
               Failure
             </span>
+            <!-- e1RM derived from this set (near-limit sets only) -->
+            <div
+              v-if="setE1rm(set, ex.exerciseId) != null"
+              class="flex shrink-0 items-baseline gap-1.5"
+            >
+              <span
+                class="text-[10px] font-bold uppercase tracking-wider text-text-light dark:text-text-dark opacity-40"
+              >
+                e1RM
+              </span>
+              <span class="font-mono text-sm font-bold text-accent">
+                {{ formatWeight(setE1rm(set, ex.exerciseId)!, 0) }}
+              </span>
+            </div>
           </li>
         </ul>
       </div>

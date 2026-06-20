@@ -169,28 +169,55 @@ const manualE1rm = computed(() => {
 // After calculation the user must confirm their actual performed value for the
 // calculated dimension before logging. The fields are auto-prefilled with the
 // prediction but remain editable.
-const actualText = ref(""); // weight or reps
+const actualText = ref(""); // reps
 const actualRpeChip = ref<number | null>(null); // rpe
+
+let lastPrefilledReps: string | null = null;
+let lastPrefilledRpe: number | null = null;
 
 watch(missing, (next, prev) => {
   if (next === prev) return;
   actualText.value = "";
   actualRpeChip.value = null;
+  lastPrefilledReps = null;
+  lastPrefilledRpe = null;
 });
 
 watch(calc, (c) => {
   if (!c || !missing.value) return;
-  if (missing.value === "rpe" && actualRpeChip.value === null) {
-    actualRpeChip.value = c.rpe;
-  } else if (missing.value === "reps" && actualText.value === "") {
-    actualText.value = String(c.reps);
+
+  if (missing.value === "rpe") {
+    if (actualRpeChip.value === null || actualRpeChip.value === lastPrefilledRpe) {
+      actualRpeChip.value = c.rpe;
+      lastPrefilledRpe = c.rpe;
+    }
+  } else if (missing.value === "reps") {
+    if (actualText.value === "" || actualText.value === lastPrefilledReps) {
+      actualText.value = String(c.reps);
+      lastPrefilledReps = String(c.reps);
+    }
+  } else if (missing.value === "weight") {
+    if (actualText.value === "" || actualText.value === lastPrefilledReps) {
+      actualText.value = String(c.reps);
+      lastPrefilledReps = String(c.reps);
+    }
+    if (actualRpeChip.value === null || actualRpeChip.value === lastPrefilledRpe) {
+      actualRpeChip.value = c.rpe;
+      lastPrefilledRpe = c.rpe;
+    }
   }
 });
 
 const canLog = computed(() => {
   if (selected.value && allFilled.value) return true;
   if (!calc.value || !missing.value || !selected.value) return false;
-  if (missing.value === "weight") return true; // weight is fixed — log immediately
+  if (missing.value === "weight") {
+    const repsValid =
+      Number.isFinite(parseInt(actualText.value, 10)) &&
+      parseInt(actualText.value, 10) >= 1;
+    const rpeValid = actualRpeChip.value !== null;
+    return repsValid && rpeValid;
+  }
   if (missing.value === "rpe") return actualRpeChip.value !== null;
   const n = parseInt(actualText.value, 10);
   return Number.isFinite(n) && n >= 1;
@@ -231,9 +258,9 @@ const onLogSet = () => {
     e1rm = calcE1rm;
 
     if (missing.value === "weight") {
-      actualReps = repsNum.value!;
+      actualReps = parseInt(actualText.value, 10);
       actualWeight = weightKg; // calculated weight is fixed — load the bar to this
-      actualRpe = rpe.value!;
+      actualRpe = actualRpeChip.value!;
     } else if (missing.value === "reps") {
       actualReps = parseInt(actualText.value, 10);
       actualWeight = toKg(weightNum.value!);
@@ -483,48 +510,54 @@ const onLogSet = () => {
         </template>
       </div>
 
-      <!-- Actual confirmation (only for calculated reps or RPE — weight is fixed, not shown for manual sets) -->
+      <!-- Actual confirmation -->
       <div
-        v-if="!allFilled && calc && missing !== 'weight'"
-        class="flex flex-col gap-1.5"
+        v-if="!allFilled && calc"
+        class="flex flex-col gap-4"
       >
-        <label
-          class="text-xs font-bold uppercase tracking-wider text-text-light dark:text-text-dark opacity-60"
-        >
-          <template v-if="missing === 'reps'">Actual Reps</template>
-          <template v-else>Actual RPE</template>
-        </label>
-
-        <!-- RPE chips for actual RPE -->
-        <div v-if="missing === 'rpe'" class="flex flex-wrap gap-1.5">
-          <button
-            v-for="v in RPE_VALUES"
-            :key="v"
-            type="button"
-            :class="
-              actualRpeChip === v
-                ? 'bg-accent text-bg-dark border-accent'
-                : 'border-border-light bg-surface-light text-text-light hover:text-text-h-light dark:border-border-dark dark:bg-surface-dark dark:text-text-dark dark:hover:text-text-h-dark'
-            "
-            class="min-w-[2.75rem] flex-1 cursor-pointer rounded-lg border px-2 py-2 font-mono text-xs font-bold transition-colors duration-150"
-            @click="actualRpeChip = actualRpeChip === v ? null : v"
+        <!-- Actual Reps -->
+        <div v-if="missing === 'reps' || missing === 'weight'" class="flex flex-col gap-1.5">
+          <label
+            class="text-xs font-bold uppercase tracking-wider text-text-light dark:text-text-dark opacity-60"
           >
-            {{ v }}
-          </button>
+            Actual Reps
+          </label>
+          <input
+            v-model="actualText"
+            v-numpad="'integer'"
+            type="text"
+            inputmode="numeric"
+            placeholder="—"
+            class="rounded-lg border border-border-light bg-surface-light px-3 py-2.5 font-mono text-sm text-text-h-light placeholder-text-light/40 focus:border-accent/50 focus:outline-none focus:ring-2 focus:ring-accent/40 dark:border-border-dark dark:bg-surface-dark dark:text-text-h-dark dark:placeholder-text-dark/40"
+            @keydown="onRepsKeydown"
+            @blur="actualText = sanitizeReps(actualText)"
+          />
         </div>
 
-        <!-- Text input for actual reps -->
-        <input
-          v-else
-          v-model="actualText"
-          v-numpad="'integer'"
-          type="text"
-          inputmode="numeric"
-          placeholder="—"
-          class="rounded-lg border border-border-light bg-surface-light px-3 py-2.5 font-mono text-sm text-text-h-light placeholder-text-light/40 focus:border-accent/50 focus:outline-none focus:ring-2 focus:ring-accent/40 dark:border-border-dark dark:bg-surface-dark dark:text-text-h-dark dark:placeholder-text-dark/40"
-          @keydown="onRepsKeydown"
-          @blur="actualText = sanitizeReps(actualText)"
-        />
+        <!-- Actual RPE -->
+        <div v-if="missing === 'rpe' || missing === 'weight'" class="flex flex-col gap-1.5">
+          <label
+            class="text-xs font-bold uppercase tracking-wider text-text-light dark:text-text-dark opacity-60"
+          >
+            Actual RPE
+          </label>
+          <div class="flex flex-wrap gap-1.5">
+            <button
+              v-for="v in RPE_VALUES"
+              :key="v"
+              type="button"
+              :class="
+                actualRpeChip === v
+                  ? 'bg-accent text-bg-dark border-accent'
+                  : 'border-border-light bg-surface-light text-text-light hover:text-text-h-light dark:border-border-dark dark:bg-surface-dark dark:text-text-dark dark:hover:text-text-h-dark'
+              "
+              class="min-w-[2.75rem] flex-1 cursor-pointer rounded-lg border px-2 py-2 font-mono text-xs font-bold transition-colors duration-150"
+              @click="actualRpeChip = actualRpeChip === v ? null : v"
+            >
+              {{ v }}
+            </button>
+          </div>
+        </div>
       </div>
 
       <!-- Log Set -->

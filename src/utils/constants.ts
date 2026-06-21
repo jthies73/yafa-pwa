@@ -1,23 +1,32 @@
 export const MUSCLE_GROUPS = [
-  "Chest",
+  // Chest
   "Upper Chest",
-  "Back",
+  "Lower Chest",
+
+  // Back
   "Lats",
   "Upper Back",
   "Lower Back",
   "Traps",
-  "Shoulders",
+
+  // Shoulders
   "Front Delts",
   "Side Delts",
   "Rear Delts",
+
+  // Arms
   "Biceps",
   "Triceps",
   "Forearms",
+
+  // Legs
   "Quads",
   "Hamstrings",
   "Glutes",
   "Calves",
-  "Core",
+
+  // Core
   "Abs",
   "Obliques",
+  "Core",
 ];

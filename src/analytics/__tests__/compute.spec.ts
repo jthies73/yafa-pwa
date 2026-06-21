@@ -45,7 +45,7 @@ const byId = (...exercises: Exercise[]) =>
 describe("fractional coefficient application", () => {
   const bench = makeExercise({
     name: "Bench Press",
-    primaryMuscleGroups: ["Chest"],
+    primaryMuscleGroups: ["Lower Chest"],
     secondaryMuscleGroups: ["Triceps"],
   });
   const pushdown = makeExercise({
@@ -69,7 +69,7 @@ describe("fractional coefficient application", () => {
 
   it("splits a compound's sets into ×1.0 direct and ×0.5 indirect per muscle chart", () => {
     const chest = computeWorkoutSeries({
-      scope: { kind: "muscle", muscleGroup: "Chest" },
+      scope: { kind: "muscle", muscleGroup: "Lower Chest" },
       metric: "sets",
       bucket: "session",
       workouts,
@@ -189,7 +189,7 @@ describe("measurement bucket alignment", () => {
 describe("workout counting", () => {
   const bench = makeExercise({
     name: "Bench Press",
-    primaryMuscleGroups: ["Chest"],
+    primaryMuscleGroups: ["Lower Chest"],
     secondaryMuscleGroups: ["Triceps"],
   });
   const squat = makeExercise({
@@ -219,7 +219,7 @@ describe("workout counting", () => {
 
   it("counts unique sessions for all three scope kinds", () => {
     expect(count({ kind: "global" })).toBe(3);
-    expect(count({ kind: "muscle", muscleGroup: "Chest" })).toBe(2);
+    expect(count({ kind: "muscle", muscleGroup: "Lower Chest" })).toBe(2);
     expect(count({ kind: "exercise", exerciseId: squat.id })).toBe(2);
   });
 

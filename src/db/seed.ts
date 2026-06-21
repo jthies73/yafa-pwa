@@ -30,51 +30,36 @@ const defaultCharts: AnalyticsChartConfig[] = [
 ];
 
 const exercises: Exercise[] = [
+  // ── jthies73's favourites ────────────────────────────────────────────────────
   {
     id: "barbell-back-squat",
     name: "Barbell Back Squat",
-    primaryMuscleGroups: ["Quads"],
-    secondaryMuscleGroups: ["Glutes", "Hamstrings", "Lower Back"],
+    primaryMuscleGroups: ["Quads", "Glutes", "Hamstrings"],
+    secondaryMuscleGroups: ["Lower Back", "Core"],
     notes: "",
     created_at: Date.now(),
   },
   {
     id: "barbell-bench-press",
     name: "Barbell Bench Press",
-    primaryMuscleGroups: ["Chest"],
-    secondaryMuscleGroups: ["Front Delts", "Triceps"],
+    primaryMuscleGroups: ["Lower Chest", "Upper Chest"],
+    secondaryMuscleGroups: ["Front Delts", "Triceps", "Core"],
+    notes: "",
+    created_at: Date.now(),
+  },
+  {
+    id: "bicep-curl",
+    name: "Barbell Bicep Curl",
+    primaryMuscleGroups: ["Biceps"],
+    secondaryMuscleGroups: ["Forearms"],
     notes: "",
     created_at: Date.now(),
   },
   {
     id: "conventional-deadlift",
     name: "Conventional Deadlift",
-    primaryMuscleGroups: ["Hamstrings"],
-    secondaryMuscleGroups: ["Glutes", "Lower Back", "Lats", "Forearms"],
-    notes: "",
-    created_at: Date.now(),
-  },
-  {
-    id: "overhead-press",
-    name: "Overhead Press",
-    primaryMuscleGroups: ["Shoulders"],
-    secondaryMuscleGroups: ["Triceps", "Upper Chest", "Core"],
-    notes: "",
-    created_at: Date.now(),
-  },
-  {
-    id: "pull-ups",
-    name: "Pull-ups",
-    primaryMuscleGroups: ["Lats"],
-    secondaryMuscleGroups: ["Biceps", "Upper Back", "Rear Delts"],
-    notes: "",
-    created_at: Date.now(),
-  },
-  {
-    id: "push-ups",
-    name: "Push-ups",
-    primaryMuscleGroups: ["Chest"],
-    secondaryMuscleGroups: ["Front Delts", "Triceps", "Core"],
+    primaryMuscleGroups: ["Hamstrings", "Glutes", "Lower Back"],
+    secondaryMuscleGroups: ["Quads", "Lats", "Traps", "Forearms"],
     notes: "",
     created_at: Date.now(),
   },
@@ -87,27 +72,93 @@ const exercises: Exercise[] = [
     created_at: Date.now(),
   },
   {
-    id: "bicep-curl",
-    name: "Bicep Curl",
-    primaryMuscleGroups: ["Biceps"],
+    id: "overhead-press",
+    name: "Overhead Press",
+    primaryMuscleGroups: ["Front Delts", "Side Delts"],
+    secondaryMuscleGroups: ["Triceps", "Upper Chest", "Core"],
+    notes: "",
+    created_at: Date.now(),
+  },
+  {
+    id: "hyperextensions",
+    name: "Hyperextensions",
+    primaryMuscleGroups: ["Hamstrings", "Glutes", "Lower Back"],
+    secondaryMuscleGroups: [],
+    notes: "",
+    created_at: Date.now(),
+  },
+  {
+    id: "leg-extensions",
+    name: "Leg Extensions",
+    primaryMuscleGroups: ["Quads"],
+    secondaryMuscleGroups: [],
+    notes: "",
+    created_at: Date.now(),
+  },
+  {
+    id: "leg-curl",
+    name: "Leg Curl",
+    primaryMuscleGroups: ["Hamstrings"],
+    secondaryMuscleGroups: [],
+    notes: "",
+    created_at: Date.now(),
+  },
+  {
+    id: "leg-press",
+    name: "Leg Press",
+    primaryMuscleGroups: ["Quads", "Hamstrings", "Glutes"],
+    secondaryMuscleGroups: ["Calves"],
+    notes: "",
+    created_at: Date.now(),
+  },
+  {
+    id: "pendley-row",
+    name: "Pendley Row",
+    primaryMuscleGroups: ["Upper Back"],
+    secondaryMuscleGroups: ["Lats", "Lower Back"],
+    notes: "",
+    created_at: Date.now(),
+  },
+  {
+    id: "pull-ups-weighted",
+    name: "Pull Ups (Weighted)",
+    primaryMuscleGroups: ["Lats", "Upper Back"],
+    secondaryMuscleGroups: ["Biceps", "Forearms"],
+    notes: "",
+    created_at: Date.now(),
+  },
+  {
+    id: "seated-row",
+    name: "Seated Row",
+    primaryMuscleGroups: ["Upper Back", "Lats"],
     secondaryMuscleGroups: ["Forearms"],
     notes: "",
     created_at: Date.now(),
   },
+  {
+    id: "triceps-pushdowns",
+    name: "Triceps Pushdowns",
+    primaryMuscleGroups: ["Triceps"],
+    secondaryMuscleGroups: [],
+    notes: "",
+    created_at: Date.now(),
+  },
+  // ── Other ────────────────────────────────────────────────────
+  // TODO: fill this with more exercises
 ];
 
 const routines: Routine[] = [
   {
-    id: "upper-day",
-    name: "Upper Day",
+    id: "upper-body",
+    name: "Upper Body",
     exercises: [
       {
-        exerciseId: "barbell-bench-press",
+        exerciseId: "overhead-press",
         config: {
           progressionModel: "topset_backoff",
           progressionParams: {
-            topSetTargetReps: 5,
-            topSetTargetRpe: 9,
+            topSetTargetReps: 6,
+            topSetTargetRpe: 8,
             rpeCeiling: 9.5,
             backOffSets: 3,
             backOffReps: 8,
@@ -115,16 +166,48 @@ const routines: Routine[] = [
             weightIncrement: 2.5,
             incrementUnit: "kg",
           },
-          targetSets: 4,
-          notes: "",
         },
       },
       {
-        exerciseId: "pull-ups",
+        exerciseId: "pull-ups-weighted",
         config: {
           progressionModel: "double",
           progressionParams: {
-            targetSets: 3,
+            targetSets: 2,
+            minReps: 6,
+            maxReps: 10,
+            targetRpe: 8,
+            rpeCeiling: 9,
+            weightIncrement: 2.5,
+            incrementUnit: "kg",
+          },
+          minReps: 6,
+          maxReps: 10,
+          targetSets: 2,
+        },
+      },
+      {
+        exerciseId: "barbell-bench-press",
+        config: {
+          progressionModel: "linear",
+          progressionParams: {
+            targetSets: 2,
+            targetReps: 10,
+            targetRpe: 8,
+            rpeCeiling: 9,
+            weightIncrement: 2.5,
+            incrementUnit: "kg",
+          },
+          targetSets: 2,
+          targetReps: 10,
+        },
+      },
+      {
+        exerciseId: "seated-row",
+        config: {
+          progressionModel: "double",
+          progressionParams: {
+            targetSets: 2,
             minReps: 8,
             maxReps: 12,
             targetRpe: 8,
@@ -134,29 +217,11 @@ const routines: Routine[] = [
           },
           minReps: 8,
           maxReps: 12,
-          targetSets: 3,
-          notes: "",
+          targetSets: 2,
         },
       },
       {
-        exerciseId: "overhead-press",
-        config: {
-          progressionModel: "linear",
-          progressionParams: {
-            targetSets: 3,
-            targetReps: 5,
-            targetRpe: 8,
-            rpeCeiling: 9,
-            weightIncrement: 2.5,
-            incrementUnit: "kg",
-          },
-          targetSets: 3,
-          targetReps: 5,
-          notes: "",
-        },
-      },
-      {
-        exerciseId: "dumbbell-lateral-raise",
+        exerciseId: "triceps-pushdowns",
         config: {
           progressionModel: "double",
           progressionParams: {
@@ -165,21 +230,20 @@ const routines: Routine[] = [
             maxReps: 15,
             targetRpe: 8,
             rpeCeiling: 9,
-            weightIncrement: 1.0,
+            weightIncrement: 2.5,
             incrementUnit: "kg",
           },
           minReps: 12,
           maxReps: 15,
           targetSets: 3,
-          notes: "",
         },
       },
     ],
     created_at: Date.now(),
   },
   {
-    id: "lower-day",
-    name: "Lower Day",
+    id: "lower-body",
+    name: "Lower Body",
     exercises: [
       {
         exerciseId: "barbell-back-squat",
@@ -187,33 +251,123 @@ const routines: Routine[] = [
           progressionModel: "topset_backoff",
           progressionParams: {
             topSetTargetReps: 5,
-            topSetTargetRpe: 8.5,
-            rpeCeiling: 9,
+            topSetTargetRpe: 8,
+            rpeCeiling: 9.5,
             backOffSets: 2,
-            backOffReps: 8,
-            percentageDrop: 8,
+            backOffReps: 7,
+            percentageDrop: 10,
             weightIncrement: 2.5,
             incrementUnit: "kg",
           },
-          targetSets: 3,
-          notes: "",
         },
       },
       {
-        exerciseId: "conventional-deadlift",
+        exerciseId: "hyperextensions",
         config: {
           progressionModel: "linear",
           progressionParams: {
-            targetSets: 1,
-            targetReps: 5,
-            targetRpe: 8,
-            rpeCeiling: 9,
-            weightIncrement: 5.0,
+            targetSets: 2,
+            targetReps: 10,
+            targetRpe: 9,
+            rpeCeiling: 9.5,
+            weightIncrement: 2.5,
             incrementUnit: "kg",
           },
-          targetSets: 1,
-          targetReps: 5,
-          notes: "",
+          targetSets: 2,
+          targetReps: 10,
+        },
+      },
+      {
+        exerciseId: "leg-extensions",
+        config: {
+          progressionModel: "double",
+          progressionParams: {
+            targetSets: 2,
+            minReps: 10,
+            maxReps: 15,
+            targetRpe: 8,
+            rpeCeiling: 9,
+            weightIncrement: 2.5,
+            incrementUnit: "kg",
+          },
+          minReps: 10,
+          maxReps: 15,
+          targetSets: 2,
+        },
+      },
+    ],
+    created_at: Date.now(),
+  },
+  {
+    id: "full-body",
+    name: "Full Body",
+    exercises: [
+      {
+        exerciseId: "conventional-deadlift",
+        config: {
+          progressionModel: "topset_backoff",
+          progressionParams: {
+            topSetTargetReps: 4,
+            topSetTargetRpe: 8,
+            rpeCeiling: 9.5,
+            backOffSets: 3,
+            backOffReps: 6,
+            percentageDrop: 10,
+            weightIncrement: 5,
+            incrementUnit: "kg",
+          },
+        },
+      },
+      {
+        exerciseId: "barbell-bench-press",
+        config: {
+          progressionModel: "double",
+          progressionParams: {
+            targetSets: 2,
+            minReps: 8,
+            maxReps: 12,
+            targetRpe: 8,
+            rpeCeiling: 9,
+            weightIncrement: 2.5,
+            incrementUnit: "kg",
+          },
+          minReps: 8,
+          maxReps: 12,
+          targetSets: 2,
+        },
+      },
+      {
+        exerciseId: "pendley-row",
+        config: {
+          progressionModel: "linear",
+          progressionParams: {
+            targetSets: 2,
+            targetReps: 8,
+            targetRpe: 9,
+            rpeCeiling: 9.5,
+            weightIncrement: 2.5,
+            incrementUnit: "kg",
+          },
+          targetSets: 2,
+          targetReps: 8,
+        },
+      },
+      {
+        exerciseId: "bicep-curl",
+        config: {
+          progressionModel: "double",
+          progressionParams: {
+            targetSets: 2,
+            minReps: 12,
+            maxReps: 15,
+            targetRpe: 8,
+            rpeCeiling: 9,
+            weightIncrement: 2.5,
+            incrementUnit: "kg",
+          },
+          minReps: 12,
+          maxReps: 15,
+          targetSets: 2,
         },
       },
     ],
@@ -221,23 +375,23 @@ const routines: Routine[] = [
   },
 ];
 
-const plan: Plan = {
-  id: "powerbuilding-split",
-  name: "Powerbuilding Split (Upper/Lower)",
-  description:
-    "A 4-day Upper/Lower split designed to maximize both strength peaking and hypertrophic muscle growth through autoregulated compound lifts and double progression accessory work.",
-  routineIds: ["upper-day", "lower-day"],
-  active: true,
-  created_at: Date.now(),
-  mesocycle: [
-    { focus: "hypertrophy" },
-    { focus: "hypertrophy" },
-    { focus: "strength" },
-    { focus: "strength" },
-    { focus: "peaking" },
-    { focus: "deload" },
-  ],
-};
+const plans: Plan[] = [
+  {
+    id: "plan-2026",
+    name: "2026",
+    routineIds: ["upper-body", "lower-body", "full-body"],
+    active: true,
+    created_at: Date.now(),
+    mesocycle: [
+      { focus: "hypertrophy" },
+      { focus: "hypertrophy" },
+      { focus: "strength" },
+      { focus: "strength" },
+      { focus: "peaking" },
+      { focus: "deload" },
+    ],
+  },
+];
 
 /**
  * Checks if the database is empty, and if so, seeds it with initial default data.
@@ -264,7 +418,7 @@ export async function seedDatabase() {
       async () => {
         await db.exercises.bulkAdd(exercises);
         await db.routines.bulkAdd(routines);
-        await db.plans.add(plan);
+        await db.plans.bulkAdd(plans);
         await db.measurementTypes.bulkAdd(measurementTypes);
         await db.analyticsCharts.bulkAdd(defaultCharts);
       },

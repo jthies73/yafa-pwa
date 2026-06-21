@@ -10,6 +10,7 @@ import type {
   ProgressionState,
   Routine,
   RoutineExerciseConfig,
+  RpeMatrix,
   Set as LoggedSet,
   Workout,
 } from "../db/types";
@@ -203,6 +204,138 @@ function prescribeFrom(
   });
 }
 
+/** Merge duplicate exercise slots from a workout into one sorted set list per exercise. */
+function groupSetsByExercise(workout: Workout): Map<string, LoggedSet[]> {
+  const map = new Map<string, LoggedSet[]>();
+  for (const we of workout.exercises) {
+    if (!we.sets.length) continue;
+    map.set(we.exerciseId, [...(map.get(we.exerciseId) ?? []), ...we.sets]);
+  }
+  return map;
+}
+
+/** Index a routine's exercise configs by exercise id (first entry wins). */
+function buildConfigMap(
+  routine: Routine | undefined,
+): Map<string, RoutineExerciseConfig | undefined> {
+  const map = new Map<string, RoutineExerciseConfig | undefined>();
+  for (const re of routine?.exercises ?? []) {
+    if (!map.has(re.exerciseId)) map.set(re.exerciseId, re.config);
+  }
+  return map;
+}
+
+// ---- post-session folding (pure) ----
+
+/**
+ * Cold-start anchor: the best qualifying set, falling back to the best USABLE
+ * set (any real RPE) so a first session that never reached RPE 8 still anchors
+ * a c1RM from its limited data.
+ */
+function seedC1rm(matrix: RpeMatrix, sets: LoggedSet[]): number | null {
+  return (
+    (peakImpliedE1rm(matrix, sets) ?? peakImpliedE1rm(matrix, sets, true))
+      ?.e1rm ?? null
+  );
+}
+
+interface SessionFold {
+  persisted: ProgressionState;
+  reason: CalibrationChange["reason"];
+}
+
+/**
+ * One c1RM move per session. Catch-up is evaluated on EVERY outcome (incl.
+ * regression — a grind over the ceiling still yields qualifying observations).
+ * When it fires (this session's demonstrated capacity strongly diverged from the
+ * anchor) it takes FULL PRECEDENCE over the deterministic rules: the c1RM jumps
+ * toward the estimate, the regression streak clears, and no reset is armed this
+ * session. The 3-strike −10% reset is the fallback only for sustained SMALL
+ * regressions that stay within the catch-up threshold. When catch-up does not
+ * fire, `step` stands unchanged (streak/reset/cursor). The estimate is
+ * session-local: it requires ≥2 qualifying sets in THIS session (corroboratedE1rm),
+ * so a lone set never moves the anchor.
+ */
+function foldQualifiedSession(
+  state: ProgressionState,
+  eff: EffectiveConfig,
+  matrix: RpeMatrix,
+  exerciseId: string,
+  prescription: ExercisePrescription,
+  sets: LoggedSet[],
+  workout: Workout,
+  finishedAt: number,
+): SessionFold {
+  const outcome = evaluate(eff.model, eff.params, prescription, sets);
+  const next = step(
+    state,
+    outcome,
+    eff.model,
+    eff.params,
+    workout.id,
+    finishedAt,
+  );
+
+  // c1rm is non-null here: this only runs past the cold-start seed branch.
+  const anchor = state.c1rm!;
+  const estimate = corroboratedE1rm(
+    qualifyingE1rmSeries(matrix, groupSessionsFor([workout], exerciseId)),
+    anchor,
+  );
+  const caught = catchUpC1rm(anchor, estimate);
+  const fired = caught !== anchor;
+  const persisted = fired
+    ? { ...next, c1rm: caught, regressionStreak: 0, resetPending: false }
+    : next;
+
+  return {
+    persisted,
+    reason: fired
+      ? "recalibrate"
+      : outcome === "success"
+        ? "increment"
+        : outcome,
+  };
+}
+
+/**
+ * Refine the exercise's RPE curve from this session's qualifying sets, or null
+ * if nothing should change. The representative set is picked exactly like the
+ * catch-up's corroboratedE1rm: a lone qualifying set (top-set programs) moves
+ * the curve directly; with ≥2 sets the single furthest-from-anchor (a
+ * mistype/fluke) is dropped and the 2nd-furthest is used. The ≤10% gate keeps
+ * corrections to honest sets that already agree with the anchor, so this only
+ * refines curve shape (the >10% divergence case is catch-up's job).
+ */
+function learnedRpeMatrix(
+  matrix: RpeMatrix,
+  sets: LoggedSet[],
+  anchor: number,
+): RpeMatrix | null {
+  const qualifying = sets.filter(isQualifyingSet);
+  if (qualifying.length === 0) return null;
+
+  const ranked = qualifying
+    .map((s) => ({
+      set: s,
+      e1rm: impliedE1rm(matrix, s.actualWeight, s.actualReps, s.actualRpe!),
+    }))
+    .sort((a, b) => Math.abs(b.e1rm - anchor) - Math.abs(a.e1rm - anchor));
+  const rep = ranked[Math.min(1, ranked.length - 1)];
+  const deviation = Math.abs(rep.e1rm - anchor) / anchor;
+  if (deviation > RPE_MATRIX_CORRECTION_MAX_DEVIATION) return null;
+
+  return correctRpeMatrix(
+    matrix,
+    {
+      actualWeight: rep.set.actualWeight,
+      actualReps: rep.set.actualReps,
+      actualRpe: rep.set.actualRpe!,
+    },
+    anchor,
+  );
+}
+
 // ---- entrypoints ----
 
 /**
@@ -311,23 +444,9 @@ export async function applyWorkoutResults(
   // prescribed that day (not "what week is it now").
   const mods = mesoModifiers(plan, workout.startTime);
 
-  // Merge duplicate slots into one set list per exercise.
-  const byExercise = new Map<string, LoggedSet[]>();
-  for (const we of workout.exercises) {
-    if (!we.sets.length) continue;
-    byExercise.set(we.exerciseId, [
-      ...(byExercise.get(we.exerciseId) ?? []),
-      ...we.sets,
-    ]);
-  }
-
+  const byExercise = groupSetsByExercise(workout);
   const exMap = await loadExercisesById([...byExercise.keys()]);
-  const configByExercise = new Map<string, RoutineExerciseConfig | undefined>();
-  for (const re of routine?.exercises ?? []) {
-    if (!configByExercise.has(re.exerciseId)) {
-      configByExercise.set(re.exerciseId, re.config);
-    }
-  }
+  const configByExercise = buildConfigMap(routine);
 
   const changes: CalibrationChange[] = [];
   const finishedAt = workout.endTime ?? workout.startTime;
@@ -343,13 +462,9 @@ export async function applyWorkoutResults(
       const sets = [...rawSets].sort((a, b) => a.timestamp - b.timestamp);
       const matrix = exercise.rpeMatrix ?? DEFAULT_RPE_MATRIX;
 
-      // Cold start: seed the anchor from the best qualifying set, no progression.
-      // Fall back to the best USABLE set (any real RPE) so a first session that
-      // never reached RPE 8 still anchors a c1RM from its limited data.
+      // Cold start: seed the anchor and stop — no progression on the first session.
       if (state.c1rm == null) {
-        const seeded =
-          (peakImpliedE1rm(matrix, sets) ?? peakImpliedE1rm(matrix, sets, true))
-            ?.e1rm ?? null;
+        const seeded = seedC1rm(matrix, sets);
         await putProgressionState({
           ...state,
           c1rm: seeded,
@@ -374,90 +489,34 @@ export async function applyWorkoutResults(
 
       const eff = effectiveConfig(config, mods);
       const prescription = prescribeFrom(exercise, eff, state);
-      const outcome = evaluate(eff.model, eff.params, prescription, sets);
-      const next = step(
+      const { persisted, reason } = foldQualifiedSession(
         state,
-        outcome,
-        eff.model,
-        eff.params,
-        workout.id,
+        eff,
+        matrix,
+        exerciseId,
+        prescription,
+        sets,
+        workout,
         finishedAt,
       );
-
-      // One c1RM move per session. Catch-up is evaluated on EVERY outcome (incl.
-      // regression — a grind over the ceiling still yields qualifying observations).
-      // When it fires (this session's demonstrated capacity strongly diverged from the
-      // anchor) it takes FULL PRECEDENCE over the deterministic rules: the c1RM jumps
-      // toward the estimate, the regression streak clears, and no reset is armed this
-      // session. The 3-strike −10% reset is the fallback only for sustained SMALL
-      // regressions that stay within the catch-up threshold. When catch-up does not
-      // fire, `step` stands unchanged (streak/reset/cursor). The estimate is
-      // session-local: it requires ≥2 qualifying sets in THIS session (corroboratedE1rm),
-      // so a lone set never moves the anchor.
-      const estimate = corroboratedE1rm(
-        qualifyingE1rmSeries(matrix, groupSessionsFor([workout], exerciseId)),
-        state.c1rm,
-      );
-      const caught = catchUpC1rm(state.c1rm, estimate);
-      const fired = caught !== state.c1rm;
-      const persisted = fired
-        ? { ...next, c1rm: caught, regressionStreak: 0, resetPending: false }
-        : next;
 
       changes.push({
         exerciseId,
         exerciseName: exercise.name,
-        reason: fired
-          ? "recalibrate"
-          : outcome === "success"
-            ? "increment"
-            : outcome,
+        reason,
         before: state.c1rm,
         after: persisted.c1rm,
         resetArmed: persisted.resetPending,
       });
       await putProgressionState(persisted);
 
-      // Learn the exercise's RPE curve from this session — applied LAST so it
-      // never feeds this session's own prescription, evaluation, or catch-up
-      // (those all read the matrix as it was). The representative set is picked
-      // exactly like the catch-up's corroboratedE1rm: a lone qualifying set
-      // (top-set programs) moves the curve directly; with ≥2 sets the single
-      // furthest-from-anchor (a mistype/fluke) is dropped and the 2nd-furthest
-      // is used. The anchor is the stable rules-driven c1RM (state.c1rm), not
-      // the post-catch-up value. The ≤10% gate keeps corrections to honest sets
-      // that already agree with the anchor, so this only refines curve shape
-      // (the >10% divergence case is catch-up's job).
-      const qualifying = sets.filter(isQualifyingSet);
-      if (qualifying.length > 0 && state.c1rm !== null) {
-        const anchor = state.c1rm;
-        const ranked = qualifying
-          .map((s) => ({
-            set: s,
-            e1rm: impliedE1rm(
-              matrix,
-              s.actualWeight,
-              s.actualReps,
-              s.actualRpe!,
-            ),
-          }))
-          .sort(
-            (a, b) => Math.abs(b.e1rm - anchor) - Math.abs(a.e1rm - anchor),
-          );
-        const rep = ranked[Math.min(1, ranked.length - 1)];
-        const deviation = Math.abs(rep.e1rm - anchor) / anchor;
-        if (deviation <= RPE_MATRIX_CORRECTION_MAX_DEVIATION) {
-          const corrected = correctRpeMatrix(
-            matrix,
-            {
-              actualWeight: rep.set.actualWeight,
-              actualReps: rep.set.actualReps,
-              actualRpe: rep.set.actualRpe!,
-            },
-            anchor,
-          );
-          await db.exercises.update(exerciseId, { rpeMatrix: corrected });
-        }
+      // Learn the exercise's RPE curve LAST, so it never feeds this session's own
+      // prescription, evaluation, or catch-up (those all read the prior matrix).
+      // The anchor is the stable rules-driven c1RM (state.c1rm), not the
+      // post-catch-up value.
+      const corrected = learnedRpeMatrix(matrix, sets, state.c1rm);
+      if (corrected) {
+        await db.exercises.update(exerciseId, { rpeMatrix: corrected });
       }
     }
   });

@@ -89,4 +89,14 @@ A rough gauge of how much work you did. Useful for comparing sessions and tracki
 • e1RM PR — your best estimated 1-rep max for the exercise.
 • Volume PR — the most tonnage you've done for the exercise in one session.`,
   },
+  percentageDrop: {
+    title: "% Drop",
+    body: `How much lighter the back-off sets are relative to the top set, expressed as a percentage.
+
+For example, a 10% drop means back-off sets are prescribed at 90% of the top-set weight. The app rounds to your weight increment.`,
+  },
+  backOffSets: {
+    title: "Back-Off Sets",
+    body: `The number of lighter sets performed after the top set. These sets use the reduced weight defined by the % Drop and accumulate volume at a lower intensity to aid recovery and hypertrophy.`,
+  },
 };

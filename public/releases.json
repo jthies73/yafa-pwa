@@ -1,6 +1,10 @@
 {
-  "latest": "0.8.0",
+  "latest": "0.8.1",
   "releases": [
+    {
+      "version": "0.8.1",
+      "notes": "- Remove Set delta from mesocycle."
+    },
     {
       "version": "0.8.0",
       "notes": "- RPE Matrix smoothing."

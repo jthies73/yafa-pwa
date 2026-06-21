@@ -20,7 +20,7 @@ const {
 } = useActiveWorkout();
 const { timerString } = useWorkoutTimer(() => activeWorkout.value?.startTime);
 
-// Stopwatch that resets to 0 each time a set is completed.
+// Stopwatch that resets to 0 each time a set is completed (tracker or calculator).
 const lastSetAt = ref<number | null>(null);
 watch(
   () => trackerStats.value.completed,
@@ -28,6 +28,9 @@ watch(
     if (next > prev) lastSetAt.value = Date.now();
   },
 );
+watch(calculatorSetCount, (next, prev) => {
+  if (next > prev) lastSetAt.value = Date.now();
+});
 const { timerString: restTimer } = useWorkoutTimer(
   () => lastSetAt.value ?? undefined,
 );

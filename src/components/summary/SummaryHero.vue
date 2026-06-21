@@ -13,11 +13,11 @@ const showDetails = ref(false);
 const deductionRows = computed(() => {
   const d = props.summary.adherence.deductions;
   return [
-    { label: "RPE overshoot/undershoot", value: d.rpe },
-    { label: "Rep deviation", value: d.reps },
-    { label: "Load deviation", value: d.load },
-    { label: "Missing sets", value: d.missing },
-    { label: "Extra volume", value: d.trash },
+    { label: "RPE overshoot/undershoot", ...d.rpe },
+    { label: "Rep deviation", ...d.reps },
+    { label: "Load deviation", ...d.load },
+    { label: "Missing sets", ...d.missing },
+    { label: "Extra volume", ...d.trash },
   ].filter((r) => r.value > 0);
 });
 
@@ -94,12 +94,19 @@ const volumeLabel = computed(
         <div
           v-for="row in deductionRows"
           :key="row.label"
-          class="flex items-center justify-between text-xs"
+          class="flex items-start justify-between gap-3 text-xs"
         >
-          <span class="text-text-light dark:text-text-dark">{{
-            row.label
-          }}</span>
-          <span class="font-mono font-semibold text-red-500"
+          <div class="flex flex-col gap-0.5">
+            <span class="text-text-light dark:text-text-dark">{{
+              row.label
+            }}</span>
+            <span
+              v-if="row.exercises.length"
+              class="text-text-light dark:text-text-dark opacity-50"
+              >{{ row.exercises.join(", ") }}</span
+            >
+          </div>
+          <span class="font-mono font-semibold text-red-500 shrink-0"
             >−{{ row.value }} %</span
           >
         </div>

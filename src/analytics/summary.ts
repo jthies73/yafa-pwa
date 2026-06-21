@@ -22,13 +22,19 @@ export interface SetCounts {
   overshoot: boolean;
 }
 
-/** What cost adherence points, by cause — sums to (100 − score) when unclamped. */
+/** Penalty points for one deduction category, plus the exercises that caused it. */
+export interface DeductionEntry {
+  value: number;
+  exercises: string[];
+}
+
+/** What cost adherence points, by cause — values sum to (100 − score) when unclamped. */
 export interface AdherenceDeductions {
-  rpe: number; // trained harder/softer than the target RPE
-  reps: number; // reps off target
-  load: number; // weight off the prescribed load
-  missing: number; // prescribed sets that were never performed
-  trash: number; // off-script extra ("trash") volume
+  rpe: DeductionEntry; // trained harder/softer than the target RPE
+  reps: DeductionEntry; // reps off target
+  load: DeductionEntry; // weight off the prescribed load
+  missing: DeductionEntry; // prescribed sets that were never performed
+  trash: DeductionEntry; // off-script extra ("trash") volume
 }
 
 export interface AdherenceResult {
@@ -118,11 +124,17 @@ function penaltyForSet(set: LoggedSet): SetPenalty {
 }
 
 function computeAdherence(input: SummaryInput): AdherenceResult {
-  const { workout, plannedCounts } = input;
+  const { workout, plannedCounts, exercisesById } = input;
   const judged: LoggedSet[] = []; // prescribed sets that carry a target
   let prescribedSets = 0;
   let extraSets = 0;
   let missingSets = 0;
+
+  const exRpe: string[] = [];
+  const exReps: string[] = [];
+  const exLoad: string[] = [];
+  const exMissing: string[] = [];
+  const exTrash: string[] = [];
 
   // Iterate the UNION of prescribed (planned) and logged exercises, so an exercise
   // that was skipped entirely still counts its planned sets as missing.
@@ -137,9 +149,24 @@ function computeAdherence(input: SummaryInput): AdherenceResult {
     prescribedSets += prescribed.length;
     extraSets += Math.max(0, sets.length - planned);
     missingSets += Math.max(0, planned - prescribed.length);
+
     // Only sets with a real target inform the deviation score.
-    for (const s of prescribed)
-      if (s.targetRpe != null || s.targetWeight > 0) judged.push(s);
+    const exerciseJudged = prescribed.filter(
+      (s) => s.targetRpe != null || s.targetWeight > 0,
+    );
+    for (const s of exerciseJudged) judged.push(s);
+
+    const name = exercisesById.get(exerciseId)?.name;
+    if (name) {
+      if (planned - prescribed.length > 0) exMissing.push(name);
+      if (sets.length - planned > 0) exTrash.push(name);
+      if (exerciseJudged.length > 0) {
+        const penalties = exerciseJudged.map(penaltyForSet);
+        if (penalties.some((p) => p.rpe > 0)) exRpe.push(name);
+        if (penalties.some((p) => p.reps > 0)) exReps.push(name);
+        if (penalties.some((p) => p.load > 0)) exLoad.push(name);
+      }
+    }
   }
 
   // Deviation penalties are a MEAN over judged sets (quality, normalized); missing
@@ -151,27 +178,31 @@ function computeAdherence(input: SummaryInput): AdherenceResult {
         judged.length;
 
   const totalPlanned = Object.values(plannedCounts).reduce((a, b) => a + b, 0);
+  const entry = (value: number, exercises: string[]): DeductionEntry => ({
+    value: Math.round(value),
+    exercises,
+  });
 
   const deductions: AdherenceDeductions = {
-    rpe: Math.round(mean((p) => p.rpe)),
-    reps: Math.round(mean((p) => p.reps)),
-    load: Math.round(mean((p) => p.load)),
-    missing: Math.round(
+    rpe: entry(mean((p) => p.rpe), exRpe),
+    reps: entry(mean((p) => p.reps), exReps),
+    load: entry(mean((p) => p.load), exLoad),
+    missing: entry(
       totalPlanned > 0 ? (missingSets / totalPlanned) * 100 : 0,
+      exMissing,
     ),
-    trash: Math.round(
-      Math.min(
-        ADHERENCE_WEIGHTS.trashCap,
-        extraSets * ADHERENCE_WEIGHTS.trashPerExtraSet,
-      ),
+    trash: entry(
+      Math.min(ADHERENCE_WEIGHTS.trashCap, extraSets * ADHERENCE_WEIGHTS.trashPerExtraSet),
+      exTrash,
     ),
   };
+
   const total =
-    deductions.rpe +
-    deductions.reps +
-    deductions.load +
-    deductions.missing +
-    deductions.trash;
+    deductions.rpe.value +
+    deductions.reps.value +
+    deductions.load.value +
+    deductions.missing.value +
+    deductions.trash.value;
   const score = Math.max(0, Math.min(100, 100 - total));
   return { score, prescribedSets, extraSets, missingSets, deductions };
 }

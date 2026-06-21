@@ -45,11 +45,11 @@ describe("computeWorkoutSummary — adherence", () => {
     expect(a.score).toBe(100);
     expect(a.missingSets).toBe(0);
     expect(a.deductions).toEqual({
-      rpe: 0,
-      reps: 0,
-      load: 0,
-      missing: 0,
-      trash: 0,
+      rpe: { value: 0, exercises: [] },
+      reps: { value: 0, exercises: [] },
+      load: { value: 0, exercises: [] },
+      missing: { value: 0, exercises: [] },
+      trash: { value: 0, exercises: [] },
     });
   });
 
@@ -59,7 +59,7 @@ describe("computeWorkoutSummary — adherence", () => {
       input([{ exerciseId: "ex1", sets: [set(), set()] }], { ex1: 4 }),
     ).adherence;
     expect(a.missingSets).toBe(2);
-    expect(a.deductions.missing).toBe(50);
+    expect(a.deductions.missing.value).toBe(50);
     expect(a.score).toBe(50);
   });
 
@@ -84,9 +84,9 @@ describe("computeWorkoutSummary — adherence", () => {
       }),
     ).adherence;
     const d = a.deductions;
-    expect(d.rpe).toBe(6);
-    expect(d.missing).toBe(33);
-    expect(d.rpe + d.reps + d.load + d.missing + d.trash).toBe(100 - a.score);
+    expect(d.rpe.value).toBe(6);
+    expect(d.missing.value).toBe(33);
+    expect(d.rpe.value + d.reps.value + d.load.value + d.missing.value + d.trash.value).toBe(100 - a.score);
     expect(a.score).toBe(61);
   });
 
@@ -101,7 +101,7 @@ describe("computeWorkoutSummary — adherence", () => {
       ),
     ).adherence;
     expect(a.extraSets).toBe(2);
-    expect(a.deductions.trash).toBe(10);
+    expect(a.deductions.trash.value).toBe(10);
     expect(a.score).toBe(90);
   });
 });

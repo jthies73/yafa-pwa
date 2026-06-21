@@ -72,7 +72,10 @@ const { onSwipeStart, trackStyle } = useSwipePager({
 
 watch(
   () => activeWorkout.value?.id,
-  () => (page.value = 0),
+  () => {
+    page.value = 0;
+    lastSetAt.value = null;
+  },
 );
 </script>
 

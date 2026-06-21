@@ -190,7 +190,7 @@ onUnmounted(() => {
           <!-- Handle bar -->
           <div class="flex justify-center pt-3 pb-1">
             <div
-              class="w-10 h-1 rounded-full bg-border-light dark:bg-white/20"
+              class="w-10 h-1 rounded-full bg-black/20 dark:bg-white/20"
             />
           </div>
 

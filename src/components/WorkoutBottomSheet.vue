@@ -158,10 +158,16 @@ watch(
       @pointerdown="onSwipeStart"
     >
       <div class="flex h-full will-change-transform" :style="trackStyle">
-        <div class="w-full h-full shrink-0 overflow-y-auto" style="padding-bottom: var(--keypad-h, 0px)">
+        <div
+          class="w-full h-full shrink-0 overflow-y-auto"
+          style="padding-bottom: var(--keypad-h, 0px)"
+        >
           <WorkoutTrackerPanel />
         </div>
-        <div class="w-full h-full shrink-0 overflow-y-auto" style="padding-bottom: var(--keypad-h, 0px)">
+        <div
+          class="w-full h-full shrink-0 overflow-y-auto"
+          style="padding-bottom: var(--keypad-h, 0px)"
+        >
           <WorkoutCalculatorPanel />
         </div>
       </div>

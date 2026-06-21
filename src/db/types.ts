@@ -232,7 +232,9 @@ export interface AnalyticsChartConfig {
   id: string;
   name?: string;
   sourceKind: AnalyticsSourceKind;
-  muscleGroup?: string; // sourceKind === "muscle"
+  muscleGroups?: string[]; // sourceKind === "muscle" — folded together, each set counted once
+  /** @deprecated legacy single group; read via muscleGroupsOf (back-compat for old records/backups). */
+  muscleGroup?: string;
   exerciseId?: string; // sourceKind === "exercise"
   measurementTypeId?: string; // sourceKind === "measurement"
   metric: AnalyticsMetric;

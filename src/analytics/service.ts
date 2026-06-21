@@ -13,6 +13,7 @@ import {
   type WorkoutScope,
 } from "./compute";
 import { computeWorkoutSummary, type WorkoutSummary } from "./summary";
+import { muscleGroupsOf } from "../db/analyticsCharts";
 
 // ----------------------------------------------
 // Analytics service: the only analytics layer that touches Dexie. Loads the
@@ -101,7 +102,7 @@ export async function buildChartSeries(
     config.sourceKind === "global"
       ? { kind: "global" }
       : config.sourceKind === "muscle"
-        ? { kind: "muscle", muscleGroup: config.muscleGroup ?? "" }
+        ? { kind: "muscle", muscleGroups: muscleGroupsOf(config) }
         : { kind: "exercise", exerciseId: config.exerciseId ?? "" };
 
   const points = computeWorkoutSeries({

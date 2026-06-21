@@ -10,15 +10,15 @@ import type {
   Exercise,
   MeasurementType,
 } from "../db/types";
-import type { ChartConfigInput } from "../db/analyticsCharts";
+import { muscleGroupsOf, type ChartConfigInput } from "../db/analyticsCharts";
 import { createExercise, type ExerciseInput } from "../db/repository";
 import { activeMesocycleSpec } from "../analytics/service";
-import { MUSCLE_GROUPS } from "../utils/constants";
 import AppBottomSheet from "./AppBottomSheet.vue";
 import ConfirmDialog from "./ConfirmDialog.vue";
 import ExercisePickerSheet from "./ExercisePickerSheet.vue";
 import ExerciseFormSheet from "./ExerciseFormSheet.vue";
 import ListPickerSheet, { type ListPickerOption } from "./ListPickerSheet.vue";
+import MuscleMultiPickerSheet from "./MuscleMultiPickerSheet.vue";
 
 const open = defineModel<boolean>("open", { required: true });
 
@@ -35,7 +35,7 @@ const emit = defineEmits<{
 // --- Form state ---
 const chartName = ref("");
 const sourceKind = ref<AnalyticsSourceKind>("global");
-const muscleGroup = ref<string | null>(null);
+const muscleGroups = ref<string[]>([]);
 const exerciseId = ref<string | null>(null);
 const measurementTypeId = ref<string | null>(null);
 const metric = ref<AnalyticsMetric>("sets");
@@ -47,7 +47,7 @@ watch(open, (isOpen) => {
   const editing = props.editing;
   chartName.value = editing?.name ?? "";
   sourceKind.value = editing?.sourceKind ?? "global";
-  muscleGroup.value = editing?.muscleGroup ?? null;
+  muscleGroups.value = muscleGroupsOf(editing ?? {});
   exerciseId.value = editing?.exerciseId ?? null;
   measurementTypeId.value = editing?.measurementTypeId ?? null;
   metric.value = editing?.metric ?? "sets";
@@ -151,10 +151,6 @@ const showExercisePicker = ref(false);
 const showMeasurementPicker = ref(false);
 const showExerciseForm = ref(false);
 
-const muscleOptions = computed<ListPickerOption[]>(() =>
-  MUSCLE_GROUPS.map((m) => ({ value: m, label: m })),
-);
-
 const categoryLabel: Record<MeasurementType["category"], string> = {
   WEIGHT: "Weight",
   LENGTH: "Length",
@@ -178,10 +174,9 @@ const selectedMeasurementName = computed(
       ?.name ?? null,
 );
 
+// Single-select trigger label (muscle uses its own multi-select chip UI).
 const selectionLabel = computed<string | null>(() => {
   switch (sourceKind.value) {
-    case "muscle":
-      return muscleGroup.value;
     case "exercise":
       return selectedExerciseName.value;
     case "measurement":
@@ -192,10 +187,15 @@ const selectionLabel = computed<string | null>(() => {
 });
 
 const openSelectionPicker = () => {
-  if (sourceKind.value === "muscle") showMusclePicker.value = true;
-  else if (sourceKind.value === "exercise") showExercisePicker.value = true;
+  if (sourceKind.value === "exercise") showExercisePicker.value = true;
   else if (sourceKind.value === "measurement")
     showMeasurementPicker.value = true;
+};
+
+const toggleMuscleGroup = (group: string) => {
+  muscleGroups.value = muscleGroups.value.includes(group)
+    ? muscleGroups.value.filter((g) => g !== group)
+    : [...muscleGroups.value, group];
 };
 
 const handleSelectExercise = (exercise: Exercise) => {
@@ -217,7 +217,7 @@ const handleSaveNewExercise = async (input: ExerciseInput) => {
 const canSave = computed(() => {
   switch (sourceKind.value) {
     case "muscle":
-      return muscleGroup.value !== null;
+      return muscleGroups.value.length > 0;
     case "exercise":
       return exerciseId.value !== null;
     case "measurement":
@@ -232,7 +232,7 @@ const save = () => {
   emit("save", {
     name: chartName.value.trim() || undefined,
     sourceKind: sourceKind.value,
-    muscleGroup: muscleGroup.value ?? undefined,
+    muscleGroups: muscleGroups.value.length ? muscleGroups.value : undefined,
     exerciseId: exerciseId.value ?? undefined,
     measurementTypeId: measurementTypeId.value ?? undefined,
     metric: metric.value,
@@ -305,18 +305,80 @@ const confirmDeleteOpen = ref(false);
         </div>
       </div>
 
-      <!-- Scope selection (muscle / exercise / measurement) -->
-      <div v-if="sourceKind !== 'global'" class="flex flex-col gap-2">
+      <!-- Muscle scope: multi-select chips (each set is counted once across the
+           folded groups) -->
+      <div v-if="sourceKind === 'muscle'" class="flex flex-col gap-2">
         <label
           class="text-xs font-bold uppercase tracking-wider text-text-light dark:text-text-dark opacity-60"
         >
-          {{
-            sourceKind === "muscle"
-              ? "Muscle Group"
-              : sourceKind === "exercise"
-                ? "Exercise"
-                : "Measurement"
-          }}
+          Muscle Groups
+        </label>
+        <div
+          role="button"
+          tabindex="0"
+          class="flex items-center justify-between gap-2 rounded-lg border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2 cursor-pointer focus-within:border-accent/50 focus-within:ring-2 focus-within:ring-accent/40 min-h-[46px] transition-colors hover:bg-black/5 dark:hover:bg-white/5"
+          @click="showMusclePicker = true"
+          @keydown.enter="showMusclePicker = true"
+        >
+          <div class="flex flex-wrap items-center gap-2 flex-1">
+            <span
+              v-for="tag in muscleGroups"
+              :key="tag"
+              class="inline-flex items-center gap-1 rounded-md bg-accent/15 py-1 pl-2.5 pr-1 text-xs font-semibold text-accent"
+            >
+              {{ tag }}
+              <button
+                type="button"
+                class="flex h-4 w-4 items-center justify-center rounded-sm text-accent/80 transition-colors duration-150 hover:bg-accent/20 hover:text-accent cursor-pointer"
+                aria-label="Remove muscle group"
+                @click.stop="toggleMuscleGroup(tag)"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="11"
+                  height="11"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="3"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            </span>
+            <span
+              v-if="!muscleGroups.length"
+              class="text-sm text-text-light/40 dark:text-text-dark/40"
+            >
+              Select muscle groups…
+            </span>
+          </div>
+          <svg
+            class="w-4 h-4 opacity-50 shrink-0"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M9 5l7 7-7 7"
+            />
+          </svg>
+        </div>
+      </div>
+
+      <!-- Scope selection (exercise / measurement) -->
+      <div v-else-if="sourceKind !== 'global'" class="flex flex-col gap-2">
+        <label
+          class="text-xs font-bold uppercase tracking-wider text-text-light dark:text-text-dark opacity-60"
+        >
+          {{ sourceKind === "exercise" ? "Exercise" : "Measurement" }}
         </label>
         <button
           class="flex items-center justify-between gap-3 rounded-lg border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2.5 text-sm transition-colors duration-150 hover:bg-surface-light-hover dark:hover:bg-surface-dark-hover cursor-pointer"
@@ -332,11 +394,9 @@ const confirmDeleteOpen = ref(false);
           >
             {{
               selectionLabel ??
-              (sourceKind === "muscle"
-                ? "Select muscle group…"
-                : sourceKind === "exercise"
-                  ? "Select exercise…"
-                  : "Select measurement…")
+              (sourceKind === "exercise"
+                ? "Select exercise…"
+                : "Select measurement…")
             }}
           </span>
           <svg
@@ -435,16 +495,10 @@ const confirmDeleteOpen = ref(false);
   </AppBottomSheet>
 
   <!-- Pickers stack above the form sheet -->
-  <ListPickerSheet
+  <MuscleMultiPickerSheet
     v-model:open="showMusclePicker"
-    title="Select Muscle Group"
-    :options="muscleOptions"
-    @select="
-      (value) => {
-        muscleGroup = value;
-        showMusclePicker = false;
-      }
-    "
+    :selected="muscleGroups"
+    @toggle="toggleMuscleGroup"
   />
 
   <ListPickerSheet

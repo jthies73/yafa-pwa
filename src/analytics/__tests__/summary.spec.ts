@@ -86,7 +86,13 @@ describe("computeWorkoutSummary — adherence", () => {
     const d = a.deductions;
     expect(d.rpe.value).toBe(6);
     expect(d.missing.value).toBe(33);
-    expect(d.rpe.value + d.reps.value + d.load.value + d.missing.value + d.trash.value).toBe(100 - a.score);
+    expect(
+      d.rpe.value +
+        d.reps.value +
+        d.load.value +
+        d.missing.value +
+        d.trash.value,
+    ).toBe(100 - a.score);
     expect(a.score).toBe(61);
   });
 

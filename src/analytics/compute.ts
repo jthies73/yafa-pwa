@@ -13,7 +13,7 @@ export type WorkoutMetric = "workouts" | "sets" | "reps" | "volume" | "e1rm";
 
 export type WorkoutScope =
   | { kind: "global" }
-  | { kind: "muscle"; muscleGroup: string }
+  | { kind: "muscle"; muscleGroups: string[] } // folded together; each set counted once
   | { kind: "exercise"; exerciseId: string };
 
 export type MuscleRole = "direct" | "indirect";
@@ -171,10 +171,21 @@ function roleFor(
         ? { role: "direct", multiplier: DIRECT_MULTIPLIER }
         : null;
     case "muscle":
-      // Primary wins if an exercise (mis)lists a muscle as both.
-      if (exercise.primaryMuscleGroups?.includes(scope.muscleGroup))
+      // Folded scope: an exercise resolves to ONE role across all selected
+      // groups (so a set shared by two of them is still counted once). Primary
+      // wins — direct if any selected group is a target, else indirect if any
+      // is only a synergist.
+      if (
+        exercise.primaryMuscleGroups?.some((m) =>
+          scope.muscleGroups.includes(m),
+        )
+      )
         return { role: "direct", multiplier: DIRECT_MULTIPLIER };
-      if (exercise.secondaryMuscleGroups?.includes(scope.muscleGroup))
+      if (
+        exercise.secondaryMuscleGroups?.some((m) =>
+          scope.muscleGroups.includes(m),
+        )
+      )
         return { role: "indirect", multiplier: INDIRECT_MULTIPLIER };
       return null;
   }

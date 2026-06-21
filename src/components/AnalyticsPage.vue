@@ -10,6 +10,7 @@ import type {
 import {
   createChartConfig,
   deleteChartConfig,
+  muscleGroupsOf,
   reorderChartConfigs,
   updateChartConfig,
   type ChartConfigInput,
@@ -77,7 +78,7 @@ const titleFor = (config: AnalyticsChartConfig): string => {
     case "global":
       return "All Training";
     case "muscle":
-      return config.muscleGroup ?? "Muscle Group";
+      return muscleGroupsOf(config).join(", ") || "Muscle Group";
     case "exercise":
       return (
         exercisesById.value[config.exerciseId ?? ""]?.name ?? "Unknown Exercise"

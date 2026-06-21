@@ -69,7 +69,7 @@ describe("fractional coefficient application", () => {
 
   it("splits a compound's sets into ×1.0 direct and ×0.5 indirect per muscle chart", () => {
     const chest = computeWorkoutSeries({
-      scope: { kind: "muscle", muscleGroup: "Lower Chest" },
+      scope: { kind: "muscle", muscleGroups: ["Lower Chest"] },
       metric: "sets",
       bucket: "session",
       workouts,
@@ -82,7 +82,7 @@ describe("fractional coefficient application", () => {
 
     // The SAME bench sets appear again in the triceps chart — as indirect.
     const triceps = computeWorkoutSeries({
-      scope: { kind: "muscle", muscleGroup: "Triceps" },
+      scope: { kind: "muscle", muscleGroups: ["Triceps"] },
       metric: "sets",
       bucket: "session",
       workouts,
@@ -97,7 +97,7 @@ describe("fractional coefficient application", () => {
   it("weights reps and volume by the same multipliers", () => {
     const triceps = (metric: "reps" | "volume") =>
       computeWorkoutSeries({
-        scope: { kind: "muscle", muscleGroup: "Triceps" },
+        scope: { kind: "muscle", muscleGroups: ["Triceps"] },
         metric,
         bucket: "session",
         workouts,
@@ -120,7 +120,7 @@ describe("fractional coefficient application", () => {
 
   it("exposes the per-exercise breakdown behind each bucket", () => {
     const [point] = computeWorkoutSeries({
-      scope: { kind: "muscle", muscleGroup: "Triceps" },
+      scope: { kind: "muscle", muscleGroups: ["Triceps"] },
       metric: "sets",
       bucket: "session",
       workouts,
@@ -144,6 +144,23 @@ describe("fractional coefficient application", () => {
         }),
       ]),
     );
+  });
+
+  it("folds multiple muscle groups, counting each set once (primary wins)", () => {
+    // Folding Lower Chest + Triceps: bench is direct (its primary Lower Chest is
+    // selected, beating its secondary Triceps) and pushdown is direct. Bench's 4
+    // sets count ONCE at ×1.0 — not 4 direct + 2 indirect = 6 as they would across
+    // the two separate single-muscle charts above.
+    const [point] = computeWorkoutSeries({
+      scope: { kind: "muscle", muscleGroups: ["Lower Chest", "Triceps"] },
+      metric: "sets",
+      bucket: "session",
+      workouts,
+      exercisesById,
+    });
+    expect(point.direct).toBe(8); // bench ×1.0 + pushdown ×1.0
+    expect(point.indirect).toBe(0);
+    expect(point.value).toBe(8);
   });
 });
 
@@ -219,7 +236,7 @@ describe("workout counting", () => {
 
   it("counts unique sessions for all three scope kinds", () => {
     expect(count({ kind: "global" })).toBe(3);
-    expect(count({ kind: "muscle", muscleGroup: "Lower Chest" })).toBe(2);
+    expect(count({ kind: "muscle", muscleGroups: ["Lower Chest"] })).toBe(2);
     expect(count({ kind: "exercise", exerciseId: squat.id })).toBe(2);
   });
 

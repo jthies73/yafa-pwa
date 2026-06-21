@@ -41,7 +41,9 @@ watch(
 
 const onCellEdit = (reps: number, rpe: number, value: number) => {
   if (!matrix.value) return;
-  // Same neighbor smoothing as post-session learning, anchored to the edit.
+  // Conservative neighbour repair only — a manual edit must not silently shift
+  // cells across the whole grid (that whole-matrix smoothing is the automatic,
+  // post-session path). Keeps the editor's deviation highlighting predictable.
   matrix.value = setMatrixCell(matrix.value, reps, rpe, value);
   dirty.value = true;
 };

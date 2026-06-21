@@ -3,6 +3,8 @@ import { DEFAULT_RPE_MATRIX } from "../../db/rpeMatrix";
 import type { Set as LoggedSet } from "../../db/types";
 import {
   clampLookupReps,
+  correctRpeMatrix,
+  enforceMatrixMonotonicity,
   impliedE1rm,
   isQualifyingSet,
   matrixPct,
@@ -167,7 +169,102 @@ describe("setMatrixCell", () => {
     // Raising 5@8 above its higher neighbour (5@8.5 = 0.81) pulls the neighbour up.
     const next = setMatrixCell(M, 5, 8, 0.9);
     expect(next[5][8.5]).toBeGreaterThanOrEqual(next[5][8] - 1e-9);
-    // A different row is untouched.
+    // A manual edit is conservative: other rows are untouched (no cross-row
+    // smoothing — that is the automatic post-session path's job).
     expect(next[6]).toEqual(M[6]);
+  });
+});
+
+describe("enforceMatrixMonotonicity", () => {
+  it("restores row-wise and column-wise monotonicity", () => {
+    const dirty = { ...M };
+    for (const r of Object.keys(dirty).map(Number)) {
+      dirty[r] = { ...dirty[r] };
+    }
+    // Row 5: RPE 8 is normally 0.79. Let's make it 0.95 (violates both row & col monotonicity)
+    dirty[5][8] = 0.95;
+
+    const clean = enforceMatrixMonotonicity(dirty);
+
+    // Verify row monotonicity: clean[r][c1] <= clean[r][c2] for c1 < c2
+    for (const r of Object.keys(clean).map(Number)) {
+      const row = clean[r];
+      const cols = Object.keys(row)
+        .map(Number)
+        .sort((a, b) => a - b);
+      for (let i = 0; i < cols.length - 1; i++) {
+        expect(row[cols[i]]).toBeLessThanOrEqual(row[cols[i + 1]] + 1e-9);
+      }
+    }
+
+    // Verify column monotonicity: clean[r1][c] >= clean[r2][c] for r1 < r2
+    const repsList = Object.keys(clean)
+      .map(Number)
+      .sort((a, b) => a - b);
+    for (let i = 0; i < repsList.length - 1; i++) {
+      const r1 = repsList[i];
+      const r2 = repsList[i + 1];
+      const row1 = clean[r1];
+      const row2 = clean[r2];
+      for (const c of Object.keys(row1).map(Number)) {
+        if (row2[c] !== undefined) {
+          expect(row1[c]).toBeGreaterThanOrEqual(row2[c] - 1e-9);
+        }
+      }
+    }
+  });
+});
+
+describe("correctRpeMatrix", () => {
+  it("performs downward correction safely on all iso-effort cells", () => {
+    // Completed 8 reps @ RPE 9. Weight 100kg, anchorE1rm 200kg.
+    // nSet = 8 + (10 - 9) = 9.
+    // pDemo = 100 / 200 = 0.50.
+    // Downward correction (0.50 < 0.74 at 8@9).
+    const completedSet = { actualWeight: 100, actualReps: 8, actualRpe: 9 };
+    const result = correctRpeMatrix(M, completedSet, 200, 0.1, 3.0);
+
+    // Target reps-to-failure n = 9.
+    // 8 reps @ RPE 9: n = 9, reps = 8. w = 1.0. Old: 0.74. New: 0.74 + 0.1 * 1.0 * (0.50 - 0.74) = 0.716.
+    expect(result[8][9]).toBeCloseTo(0.716, 5);
+
+    // 7 reps @ RPE 8: n = 9, reps = 7. w = 1.0. Old: 0.72. New: 0.72 + 0.1 * 1.0 * (0.50 - 0.72) = 0.698.
+    expect(result[7][8]).toBeCloseTo(0.698, 5);
+
+    // 9 reps @ RPE 10: n = 9, reps = 9. w = 1.0. Old: 0.76. New: 0.76 + 0.1 * 1.0 * (0.50 - 0.76) = 0.734.
+    // Since it's downward, safety constraint does not trigger.
+    expect(result[9][10]).toBeCloseTo(0.734, 5);
+  });
+
+  it("applies safety constraint for upward corrections (no upward correction for higher reps)", () => {
+    // Completed 8 reps @ RPE 9. Weight 170kg, anchorE1rm 200kg.
+    // nSet = 8 + (10 - 9) = 9.
+    // pDemo = 170 / 200 = 0.85.
+    // Upward correction (0.85 > 0.74 at 8@9).
+    const completedSet = { actualWeight: 170, actualReps: 8, actualRpe: 9 };
+    const result = correctRpeMatrix(M, completedSet, 200, 0.1, 3.0);
+
+    // 8 reps @ RPE 9: reps = 8 <= 8. Allowed. Old: 0.74. New: 0.74 + 0.1 * 1.0 * (0.85 - 0.74) = 0.751.
+    expect(result[8][9]).toBeCloseTo(0.751, 5);
+
+    // 7 reps @ RPE 8: reps = 7 <= 8. Allowed. Old: 0.72. New: 0.72 + 0.1 * 1.0 * (0.85 - 0.72) = 0.733.
+    expect(result[7][8]).toBeCloseTo(0.733, 5);
+
+    // 9 reps @ RPE 10: reps = 9 > 8. NOT allowed upwards. So it should not increase.
+    // (It might be slightly adjusted down if monotonicity drags it, but it cannot be > 0.79).
+    expect(result[9][10]).toBeLessThanOrEqual(M[9][10] + 1e-9);
+  });
+
+  it("clamps percentages to at most 100% (1.0)", () => {
+    // Attempt to make a set with massive weight to trigger > 1.0 adjustment
+    const completedSet = { actualWeight: 500, actualReps: 1, actualRpe: 10 };
+    const result = correctRpeMatrix(M, completedSet, 100, 1.0, 3.0);
+
+    // No cell in result should exceed 1.0
+    for (const r of Object.keys(result).map(Number)) {
+      for (const c of Object.keys(result[r]).map(Number)) {
+        expect(result[r][c]).toBeLessThanOrEqual(1.0 + 1e-9);
+      }
+    }
   });
 });

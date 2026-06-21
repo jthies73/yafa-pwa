@@ -18,7 +18,13 @@ import {
   seedC1rm,
   step,
 } from "../state";
-import { peakImpliedE1rm } from "../matrix";
+import {
+  correctRpeMatrix,
+  impliedE1rm,
+  isQualifyingSet,
+  peakImpliedE1rm,
+} from "../matrix";
+import { RPE_MATRIX_CORRECTION_MAX_DEVIATION } from "../constants";
 
 // End-to-end progression loop, composed from the pure modules exactly as
 // service.applyWorkoutResults + prescribeWorkout do (minus Dexie): prescribe →
@@ -303,5 +309,88 @@ describe("loop — idempotency guard mirrors the service", () => {
     // The service skips when state.lastWorkoutId === workout.id; re-running w1
     // must not move c1RM. We assert the guard condition directly.
     expect(state.lastWorkoutId === "w1").toBe(true);
+  });
+});
+
+// Mirrors the RPE-matrix correction block in service.applyWorkoutResults: pick a
+// representative qualifying set exactly like the catch-up (lone set used directly;
+// with ≥2, drop the furthest-from-anchor and use the 2nd), gate on ±10% deviation
+// from the anchor, then learn the curve. Replays the service glue with the real
+// pure functions (correctRpeMatrix), as the rest of this file does for progression.
+const mkSet = (
+  actualWeight: number,
+  actualReps: number,
+  actualRpe: number,
+  i = 0,
+): LoggedSet => ({
+  id: `s${i}`,
+  timestamp: i + 1,
+  targetReps: actualReps,
+  actualReps,
+  targetWeight: actualWeight,
+  actualWeight,
+  targetRpe: actualRpe,
+  actualRpe,
+  failure: false,
+});
+
+function correctMatrixForSession(
+  matrix: typeof M,
+  sets: LoggedSet[],
+  anchor: number | null,
+): typeof M {
+  const qualifying = sets.filter(isQualifyingSet);
+  if (qualifying.length === 0 || anchor == null) return matrix;
+  const ranked = qualifying
+    .map((s) => ({
+      set: s,
+      e1rm: impliedE1rm(matrix, s.actualWeight, s.actualReps, s.actualRpe!),
+    }))
+    .sort((a, b) => Math.abs(b.e1rm - anchor) - Math.abs(a.e1rm - anchor));
+  const rep = ranked[Math.min(1, ranked.length - 1)];
+  const deviation = Math.abs(rep.e1rm - anchor) / anchor;
+  if (deviation > RPE_MATRIX_CORRECTION_MAX_DEVIATION) return matrix;
+  return correctRpeMatrix(
+    matrix,
+    {
+      actualWeight: rep.set.actualWeight,
+      actualReps: rep.set.actualReps,
+      actualRpe: rep.set.actualRpe!,
+    },
+    anchor,
+  );
+}
+
+describe("loop — RPE matrix correction gating mirrors the service", () => {
+  it("a lone in-gate top set nudges its iso-effort cell (top-set program)", () => {
+    // 82 kg @ 5 reps RPE 8 ⇒ implied e1RM 82/0.79 ≈ 103.8, ~3.8% over the anchor
+    // (within ±10%). pDemo = 0.82, so the 5@8 cell (0.79) is pulled up toward it.
+    const out = correctMatrixForSession(M, [mkSet(82, 5, 8)], 100);
+    expect(out[5][8]).toBeCloseTo(0.793, 5); // 0.79 + 0.1·(0.82−0.79)
+    expect(out[5][8]).toBeGreaterThan(M[5][8]);
+  });
+
+  it("with ≥2 sets the lone outlier is dropped — correction comes from the 2nd-furthest", () => {
+    // setA (82@5@8, e1RM ~103.8) is in-gate; setB (140@1@10, e1RM 140) is a +40%
+    // fluke and the furthest, so it is dropped. The near setA drives the curve.
+    const out = correctMatrixForSession(
+      M,
+      [mkSet(82, 5, 8, 0), mkSet(140, 1, 10, 1)],
+      100,
+    );
+    expect(out[5][8]).toBeCloseTo(0.793, 5); // driven by setA, not the fluke
+    expect(out[1][10]).toBe(M[1][10]); // fluke set never moved its own cell
+  });
+
+  it("a deviation beyond ±10% does not correct (catch-up's job)", () => {
+    // Lone set 140 kg @ 1 rep RPE 10 ⇒ e1RM 140, +40% over the anchor.
+    const out = correctMatrixForSession(M, [mkSet(140, 1, 10)], 100);
+    expect(out).toBe(M); // untouched
+  });
+
+  it("no qualifying set ⇒ no correction", () => {
+    // RPE 6 is below the qualifying threshold (≥ 8).
+    const out = correctMatrixForSession(M, [mkSet(80, 5, 6)], 100);
+    expect(out).toBe(M);
   });
 });

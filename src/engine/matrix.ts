@@ -5,6 +5,8 @@ import {
   MATRIX_MIN_REPS,
   QUALIFYING_MAX_REPS,
   QUALIFYING_MIN_RPE,
+  RPE_MATRIX_CORRECTION_ALPHA,
+  RPE_MATRIX_CORRECTION_RADIUS,
   RPE_STEP,
 } from "./constants";
 
@@ -237,4 +239,123 @@ export function setMatrixCell(
     if (row[hi] < value) row[hi] = value; // higher RPE can't fall below the edit
   }
   return next;
+}
+
+/** Enforce row-wise monotonicity (pct rises with RPE) and column-wise monotonicity (pct falls with reps). */
+export function enforceMatrixMonotonicity(
+  matrix: RpeMatrix,
+  fixedCell?: { reps: number; rpe: number; value: number },
+): RpeMatrix {
+  const next: RpeMatrix = {};
+  const repsList = Object.keys(matrix)
+    .map(Number)
+    .sort((a, b) => a - b);
+  if (repsList.length === 0) return matrix;
+
+  for (const r of repsList) {
+    next[r] = { ...matrix[r] };
+  }
+
+  if (fixedCell) {
+    if (next[fixedCell.reps]) {
+      next[fixedCell.reps][fixedCell.rpe] = fixedCell.value;
+    }
+  }
+
+  let changed = true;
+  for (let iter = 0; iter < 20 && changed; iter++) {
+    changed = false;
+    for (const r of repsList) {
+      const row = next[r];
+      const cols = Object.keys(row)
+        .map(Number)
+        .sort((a, b) => a - b);
+      for (const c of cols) {
+        if (fixedCell && r === fixedCell.reps && c === fixedCell.rpe) {
+          continue; // Keep the user's manual edit exact
+        }
+
+        const val = row[c];
+
+        let lowerBound = 0;
+        // Same row, lower RPEs
+        for (const otherC of cols) {
+          if (otherC < c) {
+            lowerBound = Math.max(lowerBound, row[otherC]);
+          }
+        }
+        // Same column, higher reps
+        for (const otherR of repsList) {
+          if (otherR > r && next[otherR][c] !== undefined) {
+            lowerBound = Math.max(lowerBound, next[otherR][c]);
+          }
+        }
+
+        let upperBound = 1.0;
+        // Same row, higher RPEs
+        for (const otherC of cols) {
+          if (otherC > c) {
+            upperBound = Math.min(upperBound, row[otherC]);
+          }
+        }
+        // Same column, lower reps
+        for (const otherR of repsList) {
+          if (otherR < r && next[otherR][c] !== undefined) {
+            upperBound = Math.min(upperBound, next[otherR][c]);
+          }
+        }
+
+        const clamped = Math.max(lowerBound, Math.min(upperBound, val));
+        if (Math.abs(clamped - val) > 1e-9) {
+          row[c] = clamped;
+          changed = true;
+        }
+      }
+    }
+  }
+  return next;
+}
+
+/**
+ * Automatically adjust the RPE matrix percentages based on a completed set.
+ * Reframes the matrix as a 1-D reps-to-failure curve: n = reps + (10 - RPE).
+ */
+export function correctRpeMatrix(
+  matrix: RpeMatrix,
+  completedSet: { actualWeight: number; actualReps: number; actualRpe: number },
+  anchorE1rm: number,
+  learningRate = RPE_MATRIX_CORRECTION_ALPHA,
+  smoothingRadius = RPE_MATRIX_CORRECTION_RADIUS,
+): RpeMatrix {
+  if (anchorE1rm <= 0) return matrix;
+
+  const nSet = completedSet.actualReps + (10 - completedSet.actualRpe);
+  const pDemo = Math.min(1.0, completedSet.actualWeight / anchorE1rm);
+
+  const next: RpeMatrix = {};
+  for (const r of Object.keys(matrix).map(Number)) {
+    next[r] = { ...matrix[r] };
+  }
+
+  for (const r of Object.keys(next).map(Number)) {
+    const row = next[r];
+    const cols = Object.keys(row).map(Number);
+    for (const c of cols) {
+      const n = r + (10 - c);
+      const w = Math.max(0, 1 - Math.abs(n - nSet) / smoothingRadius);
+      if (w > 0) {
+        const pOld = row[c];
+        let delta = learningRate * w * (pDemo - pOld);
+
+        // Safety constraint: only allow upward adjustments for reps <= actual reps completed.
+        if (delta > 0 && r > completedSet.actualReps) {
+          delta = 0;
+        }
+
+        row[c] = Math.min(1.0, pOld + delta);
+      }
+    }
+  }
+
+  return enforceMatrixMonotonicity(next);
 }

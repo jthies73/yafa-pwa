@@ -16,7 +16,7 @@ import type {
 import { normalizeProgressionParams } from "../config/progression";
 import { DEFAULT_RPE_MATRIX } from "../db/rpeMatrix";
 import { getProgressionState, putProgressionState } from "../db/repository";
-import { RESET_DROP } from "./constants";
+import { RESET_DROP, RPE_MATRIX_CORRECTION_MAX_DEVIATION } from "./constants";
 import {
   applyMesoToParams,
   focusModifiers,
@@ -26,7 +26,12 @@ import {
 import { prescribeExercise, type ExercisePrescription } from "./prescription";
 import { evaluate } from "./evaluation";
 import { catchUpC1rm, consumeReset, corroboratedE1rm, step } from "./state";
-import { peakImpliedE1rm } from "./matrix";
+import {
+  correctRpeMatrix,
+  impliedE1rm,
+  isQualifyingSet,
+  peakImpliedE1rm,
+} from "./matrix";
 import { groupSessionsFor, qualifyingE1rmSeries } from "./sessions";
 
 // ----------------------------------------------
@@ -327,7 +332,7 @@ export async function applyWorkoutResults(
   const changes: CalibrationChange[] = [];
   const finishedAt = workout.endTime ?? workout.startTime;
 
-  await db.transaction("rw", db.progressionStates, async () => {
+  await db.transaction("rw", [db.progressionStates, db.exercises], async () => {
     for (const [exerciseId, rawSets] of byExercise) {
       const exercise = exMap.get(exerciseId);
       if (!exercise) continue;
@@ -412,6 +417,48 @@ export async function applyWorkoutResults(
         resetArmed: persisted.resetPending,
       });
       await putProgressionState(persisted);
+
+      // Learn the exercise's RPE curve from this session — applied LAST so it
+      // never feeds this session's own prescription, evaluation, or catch-up
+      // (those all read the matrix as it was). The representative set is picked
+      // exactly like the catch-up's corroboratedE1rm: a lone qualifying set
+      // (top-set programs) moves the curve directly; with ≥2 sets the single
+      // furthest-from-anchor (a mistype/fluke) is dropped and the 2nd-furthest
+      // is used. The anchor is the stable rules-driven c1RM (state.c1rm), not
+      // the post-catch-up value. The ≤10% gate keeps corrections to honest sets
+      // that already agree with the anchor, so this only refines curve shape
+      // (the >10% divergence case is catch-up's job).
+      const qualifying = sets.filter(isQualifyingSet);
+      if (qualifying.length > 0 && state.c1rm !== null) {
+        const anchor = state.c1rm;
+        const ranked = qualifying
+          .map((s) => ({
+            set: s,
+            e1rm: impliedE1rm(
+              matrix,
+              s.actualWeight,
+              s.actualReps,
+              s.actualRpe!,
+            ),
+          }))
+          .sort(
+            (a, b) => Math.abs(b.e1rm - anchor) - Math.abs(a.e1rm - anchor),
+          );
+        const rep = ranked[Math.min(1, ranked.length - 1)];
+        const deviation = Math.abs(rep.e1rm - anchor) / anchor;
+        if (deviation <= RPE_MATRIX_CORRECTION_MAX_DEVIATION) {
+          const corrected = correctRpeMatrix(
+            matrix,
+            {
+              actualWeight: rep.set.actualWeight,
+              actualReps: rep.set.actualReps,
+              actualRpe: rep.set.actualRpe!,
+            },
+            anchor,
+          );
+          await db.exercises.update(exerciseId, { rpeMatrix: corrected });
+        }
+      }
     }
   });
   return changes;

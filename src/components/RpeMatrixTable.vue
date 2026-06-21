@@ -30,12 +30,27 @@ const deviates = (reps: number, rpe: number) => {
 const tint = (reps: number, rpe: number) => {
   const v = props.modelValue[reps]?.[rpe];
   if (v == null) return "";
-  const t = Math.max(0, Math.min(1, (v - 0.5) / 0.5));
-  // Deviating cells (learned or hand-edited) get a brighter, slightly shifted
-  // teal so personalization is visible at a glance without shouting.
-  return deviates(reps, rpe)
-    ? `background-color:rgba(45,212,191,${(t * 0.18 + 0.14).toFixed(3)})`
-    : `background-color:rgba(31,199,185,${(t * 0.18).toFixed(3)})`;
+
+  // Gradient: 100% (1.0) -> Red (239, 68, 68), 78% (0.78) -> Yellow (245, 158, 11), 50% (0.50) -> Yafa Green (31, 199, 185)
+  let r = 31,
+    g = 199,
+    b = 185;
+  const clamped = Math.max(0.5, Math.min(1.0, v));
+
+  if (clamped >= 0.78) {
+    const t = (clamped - 0.78) / (1.0 - 0.78);
+    r = Math.round(245 + t * (239 - 245));
+    g = Math.round(158 + t * (68 - 158));
+    b = Math.round(11 + t * (68 - 11));
+  } else {
+    const t = (clamped - 0.5) / (0.78 - 0.5);
+    r = Math.round(31 + t * (245 - 31));
+    g = Math.round(199 + t * (158 - 199));
+    b = Math.round(185 + t * (11 - 185));
+  }
+
+  const alpha = deviates(reps, rpe) ? 0.37 : 0.25;
+  return `background-color: rgba(${r}, ${g}, ${b}, ${alpha})`;
 };
 
 // Committed on change (blur/Enter), not per keystroke — intermediate typing

@@ -115,13 +115,7 @@ const isUp = (c: CalibrationChange) => {
                   : 'text-text-light dark:text-text-dark bg-border-light/40 dark:bg-border-dark/40'
               "
             >
-              {{
-                c.reason === "seed"
-                  ? "new"
-                  : isUp(c)
-                    ? "↑"
-                    : "↓"
-              }}
+              {{ c.reason === "seed" ? "new" : isUp(c) ? "↑" : "↓" }}
             </span>
           </template>
         </div>

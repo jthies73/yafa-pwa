@@ -184,15 +184,27 @@ function computeAdherence(input: SummaryInput): AdherenceResult {
   });
 
   const deductions: AdherenceDeductions = {
-    rpe: entry(mean((p) => p.rpe), exRpe),
-    reps: entry(mean((p) => p.reps), exReps),
-    load: entry(mean((p) => p.load), exLoad),
+    rpe: entry(
+      mean((p) => p.rpe),
+      exRpe,
+    ),
+    reps: entry(
+      mean((p) => p.reps),
+      exReps,
+    ),
+    load: entry(
+      mean((p) => p.load),
+      exLoad,
+    ),
     missing: entry(
       totalPlanned > 0 ? (missingSets / totalPlanned) * 100 : 0,
       exMissing,
     ),
     trash: entry(
-      Math.min(ADHERENCE_WEIGHTS.trashCap, extraSets * ADHERENCE_WEIGHTS.trashPerExtraSet),
+      Math.min(
+        ADHERENCE_WEIGHTS.trashCap,
+        extraSets * ADHERENCE_WEIGHTS.trashPerExtraSet,
+      ),
       exTrash,
     ),
   };

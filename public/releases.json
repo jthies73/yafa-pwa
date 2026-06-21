@@ -1,9 +1,13 @@
 {
-  "latest": "0.7.3",
+  "latest": "0.8.0",
   "releases": [
     {
+      "version": "0.8.0",
+      "notes": "- RPE Matrix smoothing."
+    },
+    {
       "version": "0.7.3",
-      "notes": "- Rebuild Engine (/w Claude ;D)"
+      "notes": "- Rebuild Engine."
     },
     {
       "version": "0.5.14",

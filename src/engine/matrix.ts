@@ -165,14 +165,14 @@ export interface PeakE1rm {
  * under-states true capacity, so seeding from it is conservative (the safe
  * direction) — and it lets a first session that never reached RPE 8 still anchor a
  * c1RM instead of staying anchorless.
+ *
+ * Unlike the qualifying gate, this has NO rep ceiling: an exercise programmed above
+ * 10 reps would otherwise never seed a c1RM (and so never get a prescribed weight).
+ * The matrix math clamps reps to its 10-rep row, so such a set seeds conservatively.
+ * This relaxation stays seed-only — catch-up and analytics use isQualifyingSet.
  */
 function isUsableSet(set: LoggedSet): boolean {
-  return (
-    set.actualRpe != null &&
-    set.actualReps >= 1 &&
-    set.actualReps <= QUALIFYING_MAX_REPS &&
-    set.actualWeight > 0
-  );
+  return set.actualRpe != null && set.actualReps >= 1 && set.actualWeight > 0;
 }
 
 /**

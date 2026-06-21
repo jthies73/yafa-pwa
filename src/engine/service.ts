@@ -123,9 +123,7 @@ function absoluteWeekIndex(plan: Plan | undefined, at: number): number {
 /** The target shifts for the plan's current week (none when no mesocycle). */
 function mesoModifiers(plan: Plan | undefined, at: number): MesoModifiers {
   const focus = weekFocus(plan?.mesocycle, absoluteWeekIndex(plan, at));
-  return focus
-    ? focusModifiers(focus)
-    : { rpeDelta: 0, repDelta: 0, setDelta: 0 };
+  return focus ? focusModifiers(focus) : { rpeDelta: 0, repDelta: 0 };
 }
 
 /** The display-only mesocycle position for the preview, or null. */

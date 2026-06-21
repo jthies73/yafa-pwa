@@ -155,6 +155,17 @@ describe("peakImpliedE1rm", () => {
     expect(peak?.set).toBe(subLimit);
     expect(peak!.e1rm).toBeGreaterThan(0);
   });
+
+  it("seeds from a high-rep set (>10) via the fallback, clamped to the 10-rep row", () => {
+    // A program above 10 reps would otherwise never anchor a c1RM. The strict
+    // qualifying gate still rejects it (keeps catch-up/analytics at ≤10 reps); only
+    // the seed fallback accepts it, scoring it as a conservative 10-rep set.
+    const highRep = makeSet({ actualWeight: 60, actualReps: 15, actualRpe: 9 });
+    expect(peakImpliedE1rm(M, [highRep])).toBeNull(); // strict gate still rejects
+    const seed = peakImpliedE1rm(M, [highRep], true);
+    expect(seed?.set).toBe(highRep);
+    expect(seed!.e1rm).toBeCloseTo(impliedE1rm(M, 60, 10, 9), 5); // clamped to 10 reps
+  });
 });
 
 describe("setMatrixCell", () => {

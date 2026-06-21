@@ -83,9 +83,10 @@ export const RPE_MATRIX_CORRECTION_MAX_DEVIATION = 0.05;
 // --- Mesocycle modifiers (HEURISTIC — explicitly tunable) ---
 //
 // These shift an exercise's TARGETS per week focus; the load always re-renders
-// from the shifted targets (there is no direct load multiplier). They sketch the
-// canonical curve FOCUS_META draws: volume tapers and intensity climbs toward a
-// peak, then a deload backs off both. They are a defensible first pass, NOT a
+// from the shifted targets (there is no direct load multiplier). Only reps and RPE
+// are periodized — intensity climbs toward a peak via higher RPE / fewer reps, then
+// a deload backs off. Working-set counts (volume) are intentionally NOT periodized;
+// they stay as the user configured them. These are a defensible first pass, NOT a
 // locked domain rule — validate against real logs and adjust freely.
 
 /** RPE added to the (top-set) targetRpe — intensity. */
@@ -102,12 +103,4 @@ export const MESO_REP_DELTA: Record<PeriodizationFocus, number> = {
   strength: -2,
   peaking: -3,
   deload: 0,
-};
-
-/** Working sets added — volume. */
-export const MESO_SET_DELTA: Record<PeriodizationFocus, number> = {
-  hypertrophy: 1,
-  strength: 0,
-  peaking: -1,
-  deload: -1,
 };

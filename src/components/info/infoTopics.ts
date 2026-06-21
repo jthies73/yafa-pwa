@@ -50,7 +50,7 @@ It's the engine's model of effort. The app uses it both ways: to turn your train
     title: "Mesocycle",
     body: `A multi-week training block where each week has a focus — hypertrophy, strength, peaking, or deload.
 
-The focus nudges your targets (more volume, higher intensity, or a back-off week) without you re-planning every exercise. It shifts reps, sets, and target RPE; the weight always re-derives from those.`,
+The focus nudges your targets (more volume, higher intensity, or a back-off week) without you re-planning every exercise. It shifts reps and target RPE; the weight always re-derives from those.`,
   },
   c1rm: {
     title: "Training Max (c1RM)",

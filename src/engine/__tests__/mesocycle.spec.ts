@@ -16,12 +16,10 @@ describe("focusModifiers", () => {
     expect(focusModifiers("strength")).toEqual({
       rpeDelta: 0.5,
       repDelta: -2,
-      setDelta: 0,
     });
     expect(focusModifiers("deload")).toEqual({
       rpeDelta: -1.5,
       repDelta: 0,
-      setDelta: -1,
     });
   });
 });
@@ -53,7 +51,7 @@ describe("applyMesoToParams", () => {
     ) as LinearProgressionParams;
     expect(out.targetRpe).toBe(8.5); // 8 + 0.5
     expect(out.targetReps).toBe(3); // 5 − 2
-    expect(out.targetSets).toBe(3); // setDelta 0
+    expect(out.targetSets).toBe(3); // sets are not periodized
   });
 
   it("respects a locked field", () => {
@@ -78,7 +76,7 @@ describe("applyMesoToParams", () => {
     ) as DoubleProgressionParams;
     expect(out.minReps).toBe(dbl.minReps); // untouched
     expect(out.maxReps).toBe(dbl.maxReps); // untouched
-    expect(out.targetSets).toBe(dbl.targetSets + 1); // setDelta +1
+    expect(out.targetSets).toBe(dbl.targetSets); // sets are not periodized
   });
 
   it("shifts top-set targets and leaves backOffReps alone", () => {
@@ -91,11 +89,11 @@ describe("applyMesoToParams", () => {
       focusModifiers("peaking"),
     ) as TopSetProgressionParams;
     expect(out.topSetTargetRpe).toBe(9); // 8 + 1
-    expect(out.backOffSets).toBe(ts.backOffSets - 1); // setDelta −1
+    expect(out.backOffSets).toBe(ts.backOffSets); // sets are not periodized
     expect(out.backOffReps).toBe(ts.backOffReps); // untouched
   });
 
-  it("clamps RPE to the 6–10 grid and reps/sets ≥ 1", () => {
+  it("clamps RPE to the 6–10 grid and reps ≥ 1", () => {
     const ts = {
       ...DEFAULT_PROGRESSION_PARAMS.topset_backoff,
       topSetTargetRpe: 6,
@@ -108,7 +106,7 @@ describe("applyMesoToParams", () => {
       focusModifiers("deload"),
     ) as TopSetProgressionParams;
     expect(out.topSetTargetRpe).toBe(6); // 6 − 1.5 clamps to 6
-    expect(out.backOffSets).toBeGreaterThanOrEqual(1);
+    expect(out.topSetTargetReps).toBeGreaterThanOrEqual(1);
   });
 
   it("does not mutate the input params", () => {

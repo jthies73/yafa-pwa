@@ -24,40 +24,51 @@ The RPE-to-percentage engine is a fully editable grid of reps (1–10) × RPE (1
 - **Global Matrix**: A single global matrix is configured under **Settings** and persisted in the database (seeded once from the built-in evidence-based RTS defaults, then the source of truth). It can be reset to defaults at any time.
 - **Hierarchical Cascade**: Exercises inherit the global matrix by default. Toggling **"Overwrite RPE matrix"** in the exercise editor stores an exercise-specific grid; clearing the toggle reverts the exercise to inheriting global values.
 - **Granular Control**: When overriding, any single cell of the exercise-specific grid can be edited independently.
-- **Intelligent Smoothing** _(roadmap)_: A future smoothing pass (e.g., linear interpolation) will proportionally adjust surrounding cells when one is edited to maintain a logical progression curve.
+- **Automatic Curve Learning**: After each qualifying session the exercise's grid is nudged toward demonstrated performance (see **Adaptive RPE Matrix Correction** below), which materializes a per-exercise override. Manual cell edits, by contrast, stay deliberately conservative — only the adjacent RPE columns in the same row are re-ordered, so a hand-edit never silently reshapes the whole grid.
 
 ---
 
 ## ⚙️ Workout Engine Architecture
 
-YAFA's workout engine is highly modular, separating concerns into independently testable units: progression models, the RPE matrix + e1RM subsystem, the reset/modifier subsystem, and the per-session prescription pipeline.
+YAFA's workout engine is highly modular, separating concerns into independently testable units: progression models, the RPE matrix + e1RM subsystem (including the c1RM catch-up and adaptive matrix correction), the regression/reset and mesocycle-modifier subsystems, and the per-session prescription pipeline. Everything except the thin persistence layer is a pure function, so the whole progression history can be replayed deterministically.
 
-### Core Concepts: The Two e1RMs
+### Core Concepts: c1RM vs. Demonstrated Capacity
 
-To decouple physiological variance from prescribed weights, YAFA tracks two distinct estimated one-rep max (e1RM) values per exercise:
+To decouple physiological day-to-day variance from prescribed weights, YAFA separates the persistent planning anchor from what a session actually demonstrates:
 
-- **`c1rm`**: A persistent planning scalar. Every weight prescription is computed from this. It increases by `weight_increment` on a successful session and is reduced by an intensity reset. It is the absolute source of truth for daily prescriptions.
-- **`observed_e1rm`**: A rolling average of implied e1RMs from the last 10 qualifying sets (reps ≤ 10 AND RPE ≥ 8). This is a **diagnostic only**—used to detect divergence from `c1rm` and as a re-baseline target during an intensity reset. It is _never_ used directly for daily prescriptions.
+- **`c1rm`** (calculative 1RM): the persistent planning anchor. Every weight prescription is computed from it. It rises by `weight_increment` on a success, can drop −10% on a reset, and can jump to track a large divergence (see **c1RM Catch-Up** below). It is kept **unrounded** — only the rendered prescribed weight is snapped to loadable increments — and is the only value progression persists.
+- **Demonstrated e1RM**: the e1RM _implied_ by a logged set, `set_weight ÷ rpe_matrix[reps][rpe]`, computed only for **qualifying sets** (RPE ≥ 8 AND reps ≤ 10). It is never used directly for prescriptions; it is the signal the catch-up and the matrix correction weigh against `c1rm` to decide whether the anchor or the curve has drifted.
 
-### Matrix-Derived Weights & Updates
+### Matrix-Derived Weights
 
-Weight is always calculated as: `weight = c1rm × rpe_matrix[reps][rpe]` (rounded to loadable increments). `weight_increment` is the amount added to `c1rm` on a successful session, not a direct load delta.
+Weight is always `weight = c1rm × rpe_matrix[reps][rpe]`, rounded to loadable increments after any RPE-ceiling cap. `weight_increment` is what's added to `c1rm` on a success (a flat kg amount, or a percent of `c1rm`), never a direct load delta. The matrix maps `(reps, rpe)` to a percentage of 1RM (axes: reps 1–10, RPE 6.0–10.0 in 0.5 steps); off-grid RPE interpolates linearly between columns and clamps at the row endpoints (no extrapolation).
 
-The RPE matrix maps `(reps, rpe)` to a percentage of e1RM (axes: reps 1–10, RPE 6.0–10.0 in 0.5 steps). Post-session, the matrix is updated dynamically for qualifying sets:
+### c1RM Catch-Up
 
-1. Recomputes `observed_e1rm`.
-2. Nudges the cell toward reality: `observed_pct = set_weight / observed_e1rm`, updating the cell using a slow-moving EMA (Exponential Moving Average).
-3. Smooths across neighboring cells within ±1.0 RPE of the touched cell.
+Because `c1rm` only nudges by one increment per success, it can fall far behind (or ahead of) true capacity — after a layoff, a peak, or a mis-seeded anchor. The **catch-up** corrects this in a single move:
+
+- After every session, a **demonstrated e1RM** is corroborated from that session's qualifying sets — a lone qualifying set (e.g. top-set programs) is used directly; with two or more, the single furthest-from-anchor set is dropped as a possible fluke and the next-furthest is used.
+- If that estimate diverges from `c1rm` by more than **±10%**, `c1rm` jumps **70% of the way** toward it immediately (fast convergence, not a per-session nibble).
+- When it fires it takes **full precedence** over the deterministic progression rules for that session: the regression streak clears and no reset is armed. Below the ±10% threshold the normal rules drive instead.
+
+### Adaptive RPE Matrix Correction
+
+Within the ±10% band — where a session broadly agrees with the anchor — the engine instead refines the _shape_ of the exercise's RPE curve so future prescriptions fit the lifter:
+
+1. It reframes the grid as a 1-D **reps-to-failure** axis, `n = reps + (10 − RPE)`, so cells representing the same effort are learned together.
+2. The representative set (same corroboration as the catch-up) gives a demonstrated fraction `pDemo = set_weight ÷ c1rm`. Each cell is nudged toward it with a slow learning rate (0.1) through a triangular kernel that fades over a radius of 3 in `n`-space.
+3. A safety rule forbids _raising_ the percentage for rep counts higher than were actually performed, and the grid is re-checked for monotonicity afterward (% rises with RPE, falls with reps).
+4. The correction is applied **last** — after the session's own prescription, evaluation, and catch-up — so it only shapes _future_ sessions, and it persists as a per-exercise matrix override.
 
 ### Per-Session Prescription Pipeline
 
 For each exercise in a workout, prescriptions are calculated dynamically:
 
 1. **Resolve base targets** from the progression model.
-2. **Apply Mesocycle Modifiers** (multiplicative). Deload weeks are simply treated as normal weeks with modifiers that make the goal easy. Modifiers are only applied to fields not locked in the `ExerciseConfigSheet`.
-3. **Apply Active Reset Modifiers** (decaying fatigue modifiers) multiplicatively.
+2. **Apply Mesocycle Modifiers** — additive shifts to the _targets_ (RPE and reps), never a direct load multiplier; the load re-renders from the shifted targets. Deload weeks are just weeks whose focus eases those targets. Only fields not locked in the `ExerciseConfigSheet` are touched (see **Periodization & Mesocycles** below).
+3. **Consume a pending reset** — if a reset is armed, `c1rm` is dropped 10% once before rendering (this happens at workout start, not while previewing).
 4. **Compute weight** from the matrix using `c1rm` and the final reps/RPE.
-5. **Top Set + Back-Off**: Compute top set, then recalculate back-off loads from the top-set weight every session.
+5. **Top Set + Back-Off**: Compute the top set, then recalculate back-off loads from the top-set weight every session.
 
 All targets are clamped to sensible limits (sets ≥ 1, reps ≥ 1, RPE ≤ 10).
 
@@ -65,48 +76,41 @@ All targets are clamped to sensible limits (sets ≥ 1, reps ≥ 1, RPE ≤ 10).
 
 ## 📈 Progression Models
 
-Each exercise is assigned a single progression model that dictates how `c1rm` adapts.
+Each exercise is assigned a single progression model that dictates how `c1rm` adapts. Every session resolves to one of three outcomes — **success**, **hold**, or **regression** — judged deterministically against the _originally prescribed_ weight. For multi-set models the **worst set** (highest RPE, tie-break fewest reps) decides a regression, while a success requires _every_ set; a set logged without an RPE can neither confirm a success nor trigger a regression, so it falls through to a hold.
 
 ### 1. Linear Progression (LP)
 
 - **Application**: Main compound lifts during strength peaking.
 - **Outcome logic**:
-  - **Progress**: `actual_reps >= target_reps` AND `actual_rpe <= target_rpe` across all sets → `c1rm += weight_increment`; zero the failure streak.
-  - **Failure**: `actual_reps < target_reps` OR `(actual_rpe - 1) > target_rpe` → increment failure streak.
-  - **Hold**: Anything in between → no change.
+  - **Success**: every set hits `reps ≥ target_reps` at `rpe ≤ target_rpe` and the prescribed weight → `c1rm += weight_increment`; clear the regression streak.
+  - **Regression**: the worst set is at the prescribed weight with `reps ≤ target_reps` but `rpe > target_rpe` (grinding) → increment the regression streak.
+  - **Hold**: anything in between → no change.
 
 ### 2. Double Progression
 
 - **Application**: Hypertrophy-focused accessory movements.
 - **Outcome logic**:
-  - If `actual_reps >= max_reps` across all sets → `c1rm += weight_increment`; reset current target reps to `min_reps`.
-  - Otherwise advance target reps toward `max_reps`.
-  - Tracks regression and plateau streaks based on the previous session's reps at the same weight.
+  - **Success**: every set reaches `max_reps` and the worst set stays `≤ target_rpe` → `c1rm += weight_increment`; reset the rep cursor to `min_reps`.
+  - **Regression**: the worst set bottomed out at `≤ min_reps` while grinding (`rpe + 1 > target_rpe`) → increment the regression streak.
+  - **Hold**: otherwise → advance the rep-target cursor one step toward `max_reps` at the same weight.
 
 ### 3. Top Set + Back-Off
 
 - **Application**: Primary strength lifts requiring high-intensity exposure.
-- **Outcome logic**: Only the **top set** drives progression and fatigue evaluation. If top-set targets are met at or below target RPE → `c1rm += weight_increment`; zero the failure streak. Back-off sets are never evaluated for progression, but still feed the RPE matrix updates.
+- **Outcome logic**: only the **top set** drives progression.
+  - **Success**: top set `reps ≥ target_reps` at `rpe ≤ target_rpe` (judged on reps + RPE, no weight clause) → `c1rm += weight_increment`; clear the streak.
+  - **Regression**: top set at the prescribed weight with `reps ≤ target_reps` and `rpe > target_rpe` → increment the streak.
+  - Back-off sets never drive progression, but every qualifying set (top _or_ back-off) still feeds the RPE-matrix correction.
 
 ---
 
-## 🛑 Fatigue Management & Resets
+## 🛑 Regression Tracking & Reset
 
-A reset zeroes the relevant streak counter and applies corrective modifiers to ease the lifter back into progression.
+A regression never changes the load on the spot — it arms a counter, so a single bad day can't derail progression. The same `regression_streak` is shared across all models (each one's own rules decide what counts as a regression).
 
-### Reset Triggers
-
-- **Top Set**: 3 consecutive flagged sessions (`actual_reps < target_reps && actual_rpe > target_rpe` OR `actual_rpe - 1 > target_rpe`) → **Intensity Reset**.
-- **Linear Progression**: 3 consecutive failures → **Intensity Reset**.
-- **Double Progression**: Regression (2 consecutive sessions) or Hard Plateau (4+ consecutive sessions) → **Volume Reset**.
-
-### Decaying Modifier Queue
-
-Instead of permanent structural changes (outside of `c1rm` drops), resets apply as corrective multipliers that taper linearly to zero over a configurable number of sessions.
-
-- **Intensity Reset**: Causes a LASTING reduction of `c1rm` (e.g., -10% or snapped to `observed_e1rm`) to clear systemic fatigue, PLUS a decaying intensity modifier to ramp back in gently.
-- **Volume Reset**: Applies a decaying volume modifier only (reduces sets/reps). No change to `c1rm` or weight.
-- **Decay Windows**: Intensity decays over a longer window (≈5 sessions) than volume (≈3 sessions) because neurological/systemic fatigue takes longer to clear than local muscular fatigue.
+- **Arming**: each consecutive regression increments `regression_streak`. The **3rd** consecutive regression sets `reset_pending`. `c1rm` is _not_ dropped during evaluation.
+- **Consuming**: the _next_ prescription applies the reset — `c1rm × 0.9` (−10%) — and clears both the streak and the flag. This two-phase timing is why a regression session shows no load change until the following workout, and why the lighter weight re-renders only then.
+- **Recovery**: a success or a hold anywhere in the streak clears it. The [catch-up](#c1rm-catch-up) can also clear it outright — when demonstrated capacity has clearly moved past ±10%, it overrides the reset bookkeeping entirely. The −10% reset is therefore the fallback for _sustained, small_ regressions that stay within the catch-up band.
 
 ---
 
@@ -117,4 +121,4 @@ YAFA supports structuring training blocks into **Mesocycles** using the visual `
 ### Mesocycle Features
 
 - **Week-by-Week Focus Allocation**: Assign specific training phases (e.g., Hypertrophy, Strength, Peaking, Deload) to each week.
-- **Dynamic Variable Adjustment**: Dynamically passes down Volume and Intensity Modifiers to the workout calculation based on the mesocycle week when applicable.
+- **Target Shifts, Not Load Multipliers**: a week's focus shifts an exercise's **RPE and rep targets** _additively_ (e.g. strength raises target RPE and trims reps; a deload eases both), and the prescribed load then re-renders from those shifted targets via the matrix. Working-set counts are left as configured — volume is not auto-periodized. The shift wraps around a repeating cycle, and any field the user locked (or that a given model never periodizes) is left untouched.

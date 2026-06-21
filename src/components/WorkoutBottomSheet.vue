@@ -20,6 +20,18 @@ const {
 } = useActiveWorkout();
 const { timerString } = useWorkoutTimer(() => activeWorkout.value?.startTime);
 
+// Stopwatch that resets to 0 each time a set is completed.
+const lastSetAt = ref<number | null>(null);
+watch(
+  () => trackerStats.value.completed,
+  (next, prev) => {
+    if (next > prev) lastSetAt.value = Date.now();
+  },
+);
+const { timerString: restTimer } = useWorkoutTimer(
+  () => lastSetAt.value ?? undefined,
+);
+
 const confirmingDiscard = ref(false);
 
 // ── Finish flow ──────────────────────────────────────────────────────────────
@@ -68,7 +80,8 @@ watch(
     minimizable
   >
     <template #title>
-      <div class="flex items-center justify-between w-full pr-2">
+      <div class="flex items-center w-full">
+        <!-- Left: routine name + workout duration -->
         <div class="min-w-0 flex-1">
           <div class="flex items-center gap-2">
             <span
@@ -86,12 +99,28 @@ watch(
             {{ timerString }}
           </div>
         </div>
-        <button
-          class="px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-red-500/10 text-red-500 hover:bg-red-500/20 dark:bg-red-500/15 dark:text-red-400 dark:hover:bg-red-500/25 transition-colors duration-150 cursor-pointer shrink-0"
-          @click.stop="confirmingDiscard = true"
-        >
-          Discard
-        </button>
+
+        <!-- Center: rest stopwatch -->
+        <div v-if="lastSetAt" class="flex flex-col items-center px-4 shrink-0">
+          <span
+            class="text-[0.6rem] font-semibold uppercase tracking-wider text-text-light dark:text-text-dark opacity-40"
+          >
+            Rest
+          </span>
+          <span class="text-xl font-mono font-bold text-accent leading-tight">
+            {{ restTimer }}
+          </span>
+        </div>
+
+        <!-- Right: discard -->
+        <div class="flex-1 flex justify-end pl-2">
+          <button
+            class="px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-red-500/10 text-red-500 hover:bg-red-500/20 dark:bg-red-500/15 dark:text-red-400 dark:hover:bg-red-500/25 transition-colors duration-150 cursor-pointer shrink-0"
+            @click.stop="confirmingDiscard = true"
+          >
+            Discard
+          </button>
+        </div>
       </div>
     </template>
 

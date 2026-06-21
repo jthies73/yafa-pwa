@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useWeightUnit } from "../../composables/useWeightUnit";
+import InfoIcon from "../InfoIcon.vue";
 import type { CalibrationChange } from "../../engine/service";
 
 // Read-only view of how each exercise's c1RM (training anchor) moved this
@@ -46,11 +47,14 @@ const isUp = (c: CalibrationChange) => {
   >
     <!-- Header -->
     <div class="flex flex-col gap-0.5">
-      <span
-        class="text-[0.65rem] font-semibold uppercase tracking-wider text-text-light dark:text-text-dark opacity-50"
-      >
-        Calibration
-      </span>
+      <div class="flex items-center gap-1.5">
+        <span
+          class="text-[0.65rem] font-semibold uppercase tracking-wider text-text-light dark:text-text-dark opacity-50"
+        >
+          Calibration
+        </span>
+        <InfoIcon topic="c1rm" />
+      </div>
       <p class="text-xs text-text-light dark:text-text-dark opacity-60">
         How each lift's training anchor moved — applied automatically for the
         next prescription.

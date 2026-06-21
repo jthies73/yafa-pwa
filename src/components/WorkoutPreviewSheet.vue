@@ -10,6 +10,7 @@ import {
 } from "../engine/service";
 import AppBottomSheet from "./AppBottomSheet.vue";
 import ModifierArrow from "./ModifierArrow.vue";
+import InfoIcon from "./InfoIcon.vue";
 import { useWeightUnit } from "../composables/useWeightUnit";
 
 const { label: weightUnit, format: fmtWeight } = useWeightUnit();
@@ -287,9 +288,11 @@ const intensityArrow = computed<ArrowConfig | null>(() => {
             class="border-t border-border-light dark:border-border-dark pt-2 flex flex-col gap-1 text-xs"
           >
             <div class="flex items-center justify-between gap-3">
-              <span class="text-text-light dark:text-text-dark opacity-60"
-                >c1RM</span
-              >
+              <span class="flex items-center gap-1.5"
+                ><span class="text-text-light dark:text-text-dark opacity-60"
+                  >c1RM</span
+                ><InfoIcon topic="c1rm"
+              /></span>
               <span
                 class="font-mono text-text-h-light dark:text-text-h-dark flex items-center gap-1.5"
               >

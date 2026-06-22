@@ -15,9 +15,12 @@ import {
   tooltipTitle,
 } from "../analytics/presentation";
 import type { BucketPoint } from "../analytics/compute";
+import { buildChartCsv } from "../analytics/chartCsv";
 import { useWeightUnit } from "../composables/useWeightUnit";
 import { useLengthUnit } from "../composables/useLengthUnit";
+import { downloadCsv, slugify } from "../utils/download";
 import AnalyticsChart from "./AnalyticsChart.vue";
+import AppBottomSheet from "./AppBottomSheet.vue";
 
 const props = defineProps<{
   config: AnalyticsChartConfig;
@@ -97,6 +100,46 @@ const titleFor = (point: BucketPoint) =>
   tooltipTitle(point, tooltipContext.value);
 const linesFor = (point: BucketPoint) =>
   tooltipLines(point, tooltipContext.value);
+
+// --- Actions menu (kebab → bottom sheet) ---
+const showActions = ref(false);
+const hasData = computed(() => !!series.value?.points.length);
+
+// CSV export reuses the same unit/decimals choices as formatValue, but writes
+// bare numbers (unit named in the column header) so Excel charts them directly.
+const exportCsv = () => {
+  const s = series.value;
+  if (!s?.points.length) return;
+
+  let unitLabel = "";
+  let toDisplay = (v: number) => v;
+  let decimals = 1;
+  if (s.valueKind === "weight") {
+    unitLabel = weight.label.value;
+    toDisplay = weight.toDisplay;
+    decimals = props.config.metric === "e1rm" ? 1 : 0;
+  } else if (s.valueKind === "length") {
+    unitLabel = length.label.value;
+    toDisplay = length.toDisplay;
+  } else if (s.valueKind === "percentage") {
+    unitLabel = "%";
+  }
+
+  const csv = buildChartCsv(s, props.config, props.title, {
+    timeframe: props.timeframe,
+    unitLabel,
+    toDisplay,
+    decimals,
+  });
+  const date = new Date().toISOString().slice(0, 10);
+  downloadCsv(`yafa-chart-${slugify(props.title)}-${date}.csv`, csv);
+  showActions.value = false;
+};
+
+const editFromMenu = () => {
+  showActions.value = false;
+  emit("edit");
+};
 </script>
 
 <template>
@@ -141,24 +184,19 @@ const linesFor = (point: BucketPoint) =>
 
       <button
         class="shrink-0 p-2 rounded-lg text-text-light dark:text-text-dark opacity-40 hover:opacity-100 hover:text-accent cursor-pointer transition-colors duration-150"
-        aria-label="Edit chart"
-        @click="emit('edit')"
+        aria-label="Chart options"
+        @click="showActions = true"
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"
           width="16"
           height="16"
           viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
+          fill="currentColor"
         >
-          <path d="M12 20h9"></path>
-          <path
-            d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"
-          ></path>
+          <circle cx="12" cy="5" r="1.75" />
+          <circle cx="12" cy="12" r="1.75" />
+          <circle cx="12" cy="19" r="1.75" />
         </svg>
       </button>
     </div>
@@ -215,4 +253,57 @@ const linesFor = (point: BucketPoint) =>
       </div>
     </div>
   </div>
+
+  <!-- Kebab actions: edit / export -->
+  <AppBottomSheet v-model:open="showActions" :title="title">
+    <div class="flex flex-col px-2 py-2">
+      <button
+        class="flex w-full items-center gap-3 rounded-lg px-3 py-3.5 text-left text-text-h-light dark:text-text-h-dark hover:bg-surface-light dark:hover:bg-surface-dark cursor-pointer transition-colors duration-150"
+        @click="editFromMenu"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          class="shrink-0 text-text-light dark:text-text-dark"
+        >
+          <path d="M12 20h9"></path>
+          <path
+            d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"
+          ></path>
+        </svg>
+        <span class="text-sm font-semibold">Edit</span>
+      </button>
+
+      <button
+        v-if="hasData"
+        class="flex w-full items-center gap-3 rounded-lg px-3 py-3.5 text-left text-text-h-light dark:text-text-h-dark hover:bg-surface-light dark:hover:bg-surface-dark cursor-pointer transition-colors duration-150"
+        @click="exportCsv"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          class="shrink-0 text-text-light dark:text-text-dark"
+        >
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+          <polyline points="7 10 12 15 17 10"></polyline>
+          <line x1="12" y1="15" x2="12" y2="3"></line>
+        </svg>
+        <span class="text-sm font-semibold">Export as CSV</span>
+      </button>
+    </div>
+  </AppBottomSheet>
 </template>

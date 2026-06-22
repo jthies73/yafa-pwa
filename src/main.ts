@@ -28,6 +28,14 @@ async function bootstrap() {
       await seedDatabase();
     }
 
+    // Dev-only: populate sample workouts/measurements/charts so analytics (and
+    // its CSV export) can be exercised. Dynamically imported behind the DEV
+    // guard so it tree-shakes out of production builds.
+    if (import.meta.env.DEV) {
+      const { seedDevSampleData } = await import("./db/devSeed");
+      await seedDevSampleData();
+    }
+
     // Restore last active route from localStorage.
     const savedPage = localStorage.getItem(ACTIVE_PAGE_KEY);
     if (savedPage) {

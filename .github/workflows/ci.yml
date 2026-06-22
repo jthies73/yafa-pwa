@@ -97,6 +97,8 @@ jobs:
           echo "$SSH_KEY" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H ${{ secrets.VPS_IP }} >> ~/.ssh/known_hosts
+          
+          ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_IP }} 'sudo mkdir -p /opt/yafa-pwa-staging'
           cat docker-compose.staging.yml | ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_IP }} 'sudo tee /opt/yafa-pwa-staging/docker-compose.yml > /dev/null'
           ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_IP }} 'cd /opt/yafa-pwa-staging && sudo docker compose pull && sudo docker compose up -d --remove-orphans'
 
@@ -159,5 +161,7 @@ jobs:
           echo "$SSH_KEY" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H ${{ secrets.VPS_IP }} >> ~/.ssh/known_hosts
+          
+          ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_IP }} 'sudo mkdir -p /opt/yafa-pwa'
           cat docker-compose.yml | ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_IP }} 'sudo tee /opt/yafa-pwa/docker-compose.yml > /dev/null'
           ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_IP }} 'cd /opt/yafa-pwa && sudo docker compose pull && sudo docker compose up -d --remove-orphans'

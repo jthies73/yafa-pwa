@@ -1,6 +1,10 @@
 {
-  "latest": "0.8.1",
+  "latest": "0.8.2",
   "releases": [
+    {
+      "version": "0.8.2",
+      "notes": "- Improve Pipeline Setup."
+    },
     {
       "version": "0.8.1",
       "notes": "- Remove Set delta from mesocycle."

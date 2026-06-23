@@ -1,27 +1,19 @@
 name: CI / CD - yafa-pwa
 
+# push to main      → staging   (image tag :staging, /opt/yafa-pwa-staging)
+# published release → production (image tags :<version> + :latest, /opt/yafa-pwa)
 on:
-  pull_request:
   push:
     branches: [main]
   release:
     types: [published]
-  workflow_dispatch:
-
-# Cancel superseded runs on the same ref, but never cancel a release run.
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name != 'release' }}
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: jthies73/yafa-pwa
-
-permissions:
-  contents: read
-  packages: write
+  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
+  # ── Quality gates (run in parallel) ────────────────────────────────────────
   lint:
     name: Lint & Type-check
     runs-on: ubuntu-latest
@@ -35,7 +27,7 @@ jobs:
       - run: yarn lint
       - run: yarn type-check
 
-  test-unit:
+  test:
     name: Unit Tests
     runs-on: ubuntu-latest
     steps:
@@ -47,13 +39,12 @@ jobs:
       - run: yarn install --frozen-lockfile
       - run: yarn test:unit
 
-  # ── Staging (push to main) ───────────────────────────────────────────────
-
+  # ── Staging (push to main) ─────────────────────────────────────────────────
   build-staging:
-    name: Build (staging)
+    name: Build & Push (staging)
+    if: github.event_name == 'push'
+    needs: [lint, test]
     runs-on: ubuntu-latest
-    needs: [lint, test-unit]
-    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch'
     permissions:
       contents: read
       packages: write
@@ -64,17 +55,22 @@ jobs:
           node-version: 22
           cache: yarn
       - run: yarn install --frozen-lockfile
-      - name: Build Staging
+
+      # The Dockerfile only copies dist/, so the Vite build (which bakes in the
+      # API base URL) runs here, before the image is built.
+      - name: Build staging
         run: yarn build:staging
         env:
           VITE_API_BASE_URL: ${{ vars.STAGING_ADMIN_BASE_URL || secrets.STAGING_ADMIN_BASE_URL }}
-      - name: Log in to the Container registry
+
+      - name: Log in to the container registry
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GHCR_PAT }}
-      - name: Build and push staging image
+
+      - name: Build and push image
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -82,33 +78,44 @@ jobs:
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:staging
 
   deploy-staging:
-    name: Deploy to Staging
+    name: Deploy (staging)
+    needs: build-staging
     runs-on: ubuntu-latest
-    needs: [build-staging]
-    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch'
     environment: staging
     steps:
       - uses: actions/checkout@v4
-      - name: Deploy to staging via SSH
+      - name: Deploy via SSH
         env:
           SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_IP: ${{ secrets.VPS_IP }}
+          GHCR_PAT: ${{ secrets.GHCR_PAT }}
+          REGISTRY_USER: ${{ github.actor }}
+          DEPLOY_PATH: /opt/yafa-pwa-staging
         run: |
           mkdir -p ~/.ssh
           echo "$SSH_KEY" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H ${{ secrets.VPS_IP }} >> ~/.ssh/known_hosts
-          
-          ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_IP }} 'sudo mkdir -p /opt/yafa-pwa-staging'
-          cat docker-compose.staging.yml | ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_IP }} 'sudo tee /opt/yafa-pwa-staging/docker-compose.yml > /dev/null'
-          ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_IP }} 'cd /opt/yafa-pwa-staging && sudo docker compose pull && sudo docker compose up -d --remove-orphans'
+          ssh-keyscan -H "$VPS_IP" >> ~/.ssh/known_hosts
 
-  # ── Production (release) ────────────────────────────────────────────────
+          # Ship the staging compose file (renamed to docker-compose.yml).
+          cat docker-compose.staging.yml | ssh "$VPS_USER@$VPS_IP" \
+            "sudo mkdir -p $DEPLOY_PATH && sudo tee $DEPLOY_PATH/docker-compose.yml > /dev/null"
 
+          # The VPS — not the runner — does the pull, so authenticate it to GHCR
+          # (token over stdin, never in the remote argument list).
+          echo "$GHCR_PAT" | ssh "$VPS_USER@$VPS_IP" \
+            "sudo docker login $REGISTRY -u $REGISTRY_USER --password-stdin"
+
+          ssh "$VPS_USER@$VPS_IP" \
+            "cd $DEPLOY_PATH && sudo docker compose pull && sudo docker compose up -d"
+
+  # ── Production (release) ───────────────────────────────────────────────────
   build-production:
-    name: Build (production)
-    runs-on: ubuntu-latest
-    needs: [lint, test-unit]
+    name: Build & Push (production)
     if: github.event_name == 'release'
+    needs: [lint, test]
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
@@ -119,17 +126,20 @@ jobs:
           node-version: 22
           cache: yarn
       - run: yarn install --frozen-lockfile
-      - name: Build Production
+
+      - name: Build production
         run: yarn build:production
         env:
           VITE_API_BASE_URL: ${{ vars.PROD_ADMIN_BASE_URL || secrets.PROD_ADMIN_BASE_URL }}
-      - name: Log in to the Container registry
+
+      - name: Log in to the container registry
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GHCR_PAT }}
-      - name: Extract metadata for Docker
+
+      - name: Derive image tags (version + latest)
         id: meta
         uses: docker/metadata-action@v5
         with:
@@ -137,7 +147,8 @@ jobs:
           tags: |
             type=semver,pattern={{version}}
             type=raw,value=latest
-      - name: Build and push production image
+
+      - name: Build and push image
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -146,22 +157,34 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
 
   deploy-production:
-    name: Deploy to Production
+    name: Deploy (production)
+    needs: build-production
     runs-on: ubuntu-latest
-    needs: [build-production]
-    if: github.event_name == 'release'
     environment: production
     steps:
       - uses: actions/checkout@v4
-      - name: Deploy to production via SSH
+      - name: Deploy via SSH
         env:
           SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_IP: ${{ secrets.VPS_IP }}
+          GHCR_PAT: ${{ secrets.GHCR_PAT }}
+          REGISTRY_USER: ${{ github.actor }}
+          DEPLOY_PATH: /opt/yafa-pwa
         run: |
           mkdir -p ~/.ssh
           echo "$SSH_KEY" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H ${{ secrets.VPS_IP }} >> ~/.ssh/known_hosts
-          
-          ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_IP }} 'sudo mkdir -p /opt/yafa-pwa'
-          cat docker-compose.yml | ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_IP }} 'sudo tee /opt/yafa-pwa/docker-compose.yml > /dev/null'
-          ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_IP }} 'cd /opt/yafa-pwa && sudo docker compose pull && sudo docker compose up -d --remove-orphans'
+          ssh-keyscan -H "$VPS_IP" >> ~/.ssh/known_hosts
+
+          # Ship the production compose file (renamed to docker-compose.yml).
+          cat docker-compose.yml | ssh "$VPS_USER@$VPS_IP" \
+            "sudo mkdir -p $DEPLOY_PATH && sudo tee $DEPLOY_PATH/docker-compose.yml > /dev/null"
+
+          # The VPS — not the runner — does the pull, so authenticate it to GHCR
+          # (token over stdin, never in the remote argument list).
+          echo "$GHCR_PAT" | ssh "$VPS_USER@$VPS_IP" \
+            "sudo docker login $REGISTRY -u $REGISTRY_USER --password-stdin"
+
+          ssh "$VPS_USER@$VPS_IP" \
+            "cd $DEPLOY_PATH && sudo docker compose pull && sudo docker compose up -d"

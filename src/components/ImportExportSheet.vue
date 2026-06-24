@@ -1,12 +1,15 @@
 <script setup lang="ts">
 import { ref, watch } from "vue";
 import AppBottomSheet from "./AppBottomSheet.vue";
-import { exportData, importData, type BackupFile } from "../db/backup";
-import { exportToExcelCsv } from "../utils/csvExport";
+import { importData, parseBackupFile } from "../db/backup";
+import { buildExportArchive } from "../export/archive";
+import { downloadBlob } from "../utils/download";
+import { useWeightUnit } from "../composables/useWeightUnit";
+import { useLengthUnit } from "../composables/useLengthUnit";
 
 const open = defineModel<boolean>("open", { required: true });
 
-type Status = "idle" | "importing" | "done" | "error";
+type Status = "idle" | "exporting" | "importing" | "done" | "error";
 const status = ref<Status>("idle");
 const message = ref<string | null>(null);
 const pendingFile = ref<File | null>(null);
@@ -21,36 +24,21 @@ watch(open, (isOpen) => {
   }
 });
 
-const exportBackup = async () => {
-  status.value = "idle";
-  message.value = null;
-  try {
-    const backup = await exportData();
-    const blob = new Blob([JSON.stringify(backup, null, 2)], {
-      type: "application/json",
-    });
-    const url = URL.createObjectURL(blob);
-    const date = new Date().toISOString().slice(0, 10);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `yafa-backup-${date}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-    status.value = "done";
-    message.value = "Backup exported.";
-  } catch (err) {
-    status.value = "error";
-    message.value = (err as Error).message;
-  }
-};
+const weight = useWeightUnit();
+const length = useLengthUnit();
 
-const exportExcel = async () => {
-  status.value = "idle";
+const exportArchive = async () => {
+  status.value = "exporting";
   message.value = null;
   try {
-    await exportToExcelCsv();
+    const blob = await buildExportArchive({
+      weight: { label: weight.label.value, toDisplay: weight.toDisplay },
+      length: { label: length.label.value, toDisplay: length.toDisplay },
+    });
+    const date = new Date().toISOString().slice(0, 10);
+    downloadBlob(`yafa-export-${date}.zip`, blob);
     status.value = "done";
-    message.value = "Excel CSV exported.";
+    message.value = "Export complete.";
   } catch (err) {
     status.value = "error";
     message.value = (err as Error).message;
@@ -72,8 +60,7 @@ const confirmImport = async () => {
   status.value = "importing";
   message.value = null;
   try {
-    const text = await pendingFile.value.text();
-    const backup = JSON.parse(text) as BackupFile;
+    const backup = await parseBackupFile(pendingFile.value);
     await importData(backup);
     // Reload so every live query rebinds to the restored data.
     location.reload();
@@ -94,8 +81,10 @@ const close = () => {
     <div class="flex flex-col gap-6 px-5 py-5">
       <!-- Description -->
       <p class="text-sm text-text-light dark:text-text-dark opacity-70">
-        YAFA stores everything on this device. Export a backup to keep your data
-        safe or move it to another device, and import it to restore.
+        YAFA stores everything on this device. Export a ZIP to keep your data
+        safe or move it to another device — it bundles readable CSVs (per
+        exercise, measurement and chart) alongside a backup.json you can import
+        to restore.
       </p>
 
       <!-- Export -->
@@ -105,54 +94,28 @@ const close = () => {
         >
           Export
         </span>
-        <div class="flex gap-3">
-          <button
-            class="flex-1 flex items-center justify-center gap-2 rounded-lg border border-border-light dark:border-border-dark py-3 text-sm font-bold text-text-light dark:text-text-dark transition-colors duration-150 hover:bg-surface-light dark:hover:bg-surface-dark cursor-pointer"
-            @click="exportBackup"
+        <button
+          class="flex items-center justify-center gap-2 rounded-lg border border-border-light dark:border-border-dark py-3 text-sm font-bold text-text-light dark:text-text-dark transition-colors duration-150 hover:bg-surface-light dark:hover:bg-surface-dark cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
+          :disabled="status === 'exporting'"
+          @click="exportArchive"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
           >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-              <polyline points="7 10 12 15 17 10" />
-              <line x1="12" y1="15" x2="12" y2="3" />
-            </svg>
-            Export backup
-          </button>
-          <button
-            class="flex-1 flex items-center justify-center gap-2 rounded-lg border border-border-light dark:border-border-dark py-3 text-sm font-bold text-text-light dark:text-text-dark transition-colors duration-150 hover:bg-surface-light dark:hover:bg-surface-dark cursor-pointer"
-            @click="exportExcel"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <path
-                d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"
-              />
-              <polyline points="14 2 14 8 20 8" />
-              <line x1="16" y1="13" x2="8" y2="13" />
-              <line x1="16" y1="17" x2="8" y2="17" />
-              <polyline points="10 9 9 9 8 9" />
-            </svg>
-            Excel
-          </button>
-        </div>
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="7 10 12 15 17 10" />
+            <line x1="12" y1="15" x2="12" y2="3" />
+          </svg>
+          {{ status === "exporting" ? "Exporting…" : "Export data" }}
+        </button>
       </div>
 
       <!-- Import -->
@@ -165,7 +128,7 @@ const close = () => {
         <input
           ref="fileInput"
           type="file"
-          accept="application/json,.json"
+          accept="application/json,.json,application/zip,.zip"
           class="hidden"
           @change="onFileSelected"
         />
@@ -191,7 +154,7 @@ const close = () => {
             <polyline points="17 8 12 3 7 8" />
             <line x1="12" y1="3" x2="12" y2="15" />
           </svg>
-          Choose backup file
+          Choose backup (.zip or .json)
         </button>
 
         <!-- Step 2: confirm destructive replace -->

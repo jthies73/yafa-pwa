@@ -15,7 +15,7 @@ import {
   tooltipTitle,
 } from "../analytics/presentation";
 import type { BucketPoint } from "../analytics/compute";
-import { buildChartCsv } from "../analytics/chartCsv";
+import { buildChartCsv, chartCsvOptions } from "../analytics/chartCsv";
 import { useWeightUnit } from "../composables/useWeightUnit";
 import { useLengthUnit } from "../composables/useLengthUnit";
 import { downloadCsv, slugify } from "../utils/download";
@@ -103,33 +103,24 @@ const linesFor = (point: BucketPoint) =>
 
 // --- Actions menu (kebab → bottom sheet) ---
 const showActions = ref(false);
-const hasData = computed(() => !!series.value?.points.length);
 
-// CSV export reuses the same unit/decimals choices as formatValue, but writes
-// bare numbers (unit named in the column header) so Excel charts them directly.
-const exportCsv = () => {
-  const s = series.value;
-  if (!s?.points.length) return;
-
-  let unitLabel = "";
-  let toDisplay = (v: number) => v;
-  let decimals = 1;
-  if (s.valueKind === "weight") {
-    unitLabel = weight.label.value;
-    toDisplay = weight.toDisplay;
-    decimals = props.config.metric === "e1rm" ? 1 : 0;
-  } else if (s.valueKind === "length") {
-    unitLabel = length.label.value;
-    toDisplay = length.toDisplay;
-  } else if (s.valueKind === "percentage") {
-    unitLabel = "%";
+// CSV export ignores the on-screen timeframe toggle and always spans full
+// history ("max"), but keeps the chart's configured bucket — so the file holds
+// every datapoint ever recorded at the user's chosen grouping. Numbers are
+// written bare (unit named in the column header) so Excel charts them directly.
+const exportCsv = async () => {
+  const s = await buildChartSeries(props.config, "max");
+  if (!s.points.length) {
+    showActions.value = false;
+    return;
   }
 
   const csv = buildChartCsv(s, props.config, props.title, {
-    timeframe: props.timeframe,
-    unitLabel,
-    toDisplay,
-    decimals,
+    timeframe: "max",
+    ...chartCsvOptions(s, props.config, {
+      weight: { label: weight.label.value, toDisplay: weight.toDisplay },
+      length: { label: length.label.value, toDisplay: length.toDisplay },
+    }),
   });
   const date = new Date().toISOString().slice(0, 10);
   downloadCsv(`yafa-chart-${slugify(props.title)}-${date}.csv`, csv);
@@ -282,7 +273,6 @@ const editFromMenu = () => {
       </button>
 
       <button
-        v-if="hasData"
         class="flex w-full items-center gap-3 rounded-lg px-3 py-3.5 text-left text-text-h-light dark:text-text-h-dark hover:bg-surface-light dark:hover:bg-surface-dark cursor-pointer transition-colors duration-150"
         @click="exportCsv"
       >

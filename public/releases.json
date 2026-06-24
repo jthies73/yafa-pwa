@@ -1,6 +1,10 @@
 {
-  "latest": "0.8.2",
+  "latest": "0.9.0",
   "releases": [
+    {
+      "version": "0.9.0",
+      "notes": "- Import / Export of Exercise Histories."
+    },
     {
       "version": "0.8.2",
       "notes": "- Improve Pipeline Setup."

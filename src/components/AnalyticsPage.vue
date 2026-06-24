@@ -10,13 +10,12 @@ import type {
 import {
   createChartConfig,
   deleteChartConfig,
-  muscleGroupsOf,
   reorderChartConfigs,
   updateChartConfig,
   type ChartConfigInput,
 } from "../db/analyticsCharts";
 import type { Timeframe } from "../analytics/service";
-import { TIMEFRAME_OPTIONS } from "../analytics/presentation";
+import { TIMEFRAME_OPTIONS, chartTitle } from "../analytics/presentation";
 import { useSortableList } from "../composables/useSortableList";
 import AppFab from "./AppFab.vue";
 import AnalyticsChartCard from "./AnalyticsChartCard.vue";
@@ -72,24 +71,11 @@ onMounted(() => {
 
 onUnmounted(() => subscriptions.forEach((s) => s.unsubscribe()));
 
-const titleFor = (config: AnalyticsChartConfig): string => {
-  if (config.name) return config.name;
-  switch (config.sourceKind) {
-    case "global":
-      return "All Training";
-    case "muscle":
-      return muscleGroupsOf(config).join(", ") || "Muscle Group";
-    case "exercise":
-      return (
-        exercisesById.value[config.exerciseId ?? ""]?.name ?? "Unknown Exercise"
-      );
-    case "measurement":
-      return (
-        measurementTypesById.value[config.measurementTypeId ?? ""]?.name ??
-        "Unknown Measurement"
-      );
-  }
-};
+const titleFor = (config: AnalyticsChartConfig): string =>
+  chartTitle(config, {
+    exercisesById: exercisesById.value,
+    measurementTypesById: measurementTypesById.value,
+  });
 
 // --- Drag-to-reorder chart cards ---
 const chartListEl = ref<HTMLElement | null>(null);

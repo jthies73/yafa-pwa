@@ -1,5 +1,6 @@
 import { db } from "./db";
 import { APP_VERSION } from "../config/version";
+import { readZipText } from "../utils/zip";
 import type {
   Exercise,
   Routine,
@@ -116,4 +117,25 @@ export async function importData(backup: BackupFile): Promise<void> {
       await db.progressionStates.bulkAdd(data.progressionStates ?? []);
     },
   );
+}
+
+/**
+ * Parse a user-selected backup file into a {@link BackupFile}. Accepts either a
+ * raw `.json` backup or a `.zip` export (from which `backup.json` is extracted).
+ * Structural validation happens in {@link importData}.
+ */
+export async function parseBackupFile(file: File): Promise<BackupFile> {
+  const isZip =
+    file.name.toLowerCase().endsWith(".zip") || file.type.includes("zip");
+  let text: string | null;
+  if (isZip) {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    text = readZipText(bytes, "backup.json");
+    if (text === null) {
+      throw new Error("This ZIP does not contain a YAFA backup.json.");
+    }
+  } else {
+    text = await file.text();
+  }
+  return JSON.parse(text) as BackupFile;
 }

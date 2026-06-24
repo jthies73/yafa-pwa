@@ -27,6 +27,44 @@ export function chartTypeFor(
   return config.sourceKind === "muscle" ? "stackedBar" : "bar";
 }
 
+/** Named entities a chart title resolves against (exercise / measurement name). */
+export interface ChartTitleContext {
+  exercisesById: Record<string, { name: string }>;
+  measurementTypesById: Record<string, { name: string }>;
+}
+
+/**
+ * The display title for a chart config: an explicit name wins, otherwise it is
+ * derived from the scope. Shared by the analytics page and the data export so
+ * both name a chart identically. Mirrors `muscleGroupsOf` for the legacy single
+ * `muscleGroup` field without importing the Dexie-bound helper into this pure
+ * module.
+ */
+export function chartTitle(
+  config: AnalyticsChartConfig,
+  ctx: ChartTitleContext,
+): string {
+  if (config.name) return config.name;
+  switch (config.sourceKind) {
+    case "global":
+      return "All Training";
+    case "muscle": {
+      const groups =
+        config.muscleGroups ?? (config.muscleGroup ? [config.muscleGroup] : []);
+      return groups.join(", ") || "Muscle Group";
+    }
+    case "exercise":
+      return (
+        ctx.exercisesById[config.exerciseId ?? ""]?.name ?? "Unknown Exercise"
+      );
+    case "measurement":
+      return (
+        ctx.measurementTypesById[config.measurementTypeId ?? ""]?.name ??
+        "Unknown Measurement"
+      );
+  }
+}
+
 export const METRIC_LABELS: Record<AnalyticsMetric, string> = {
   workouts: "Workouts",
   sets: "Sets",

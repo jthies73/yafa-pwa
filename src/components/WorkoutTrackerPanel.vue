@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { ref, computed, nextTick, onMounted, onUnmounted } from "vue";
+import { useRouter } from "vue-router";
 import type { Exercise } from "../db/types";
 import { createExercise, type ExerciseInput } from "../db/repository";
 import { useWorkoutTracker } from "../composables/useWorkoutTracker";
+import { useActiveWorkout } from "../composables/useActiveWorkout";
 import { useSortableList } from "../composables/useSortableList";
 import type { SetAdjustment } from "../engine/adjustment";
 import WorkoutTrackerCard from "./WorkoutTrackerCard.vue";
@@ -26,6 +28,16 @@ const {
   reorderCards,
   setValid,
 } = useWorkoutTracker();
+
+const router = useRouter();
+const { isMinimized } = useActiveWorkout();
+
+// Tapping an exercise name jumps to its detail page; minimize the running sheet
+// first so the page is visible (the workout stays live behind the docked bar).
+const openExerciseDetail = (exerciseId: string) => {
+  isMinimized.value = true;
+  router.push({ name: "exercise-details", params: { id: exerciseId } });
+};
 
 // ── Prescription adjustment proposals ─────────────────────────────────────────
 // A green dot offers a re-prescription of the next set based on the previous
@@ -219,6 +231,7 @@ const onSelectRpe = (rpe: string) => {
         :exercise-name="exerciseName(card.exerciseId)"
         :collapsed="dragging"
         :proposal-flags="proposalFlags[cardIndex]"
+        @open-detail="openExerciseDetail(card.exerciseId)"
         @request-delete-exercise="requestDeleteExercise(cardIndex)"
         @request-delete-set="requestDeleteSet(cardIndex, $event)"
         @edit-rpe="editRpe(cardIndex, $event)"

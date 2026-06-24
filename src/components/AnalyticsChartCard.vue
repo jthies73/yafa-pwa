@@ -29,6 +29,9 @@ const props = defineProps<{
   // Folded down to the compact header while a card is dragged (mirrors
   // WorkoutTrackerCard).
   collapsed?: boolean;
+  // Detail-page usage: drop the drag handle and the Edit action (there's no
+  // reorder or chart-config editor there), keeping only Export.
+  static?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -140,6 +143,7 @@ const editFromMenu = () => {
     <!-- Header: drag handle, scope + metric, edit -->
     <div class="flex items-center gap-3 px-4 py-3">
       <span
+        v-if="!static"
         class="drag-handle shrink-0 cursor-grab active:cursor-grabbing text-text-light dark:text-text-dark opacity-30 hover:opacity-60 transition-opacity duration-150 h-5 w-3.5 inline-flex items-center justify-center"
         style="touch-action: none"
         @click.stop
@@ -249,6 +253,7 @@ const editFromMenu = () => {
   <AppBottomSheet v-model:open="showActions" :title="title">
     <div class="flex flex-col px-2 py-2">
       <button
+        v-if="!static"
         class="flex w-full items-center gap-3 rounded-lg px-3 py-3.5 text-left text-text-h-light dark:text-text-h-dark hover:bg-surface-light dark:hover:bg-surface-dark cursor-pointer transition-colors duration-150"
         @click="editFromMenu"
       >

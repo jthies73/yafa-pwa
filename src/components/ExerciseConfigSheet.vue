@@ -38,6 +38,7 @@ const open = defineModel<boolean>("open", { required: true });
 const emit = defineEmits<{
   (e: "save", config: RoutineExerciseConfig): void;
   (e: "remove"): void;
+  (e: "open-detail"): void;
 }>();
 
 const configModel = ref<ProgressionModelType>("linear");
@@ -157,7 +158,17 @@ const save = async () => {
           >
             {{ isEditing ? "Edit Exercise" : "Add Exercise" }}
           </p>
+          <button
+            v-if="exerciseId"
+            type="button"
+            class="text-left text-lg font-bold text-text-h-light dark:text-text-h-dark truncate cursor-pointer hover:text-accent transition-colors duration-150"
+            title="View exercise details"
+            @click="emit('open-detail')"
+          >
+            {{ exerciseName }}
+          </button>
           <h2
+            v-else
             class="text-lg font-bold text-text-h-light dark:text-text-h-dark truncate"
           >
             {{ exerciseName }}

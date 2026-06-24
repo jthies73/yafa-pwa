@@ -1,9 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
 import type { ExerciseInput } from "../db/repository";
-import { countExerciseUsage } from "../db/repository";
 import AppBottomSheet from "./AppBottomSheet.vue";
-import ConfirmDialog from "./ConfirmDialog.vue";
 import ExerciseMusclePicker from "./ExerciseMusclePicker.vue";
 import ExerciseRpeMatrixEditor from "./ExerciseRpeMatrixEditor.vue";
 import { useExerciseForm } from "../composables/useExerciseForm";
@@ -18,32 +16,7 @@ const open = defineModel<boolean>("open", { required: true });
 
 const emit = defineEmits<{
   (e: "save", input: ExerciseInput): void;
-  (e: "delete"): void;
 }>();
-
-// --- Delete confirmation ---
-const showConfirm = ref(false);
-const pendingUsage = ref(0);
-
-const confirmMessage = computed(() => {
-  const name = props.initial?.name ?? "this exercise";
-  if (pendingUsage.value > 0) {
-    return `"${name}" is used in ${pendingUsage.value} routine slot${
-      pendingUsage.value === 1 ? "" : "s"
-    }. Deleting it will remove it from those routines. This cannot be undone.`;
-  }
-  return `Delete "${name}" from your exercise library? This cannot be undone.`;
-});
-
-const requestDelete = async () => {
-  if (props.exerciseId == null) return;
-  pendingUsage.value = await countExerciseUsage(props.exerciseId);
-  showConfirm.value = true;
-};
-
-const confirmDelete = () => {
-  emit("delete");
-};
 
 // --- Form State ---
 const initialProp = computed(() => props.initial);
@@ -124,21 +97,11 @@ const save = async () => {
 <template>
   <AppBottomSheet v-model:open="open">
     <template #title>
-      <div class="flex items-center justify-between gap-4 w-full">
-        <h2
-          class="text-lg font-bold text-text-h-light dark:text-text-h-dark truncate"
-        >
-          {{ isEditing ? "Edit Exercise" : "New Exercise" }}
-        </h2>
-        <button
-          v-if="isEditing"
-          type="button"
-          class="px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-red-500/10 text-red-500 hover:bg-red-500/20 dark:bg-red-500/15 dark:text-red-400 dark:hover:bg-red-500/25 transition-colors duration-150 cursor-pointer shrink-0"
-          @click="requestDelete"
-        >
-          Delete
-        </button>
-      </div>
+      <h2
+        class="text-lg font-bold text-text-h-light dark:text-text-h-dark truncate"
+      >
+        {{ isEditing ? "Edit Exercise" : "New Exercise" }}
+      </h2>
     </template>
 
     <div ref="wrapper" class="w-full overflow-x-hidden relative">
@@ -368,12 +331,4 @@ const save = async () => {
       </template>
     </template>
   </AppBottomSheet>
-
-  <ConfirmDialog
-    v-model:open="showConfirm"
-    title="Delete exercise?"
-    :message="confirmMessage"
-    confirm-label="Delete"
-    @confirm="confirmDelete"
-  />
 </template>

@@ -277,7 +277,11 @@ const recordCoffeeClick = () => {
             },
             { name: 'analytics', label: 'Analytics', match: ['analytics'] },
             { name: 'history', label: 'History', match: ['history'] },
-            { name: 'exercises', label: 'Exercises', match: ['exercises'] },
+            {
+              name: 'exercises',
+              label: 'Exercises',
+              match: ['exercises', 'exercise-details'],
+            },
             {
               name: 'measurements',
               label: 'Measurements',

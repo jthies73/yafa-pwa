@@ -22,6 +22,7 @@ const emit = defineEmits<{
   (e: "add-set"): void;
   (e: "toggle-set", index: number): void;
   (e: "open-proposal", index: number, rect: DOMRect): void;
+  (e: "open-detail"): void;
 }>();
 
 const rowRefs = ref<Record<number, InstanceType<typeof WorkoutSetRow> | null>>(
@@ -73,11 +74,14 @@ defineExpose({
           <circle cx="15" cy="19" r="1.5" />
         </svg>
       </span>
-      <span
-        class="min-w-0 flex-1 font-bold text-sm text-text-h-light dark:text-text-h-dark truncate"
+      <button
+        type="button"
+        class="min-w-0 flex-1 text-left font-bold text-sm text-text-h-light dark:text-text-h-dark truncate cursor-pointer hover:text-accent transition-colors duration-150"
+        title="View exercise details"
+        @click="emit('open-detail')"
       >
         {{ exerciseName }}
-      </span>
+      </button>
       <!-- Delete exercise -->
       <button
         type="button"

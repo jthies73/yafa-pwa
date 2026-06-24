@@ -228,6 +228,13 @@ const handleRemoveExercise = async () => {
   }
 };
 
+// Jump from the config sheet to the exercise's detail page.
+const openExerciseDetail = () => {
+  const id = configExerciseId.value;
+  showConfig.value = false;
+  if (id) router.push({ name: "exercise-details", params: { id } });
+};
+
 // --- Drag-to-reorder exercise list ---
 const exerciseListEl = ref<HTMLElement | null>(null);
 
@@ -517,6 +524,7 @@ const getSummary = (config?: RoutineExerciseConfig) => {
     :periodization-enabled="periodizationEnabled"
     @save="handleSaveConfig"
     @remove="handleRemoveExercise"
+    @open-detail="openExerciseDetail"
   />
 
   <RoutineFormSheet

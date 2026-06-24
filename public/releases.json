@@ -1,9 +1,13 @@
 {
-  "latest": "0.9.0",
+  "latest": "0.10.0",
   "releases": [
     {
+      "version": "0.10.0",
+      "notes": "- Add Exercise Detail page with analytics."
+    },
+    {
       "version": "0.9.0",
-      "notes": "- Import / Export of Exercise Histories."
+      "notes": "- Export App Data in .zip."
     },
     {
       "version": "0.8.2",

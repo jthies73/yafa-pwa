@@ -20,6 +20,12 @@ const router = createRouter({
       component: () => import("../components/ExercisesPage.vue"),
     },
     {
+      path: "/exercises/:id",
+      name: "exercise-details",
+      component: () => import("../components/ExerciseDetailsPage.vue"),
+      props: true,
+    },
+    {
       path: "/settings",
       name: "settings",
       component: () => import("../components/SettingsPage.vue"),

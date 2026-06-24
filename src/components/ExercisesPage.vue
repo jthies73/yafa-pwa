@@ -1,17 +1,15 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from "vue";
+import { useRouter } from "vue-router";
 import { liveQuery } from "dexie";
 import { db } from "../db/db";
 import type { Exercise } from "../db/types";
-import {
-  createExercise,
-  updateExercise,
-  deleteExercise,
-  type ExerciseInput,
-} from "../db/repository";
+import { createExercise, type ExerciseInput } from "../db/repository";
 import { MUSCLE_GROUPS } from "../utils/constants";
 import AppFab from "./AppFab.vue";
 import ExerciseFormSheet from "./ExerciseFormSheet.vue";
+
+const router = useRouter();
 
 const exercises = ref<Exercise[]>([]);
 const searchQuery = ref("");
@@ -48,43 +46,19 @@ const clearFilters = () => {
   muscleFilter.value = null;
 };
 
-// --- Form sheet ---
+// --- Create form sheet (editing now lives on the exercise detail page) ---
 const showForm = ref(false);
-const editingExercise = ref<Exercise | null>(null);
-
-const formInitial = computed<ExerciseInput | undefined>(() => {
-  const e = editingExercise.value;
-  if (!e) return undefined;
-  return {
-    name: e.name,
-    primaryMuscleGroups: e.primaryMuscleGroups,
-    secondaryMuscleGroups: e.secondaryMuscleGroups,
-    notes: e.notes,
-    rpeMatrix: e.rpeMatrix,
-  };
-});
 
 const openCreate = () => {
-  editingExercise.value = null;
   showForm.value = true;
 };
 
-const openEdit = (exercise: Exercise) => {
-  editingExercise.value = exercise;
-  showForm.value = true;
+const openDetail = (exercise: Exercise) => {
+  router.push({ name: "exercise-details", params: { id: exercise.id } });
 };
 
 const handleSave = async (input: ExerciseInput) => {
-  if (editingExercise.value) {
-    await updateExercise(editingExercise.value.id, input);
-  } else {
-    await createExercise(input);
-  }
-  showForm.value = false;
-};
-
-const handleDelete = async () => {
-  if (editingExercise.value) await deleteExercise(editingExercise.value.id);
+  await createExercise(input);
   showForm.value = false;
 };
 </script>
@@ -215,7 +189,7 @@ const handleDelete = async () => {
         v-for="exercise in filtered"
         :key="exercise.id"
         class="flex cursor-pointer items-center gap-3 border-b border-border-light dark:border-border-dark px-5 py-4 transition-colors duration-150 last:border-0 hover:bg-surface-light-hover dark:hover:bg-surface-dark-hover"
-        @click="openEdit(exercise)"
+        @click="openDetail(exercise)"
       >
         <div class="min-w-0 flex-1">
           <div
@@ -254,11 +228,8 @@ const handleDelete = async () => {
 
     <ExerciseFormSheet
       v-model:open="showForm"
-      :is-editing="editingExercise !== null"
-      :exercise-id="editingExercise?.id"
-      :initial="formInitial"
+      :is-editing="false"
       @save="handleSave"
-      @delete="handleDelete"
     />
   </div>
 </template>

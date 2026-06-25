@@ -122,3 +122,14 @@ YAFA supports structuring training blocks into **Mesocycles** using the visual `
 
 - **Week-by-Week Focus Allocation**: Assign specific training phases (e.g., Hypertrophy, Strength, Peaking, Deload) to each week.
 - **Target Shifts, Not Load Multipliers**: a week's focus shifts an exercise's **RPE and rep targets** _additively_ (e.g. strength raises target RPE and trims reps; a deload eases both), and the prescribed load then re-renders from those shifted targets via the matrix. Working-set counts are left as configured — volume is not auto-periodized. The shift wraps around a repeating cycle, and any field the user locked (or that a given model never periodizes) is left untouched.
+
+---
+
+## 💾 Data, Backup & Restore
+
+YAFA is **offline-first** — everything lives in IndexedDB on the device. A single portable **`backup.json`** is the way to safeguard or move it.
+
+- **Export** writes one `backup.json` holding exercises, routines, plans, workouts, body measurements, analytics charts and portable settings (theme, units, chart timeframes).
+- **Import** is a **non-destructive merge**: records are matched by id and upserted, so re-importing the same file (or one that overlaps existing data) never duplicates anything and never deletes data that is only on this device.
+- **Resilient workouts**: because logged workouts can't be recreated by hand, the backup also stores them in a forgiving, name-keyed raw form (`exercise name → [{ timestamp, reps, weight, rpe }]`). If the structured workouts can't be restored (corrupt shape, an exercise that no longer resolves), YAFA falls back to this raw copy — recreating any missing exercises with a default config and rebuilding **one workout per calendar day**. The originating routine can't be recovered from raw, so those sessions are left under an unknown routine.
+- **Per-chart CSV**: any analytics chart can be exported as a CSV that lists its configuration and includes a short step-by-step guide for rebuilding the chart in Excel or Google Sheets.

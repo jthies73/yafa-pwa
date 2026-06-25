@@ -12,12 +12,18 @@ import {
   TIMEFRAME_OPTIONS,
   chartTypeFor,
 } from "./presentation";
+import {
+  CHART_TYPE_LABELS,
+  CSV_FIELD_LABELS,
+  SOURCE_KIND_LABELS,
+  chartGuideLines,
+} from "./chartCsvText";
 import type { ChartSeries, Timeframe } from "./service";
 
 // ----------------------------------------------
-// Pure CSV serializer for a single analytics chart: a description block, the
-// per-period table that draws the chart, and a one-line Excel charting hint.
-// No Dexie, no DOM, no Vue — the caller passes the
+// Pure CSV serializer for a single analytics chart: a config block, the
+// per-period table that draws the chart, and an Excel/Google-Sheets guide for
+// rebuilding it. No Dexie, no DOM, no Vue — the caller passes the
 // already-computed series and a unit descriptor, so this stays unit-testable.
 // Unit conversion (kg⇄lbs, cm⇄in) is the caller's via `toDisplay`/`unitLabel`;
 // numbers are written bare (unit named only in the header) so Excel charts them.
@@ -25,6 +31,7 @@ import type { ChartSeries, Timeframe } from "./service";
 
 export interface ChartCsvOptions {
   timeframe: Timeframe;
+  scopeLabel: string; // resolved data scope (exercise / measurement / muscle / "All training")
   unitLabel: string; // "kg" | "lbs" | "cm" | "in" | "%" | "" (count)
   toDisplay: (value: number) => number; // stored value → user's display number
   decimals: number;
@@ -34,7 +41,7 @@ export interface ChartCsvOptions {
 const withUnit = (label: string, unitLabel: string): string =>
   unitLabel ? `${label} (${unitLabel})` : label;
 
-/** Serialize one chart's data + Excel guidance to a CSV string. */
+/** Serialize one chart's config, data and Excel/Sheets guidance to a CSV string. */
 export function buildChartCsv(
   series: ChartSeries,
   config: AnalyticsChartConfig,
@@ -49,14 +56,21 @@ export function buildChartCsv(
 
   const lines: string[] = [];
 
-  // --- Description block: what this chart shows and when it was exported ---
+  // --- Config block: what this chart shows and when it was exported ---
   lines.push(row("YAFA CHART EXPORT"));
-  lines.push(row("Chart", title));
-  lines.push(row("Metric", METRIC_LABELS[config.metric]));
-  lines.push(row("Aggregation", BUCKET_LABELS[config.bucket]));
-  lines.push(row("Timeframe", timeframeLabel));
-  lines.push(row("Unit", opts.unitLabel || "count"));
-  lines.push(row("Exported", isoDateTime(opts.now ?? Date.now())));
+  lines.push(row(CSV_FIELD_LABELS.chart, title));
+  lines.push(
+    row(CSV_FIELD_LABELS.source, SOURCE_KIND_LABELS[config.sourceKind]),
+  );
+  lines.push(row(CSV_FIELD_LABELS.scope, opts.scopeLabel));
+  lines.push(row(CSV_FIELD_LABELS.chartType, CHART_TYPE_LABELS[type]));
+  lines.push(row(CSV_FIELD_LABELS.metric, METRIC_LABELS[config.metric]));
+  lines.push(row(CSV_FIELD_LABELS.aggregation, BUCKET_LABELS[config.bucket]));
+  lines.push(row(CSV_FIELD_LABELS.timeframe, timeframeLabel));
+  lines.push(row(CSV_FIELD_LABELS.unit, opts.unitLabel || "count"));
+  lines.push(
+    row(CSV_FIELD_LABELS.exported, isoDateTime(opts.now ?? Date.now())),
+  );
   lines.push("");
 
   // --- Per-period table (columns adapt to the chart type) ---
@@ -69,10 +83,7 @@ export function buildChartCsv(
     return `${w} × ${reps}${rpe !== undefined ? ` @ RPE ${rpe}` : ""}`;
   };
 
-  let chartName: string;
-
   if (type === "stackedBar") {
-    chartName = "Stacked Column";
     lines.push(row("Date", "Period", "Direct", "Indirect", "Total"));
     for (const p of series.points) {
       lines.push(
@@ -86,7 +97,6 @@ export function buildChartCsv(
       );
     }
   } else if (type === "line" && config.metric === "e1rm") {
-    chartName = "Line";
     lines.push(
       row("Date", "Period", withUnit("e1RM", opts.unitLabel), "Best set"),
     );
@@ -95,7 +105,6 @@ export function buildChartCsv(
     }
   } else if (type === "line") {
     // Measurement (metric "value"): one averaged value per period + sample count.
-    chartName = "Line";
     lines.push(
       row("Date", "Period", withUnit(title, opts.unitLabel), "Samples"),
     );
@@ -104,7 +113,6 @@ export function buildChartCsv(
     }
   } else {
     // bar: global / exercise quantities (workouts, sets, reps, volume).
-    chartName = "Column";
     lines.push(
       row(
         "Date",
@@ -117,13 +125,9 @@ export function buildChartCsv(
     }
   }
 
-  // To chart: select the table above and insert this chart type.
+  // Step-by-step guide for rebuilding this chart in Excel / Google Sheets.
   lines.push("");
-  lines.push(
-    row(
-      `To chart in Excel: select the table, then Insert → Charts → ${chartName}.`,
-    ),
-  );
+  for (const line of chartGuideLines(type)) lines.push(row(line));
 
   return lines.join("\n");
 }
@@ -137,7 +141,7 @@ export interface UnitView {
 /**
  * Derive the unit/decimals slice of {@link ChartCsvOptions} from a series'
  * `valueKind`. The single source of truth for how chart values are unit-mapped
- * on export — shared by the analytics card's CSV action and the ZIP archive.
+ * on export, used by the analytics card's CSV action.
  */
 export function chartCsvOptions(
   series: ChartSeries,

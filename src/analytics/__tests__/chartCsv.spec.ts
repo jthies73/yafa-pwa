@@ -33,6 +33,7 @@ const config = (
 
 const identityOpts = {
   timeframe: "max" as const,
+  scopeLabel: "Chest",
   unitLabel: "",
   toDisplay: (v: number) => v,
   decimals: 1,
@@ -42,16 +43,15 @@ const dataRow = (csv: string): string | undefined =>
   csv.split("\n").find((l) => l.startsWith("2026-01-06"));
 
 describe("buildChartCsv", () => {
-  it("emits a Direct/Indirect/Total table and stacked-column guidance for a muscle chart", () => {
+  it("emits a Direct/Indirect/Total table for a muscle chart", () => {
     const series: ChartSeries = { valueKind: "count", points: [point()] };
     const csv = buildChartCsv(series, config(), "Chest", identityOpts);
 
     expect(csv).toContain("Date,Period,Direct,Indirect,Total");
     expect(dataRow(csv)).toBe("2026-01-06,Jan 6,40,10,50");
-    expect(csv).toContain("Stacked Column");
   });
 
-  it("includes a Samples column and line guidance for a measurement chart", () => {
+  it("includes a Samples column for a measurement chart", () => {
     const series: ChartSeries = {
       valueKind: "weight",
       points: [point({ value: 82.5, direct: 82.5, indirect: 0, samples: 3 })],
@@ -64,12 +64,11 @@ describe("buildChartCsv", () => {
         muscleGroups: undefined,
       }),
       "Bodyweight",
-      { ...identityOpts, unitLabel: "kg" },
+      { ...identityOpts, scopeLabel: "Bodyweight", unitLabel: "kg" },
     );
 
     expect(csv).toContain("Date,Period,Bodyweight (kg),Samples");
     expect(dataRow(csv)).toBe("2026-01-06,Jan 6,82.5,3");
-    expect(csv).toContain("Line");
     expect(csv).not.toContain("Stacked Column");
   });
 
@@ -94,6 +93,7 @@ describe("buildChartCsv", () => {
       "Squat",
       {
         ...identityOpts,
+        scopeLabel: "Squat",
         unitLabel: "lbs",
         toDisplay: (v) => v * 2,
         decimals: 0,
@@ -102,7 +102,49 @@ describe("buildChartCsv", () => {
 
     expect(csv).toContain("Date,Period,Volume (lbs)");
     expect(dataRow(csv)).toBe("2026-01-06,Jan 6,2000");
-    expect(csv).toContain("Charts → Column");
     expect(csv).not.toContain("Stacked Column");
+  });
+
+  it("lists the chart config block (source, scope, chart type)", () => {
+    const series: ChartSeries = { valueKind: "count", points: [point()] };
+    const csv = buildChartCsv(
+      series,
+      config({ name: "My Chest View" }),
+      "My Chest View",
+      {
+        ...identityOpts,
+        scopeLabel: "Chest",
+      },
+    );
+
+    expect(csv).toContain("Chart,My Chest View");
+    expect(csv).toContain("Source,Muscle group(s)");
+    expect(csv).toContain("Scope,Chest");
+    expect(csv).toContain("Chart type,Stacked Column");
+    expect(csv).toContain("Metric,Sets");
+    expect(csv).toContain("Aggregation,Weekly");
+  });
+
+  it("appends an Excel + Google Sheets guide tailored to the chart type", () => {
+    const series: ChartSeries = { valueKind: "count", points: [point()] };
+
+    const stacked = buildChartCsv(series, config(), "Chest", identityOpts);
+    expect(stacked).toContain("How to chart this data:");
+    expect(stacked).toMatch(/Excel:.*Stacked Column/);
+    expect(stacked).toMatch(/Google Sheets:.*Stacked column/);
+    expect(stacked).toContain("skip Total");
+
+    const bar = buildChartCsv(
+      series,
+      config({
+        sourceKind: "exercise",
+        metric: "sets",
+        muscleGroups: undefined,
+      }),
+      "Squat",
+      { ...identityOpts, scopeLabel: "Squat" },
+    );
+    expect(bar).toMatch(/Excel:.*Clustered Column/);
+    expect(bar).toMatch(/Google Sheets:.*Column chart/);
   });
 });

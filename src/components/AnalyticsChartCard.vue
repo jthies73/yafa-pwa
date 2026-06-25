@@ -120,6 +120,7 @@ const exportCsv = async () => {
 
   const csv = buildChartCsv(s, props.config, props.title, {
     timeframe: "max",
+    scopeLabel: props.title,
     ...chartCsvOptions(s, props.config, {
       weight: { label: weight.label.value, toDisplay: weight.toDisplay },
       length: { label: length.label.value, toDisplay: length.toDisplay },

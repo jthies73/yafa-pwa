@@ -1,11 +1,8 @@
 <script setup lang="ts">
 import { ref, watch } from "vue";
 import AppBottomSheet from "./AppBottomSheet.vue";
-import { importData, parseBackupFile } from "../db/backup";
-import { buildExportArchive } from "../export/archive";
+import { exportData, importData, parseBackupFile } from "../db/backup";
 import { downloadBlob } from "../utils/download";
-import { useWeightUnit } from "../composables/useWeightUnit";
-import { useLengthUnit } from "../composables/useLengthUnit";
 
 const open = defineModel<boolean>("open", { required: true });
 
@@ -24,19 +21,17 @@ watch(open, (isOpen) => {
   }
 });
 
-const weight = useWeightUnit();
-const length = useLengthUnit();
-
-const exportArchive = async () => {
+const exportJson = async () => {
   status.value = "exporting";
   message.value = null;
   try {
-    const blob = await buildExportArchive({
-      weight: { label: weight.label.value, toDisplay: weight.toDisplay },
-      length: { label: length.label.value, toDisplay: length.toDisplay },
-    });
+    const backup = await exportData();
+    const json = JSON.stringify(backup, null, 2);
     const date = new Date().toISOString().slice(0, 10);
-    downloadBlob(`yafa-export-${date}.zip`, blob);
+    downloadBlob(
+      `yafa-backup-${date}.json`,
+      new Blob([json], { type: "application/json" }),
+    );
     status.value = "done";
     message.value = "Export complete.";
   } catch (err) {
@@ -81,10 +76,10 @@ const close = () => {
     <div class="flex flex-col gap-6 px-5 py-5">
       <!-- Description -->
       <p class="text-sm text-text-light dark:text-text-dark opacity-70">
-        YAFA stores everything on this device. Export a ZIP to keep your data
-        safe or move it to another device — it bundles readable CSVs (per
-        exercise, measurement and chart) alongside a backup.json you can import
-        to restore.
+        YAFA keeps all your data on this device. Export a single backup file to
+        safeguard it or move it to another device — it includes your workouts,
+        exercises, plans, body measurements, charts and settings. Importing
+        merges a backup back in without deleting anything you already have.
       </p>
 
       <!-- Export -->
@@ -97,7 +92,7 @@ const close = () => {
         <button
           class="flex items-center justify-center gap-2 rounded-lg border border-border-light dark:border-border-dark py-3 text-sm font-bold text-text-light dark:text-text-dark transition-colors duration-150 hover:bg-surface-light dark:hover:bg-surface-dark cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
           :disabled="status === 'exporting'"
-          @click="exportArchive"
+          @click="exportJson"
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -114,7 +109,7 @@ const close = () => {
             <polyline points="7 10 12 15 17 10" />
             <line x1="12" y1="15" x2="12" y2="3" />
           </svg>
-          {{ status === "exporting" ? "Exporting…" : "Export data" }}
+          {{ status === "exporting" ? "Exporting…" : "Export backup" }}
         </button>
       </div>
 
@@ -154,14 +149,15 @@ const close = () => {
             <polyline points="17 8 12 3 7 8" />
             <line x1="12" y1="3" x2="12" y2="15" />
           </svg>
-          Choose backup (.zip or .json)
+          Choose backup file
         </button>
 
-        <!-- Step 2: confirm destructive replace -->
+        <!-- Step 2: confirm merge -->
         <div v-else class="flex flex-col gap-3">
-          <p class="text-sm text-red-500">
+          <p class="text-sm text-text-light dark:text-text-dark opacity-70">
             Importing <span class="font-semibold">{{ pendingFile.name }}</span>
-            replaces all current data on this device. This cannot be undone.
+            merges its data into this device. Existing items are updated and
+            nothing already here is deleted.
           </p>
           <div class="flex gap-3">
             <button
@@ -172,11 +168,11 @@ const close = () => {
               Cancel
             </button>
             <button
-              class="flex-1 rounded-lg bg-red-500 py-2.5 text-sm font-bold text-white transition-colors duration-150 hover:bg-red-500/90 cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
+              class="flex-1 rounded-lg bg-accent py-2.5 text-sm font-bold text-bg-dark transition-colors duration-150 hover:bg-accent/90 cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
               :disabled="status === 'importing'"
               @click="confirmImport"
             >
-              {{ status === "importing" ? "Importing…" : "Replace data" }}
+              {{ status === "importing" ? "Importing…" : "Import" }}
             </button>
           </div>
         </div>

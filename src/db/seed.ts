@@ -377,8 +377,8 @@ const routines: Routine[] = [
 
 const plans: Plan[] = [
   {
-    id: "plan-2026",
-    name: "2026",
+    id: "plan-powerbuilding-2026",
+    name: "Powerbuilding 2026",
     routineIds: ["upper-body", "lower-body", "full-body"],
     active: true,
     created_at: Date.now(),

@@ -29,7 +29,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: "save", input: ChartConfigInput): void;
-  (e: "delete"): void;
+  (e: "remove"): void;
 }>();
 
 // --- Form state ---
@@ -240,7 +240,7 @@ const save = () => {
   });
 };
 
-const confirmDeleteOpen = ref(false);
+const confirmRemoveOpen = ref(false);
 </script>
 
 <template>
@@ -256,9 +256,9 @@ const confirmDeleteOpen = ref(false);
           v-if="editing"
           type="button"
           class="px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-red-500/10 text-red-500 hover:bg-red-500/20 dark:bg-red-500/15 dark:text-red-400 dark:hover:bg-red-500/25 transition-colors duration-150 cursor-pointer shrink-0"
-          @click="confirmDeleteOpen = true"
+          @click="confirmRemoveOpen = true"
         >
-          Delete
+          Remove
         </button>
       </div>
     </template>
@@ -526,10 +526,10 @@ const confirmDeleteOpen = ref(false);
   />
 
   <ConfirmDialog
-    v-model:open="confirmDeleteOpen"
-    title="Delete chart?"
+    v-model:open="confirmRemoveOpen"
+    title="Remove chart?"
     message="Remove this chart from your analytics page? Your workout data is not affected."
-    confirm-label="Delete"
-    @confirm="emit('delete')"
+    confirm-label="Remove"
+    @confirm="emit('remove')"
   />
 </template>

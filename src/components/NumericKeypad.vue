@@ -80,6 +80,7 @@ onUnmounted(() => {
     data-numeric-keypad
     class="fixed inset-x-0 bottom-0 z-[70] border-t border-border-light dark:border-border-dark bg-bg-light dark:bg-bg-dark shadow-[0_-8px_24px_rgba(0,0,0,0.12)] select-none touch-none"
     :style="panelStyle"
+    @pointerdown.prevent
   >
     <!-- Drag handle: drag from inside must start here; tap to dismiss -->
     <div

@@ -1,9 +1,14 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
+import { ref, computed, onMounted } from "vue";
+import { useRouter } from "vue-router";
 import { DEFAULT_RPE_MATRIX } from "../db/rpeMatrix";
 import RpeMatrixTable from "./RpeMatrixTable.vue";
+import ConfirmDialog from "./ConfirmDialog.vue";
 import { useWeightUnit, type WeightUnit } from "../composables/useWeightUnit";
 import { useLengthUnit, type LengthUnit } from "../composables/useLengthUnit";
+import { db } from "../db/db";
+
+const router = useRouter();
 
 const isDark = ref(false);
 const rpeMatrix = DEFAULT_RPE_MATRIX;
@@ -40,6 +45,40 @@ const toggleWeightUnit = () => {
 };
 const toggleLengthUnit = () => {
   setLengthUnit(lengthUnit.value === "cm" ? "in" : "cm");
+};
+
+// <!-- Delete all data -->
+const showDeleteConfirm = ref(false);
+const showDeleteTypeConfirm = ref(false);
+const deleteConfirmText = ref("");
+const deleteReady = computed(
+  () => deleteConfirmText.value.trim().toLowerCase() === "yes i am sure",
+);
+
+const onFirstConfirm = () => {
+  showDeleteTypeConfirm.value = true;
+  deleteConfirmText.value = "";
+};
+
+const cancelTypeConfirm = () => {
+  showDeleteTypeConfirm.value = false;
+  deleteConfirmText.value = "";
+};
+
+const deleteAllData = async () => {
+  await Promise.all([
+    db.exercises.clear(),
+    db.routines.clear(),
+    db.plans.clear(),
+    db.workouts.clear(),
+    db.measurementTypes.clear(),
+    db.measurementEntries.clear(),
+    db.analyticsCharts.clear(),
+    db.progressionStates.clear(),
+  ]);
+  localStorage.clear();
+  showDeleteTypeConfirm.value = false;
+  router.push("/");
 };
 </script>
 
@@ -232,6 +271,122 @@ const toggleLengthUnit = () => {
 
         <RpeMatrixTable :model-value="rpeMatrix" />
       </div>
+
+      <!-- Danger Zone Card -->
+      <div
+        class="bg-red-500/10 border border-red-500/40 rounded-xl p-6 shadow-sm flex flex-col"
+      >
+        <h2
+          class="text-lg font-bold text-red-500 mb-4 flex items-center gap-2"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+            <line x1="12" y1="9" x2="12" y2="13" />
+            <line x1="12" y1="17" x2="12.01" y2="17" />
+          </svg>
+          Danger Zone
+        </h2>
+
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="font-semibold text-text-h-light dark:text-text-h-dark text-sm">
+              Delete All Data
+            </div>
+            <p class="text-xs text-text-light dark:text-text-dark opacity-60 mt-0.5">
+              Permanently wipes all plans, exercises, routines, workouts, and settings from this device.
+            </p>
+          </div>
+          <button
+            type="button"
+            class="ml-4 shrink-0 rounded-lg border border-red-500 px-4 py-2 text-sm font-bold text-red-500 hover:bg-red-500 hover:text-white transition-colors duration-150 cursor-pointer focus:outline-none focus:ring-2 focus:ring-red-500"
+            @click="showDeleteConfirm = true"
+          >
+            Delete All
+          </button>
+        </div>
+      </div>
     </div>
   </div>
+
+  <!-- Step 1: initial confirmation -->
+  <ConfirmDialog
+    v-model:open="showDeleteConfirm"
+    title="Delete all data?"
+    message="This will permanently erase every plan, exercise, routine, workout, measurement, and setting stored on this device. This cannot be undone."
+    confirm-label="Continue"
+    cancel-label="Cancel"
+    @confirm="onFirstConfirm"
+  />
+
+  <!-- Step 2: type-to-confirm dialog -->
+  <Teleport to="body">
+    <Transition name="confirm-fade">
+      <div
+        v-if="showDeleteTypeConfirm"
+        class="fixed inset-0 z-[60] flex items-center justify-center p-6"
+        role="alertdialog"
+        aria-modal="true"
+      >
+        <div class="absolute inset-0 bg-black/50" @click="cancelTypeConfirm" />
+        <div
+          class="relative w-full max-w-sm flex flex-col gap-4 rounded-2xl border border-red-500/50 bg-bg-light dark:bg-bg-dark p-6 shadow-xl"
+        >
+          <div class="flex flex-col gap-2">
+            <h2 class="text-lg font-bold text-red-500">Are you absolutely sure?</h2>
+            <p class="text-sm leading-relaxed text-text-light dark:text-text-dark opacity-80">
+              Type <span class="font-mono font-bold text-text-h-light dark:text-text-h-dark">yes I am sure</span> to confirm permanent deletion.
+            </p>
+          </div>
+          <input
+            v-model="deleteConfirmText"
+            type="text"
+            placeholder="yes I am sure"
+            class="w-full rounded-lg border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2.5 text-sm text-text-h-light dark:text-text-h-dark placeholder-text-light/40 dark:placeholder-text-dark/40 focus:outline-none focus:ring-2 focus:ring-red-500"
+            @keydown.enter="deleteReady && deleteAllData()"
+          />
+          <div class="flex gap-3">
+            <button
+              class="flex-1 rounded-lg border border-border-light dark:border-border-dark py-2.5 text-sm font-bold text-text-light dark:text-text-dark transition-colors duration-150 hover:bg-surface-light dark:hover:bg-surface-dark cursor-pointer focus:outline-none focus:ring-2 focus:ring-accent"
+              @click="cancelTypeConfirm"
+            >
+              Cancel
+            </button>
+            <button
+              class="flex-1 rounded-lg py-2.5 text-sm font-bold transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-red-500"
+              :class="
+                deleteReady
+                  ? 'bg-red-500 text-white hover:bg-red-600 cursor-pointer'
+                  : 'bg-red-500/30 text-white/50 cursor-not-allowed'
+              "
+              :disabled="!deleteReady"
+              @click="deleteAllData"
+            >
+              Delete Everything
+            </button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+  </Teleport>
 </template>
+
+<style scoped>
+.confirm-fade-enter-active,
+.confirm-fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+.confirm-fade-enter-from,
+.confirm-fade-leave-to {
+  opacity: 0;
+}
+</style>

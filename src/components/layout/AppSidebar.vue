@@ -317,7 +317,7 @@ const recordCoffeeClick = () => {
             :class="
               isActive(item.match)
                 ? 'text-accent'
-                : 'text-text-light/70 dark:text-text-dark/70 group-hover:text-accent'
+                : 'text-text-light dark:text-text-dark group-hover:text-accent'
             "
           >
             <rect width="7" height="9" x="3" y="3" rx="1" />
@@ -341,7 +341,7 @@ const recordCoffeeClick = () => {
             :class="
               isActive(item.match)
                 ? 'text-accent'
-                : 'text-text-light/70 dark:text-text-dark/70 group-hover:text-accent'
+                : 'text-text-light dark:text-text-dark group-hover:text-accent'
             "
           >
             <rect width="18" height="18" x="3" y="4" rx="2" ry="2" />
@@ -366,7 +366,7 @@ const recordCoffeeClick = () => {
             :class="
               isActive(item.match)
                 ? 'text-accent'
-                : 'text-text-light/70 dark:text-text-dark/70 group-hover:text-accent'
+                : 'text-text-light dark:text-text-dark group-hover:text-accent'
             "
           >
             <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
@@ -387,7 +387,7 @@ const recordCoffeeClick = () => {
             :class="
               isActive(item.match)
                 ? 'text-accent'
-                : 'text-text-light/70 dark:text-text-dark/70 group-hover:text-accent'
+                : 'text-text-light dark:text-text-dark group-hover:text-accent'
             "
           >
             <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
@@ -410,7 +410,7 @@ const recordCoffeeClick = () => {
             :class="
               isActive(item.match)
                 ? 'text-accent'
-                : 'text-text-light/70 dark:text-text-dark/70 group-hover:text-accent'
+                : 'text-text-light dark:text-text-dark group-hover:text-accent'
             "
           >
             <path d="M18 8h2a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1h-2" />
@@ -435,7 +435,7 @@ const recordCoffeeClick = () => {
             :class="
               isActive(item.match)
                 ? 'text-accent'
-                : 'text-text-light/70 dark:text-text-dark/70 group-hover:text-accent'
+                : 'text-text-light dark:text-text-dark group-hover:text-accent'
             "
           >
             <path
@@ -462,7 +462,7 @@ const recordCoffeeClick = () => {
             :class="
               isActive(item.match)
                 ? 'text-accent'
-                : 'text-text-light/70 dark:text-text-dark/70 group-hover:text-accent'
+                : 'text-text-light dark:text-text-dark group-hover:text-accent'
             "
           >
             <path
@@ -493,7 +493,7 @@ const recordCoffeeClick = () => {
             stroke-width="2"
             stroke-linecap="round"
             stroke-linejoin="round"
-            class="w-5 h-5 text-text-light/70 dark:text-text-dark/70 group-hover:text-accent transition-colors"
+            class="w-5 h-5 text-text-light dark:text-text-dark group-hover:text-accent transition-colors"
           >
             <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
             <path d="M21 3v5h-5" />
@@ -519,7 +519,7 @@ const recordCoffeeClick = () => {
             stroke-width="2"
             stroke-linecap="round"
             stroke-linejoin="round"
-            class="w-5 h-5 text-text-light/70 dark:text-text-dark/70 group-hover:text-accent transition-colors"
+            class="w-5 h-5 text-text-light dark:text-text-dark group-hover:text-accent transition-colors"
           >
             <path d="M12 3v12" />
             <path d="m8 11 4 4 4-4" />
@@ -555,7 +555,7 @@ const recordCoffeeClick = () => {
             :class="
               isActive(['install'])
                 ? 'text-accent'
-                : 'text-text-light/70 dark:text-text-dark/70 group-hover:text-accent'
+                : 'text-text-light dark:text-text-dark group-hover:text-accent'
             "
           >
             <rect width="16" height="20" x="4" y="2" rx="2" />
@@ -583,7 +583,7 @@ const recordCoffeeClick = () => {
             stroke-width="2"
             stroke-linecap="round"
             stroke-linejoin="round"
-            class="w-5 h-5 text-text-light/70 dark:text-text-dark/70 group-hover:text-accent transition-colors"
+            class="w-5 h-5 text-text-light dark:text-text-dark group-hover:text-accent transition-colors"
           >
             <path
               d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
@@ -671,7 +671,7 @@ const recordCoffeeClick = () => {
             stroke-width="2"
             stroke-linecap="round"
             stroke-linejoin="round"
-            class="text-text-light/70 dark:text-text-dark/70 group-hover:text-text-light dark:group-hover:text-text-dark transition-colors"
+            class="text-text-light dark:text-text-dark group-hover:text-text-light dark:group-hover:text-text-dark transition-colors"
           >
             <circle cx="12" cy="12" r="4" />
             <path d="M12 2v2" />
@@ -695,7 +695,7 @@ const recordCoffeeClick = () => {
             stroke-width="2"
             stroke-linecap="round"
             stroke-linejoin="round"
-            class="text-text-light/70 dark:text-text-dark/70 group-hover:text-text-light dark:group-hover:text-text-dark transition-colors"
+            class="text-text-light dark:text-text-dark group-hover:text-text-light dark:group-hover:text-text-dark transition-colors"
           >
             <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
           </svg>

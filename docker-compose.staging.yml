@@ -2,6 +2,8 @@ services:
   yafa-pwa-staging:
     container_name: yafa-pwa-staging
     image: ghcr.io/jthies73/yafa-pwa:staging
+    volumes:
+      - /usr/share/nginx/html:/usr/share/nginx/html
 
 networks:
   default:

@@ -44,6 +44,7 @@ export default defineConfig(({ mode }) => ({
         // Navigation requests fall back to the precached index.html.
         globPatterns: ["**/*.{js,css,html,svg,png,ico}"],
         navigateFallback: "index.html",
+        navigateFallbackDenylist: [/^\/jthies73/],
         // Don't let a new worker take over until the user asks for it.
         skipWaiting: false,
         clientsClaim: true,

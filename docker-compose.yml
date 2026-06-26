@@ -3,7 +3,7 @@ services:
     container_name: yafa-pwa
     image: ghcr.io/jthies73/yafa-pwa:latest
     volumes:
-      - /usr/share/nginx/html:/usr/share/nginx/html
+      - /usr/share/nginx/html/jthies73.html:/usr/share/nginx/html/jthies73.html:ro
 
 networks:
   default:

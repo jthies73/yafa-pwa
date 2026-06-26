@@ -14,10 +14,8 @@ const props = defineProps<{
   state: "finished" | "current" | "upcoming";
   /** Engine prescription backing this row — shown as placeholder targets. */
   target?: PrescribedSet;
-  /** A re-prescription is available — surfaces a green dot on the index. */
+  /** A re-prescription is available — surfaces a clickable green dot on the index. */
   hasProposal?: boolean;
-  /** This row's target was adjusted in-session — surfaces an accent marker. */
-  represcribed?: boolean;
 }>();
 
 const { display: displayWeight } = useWeightUnit();
@@ -37,7 +35,8 @@ const rpePlaceholder = computed(() =>
 
 const emit = defineEmits<{
   (e: "toggle"): void;
-  (e: "complete"): void;
+  // `field` is the column focus should land on in the next unfinished set.
+  (e: "complete", field: "reps" | "weight"): void;
   (e: "edit-rpe"): void;
   (e: "delete"): void;
   (e: "open-proposal", rect: DOMRect): void;
@@ -73,7 +72,10 @@ const weightInput = ref<HTMLInputElement | null>(null);
 function focusReps() {
   repsInput.value?.focus();
 }
-defineExpose({ focusReps });
+function focusWeight() {
+  weightInput.value?.focus();
+}
+defineExpose({ focusReps, focusWeight });
 
 const repsValid = computed(() => parseInt(reps.value, 10) >= 1);
 const weightValid = computed(() => parseFloat(weight.value) > 0);
@@ -122,20 +124,22 @@ function flashErrors() {
   else if (rpeRequired.value && !rpeValid.value) emit("edit-rpe");
 }
 
-function tryComplete() {
-  if (canComplete.value) emit("complete");
-  else flashErrors();
-}
-
-function tryToggle() {
-  if (canComplete.value) emit("toggle");
+// Single submit path shared by the checkmark and Enter: finalize when valid,
+// otherwise flash the missing fields (which opens the RPE sheet when a
+// non-back-off set still needs one). `field` tells the parent which column to
+// land focus on in the next unfinished set.
+function tryComplete(field: "reps" | "weight") {
+  if (canComplete.value) emit("complete", field);
   else flashErrors();
 }
 
 function onRepsKeydown(e: KeyboardEvent) {
   if (e.key === "Enter") {
     e.preventDefault();
-    weightInput.value?.focus();
+    // Editing a finished row re-commits and jumps to the next unfinished reps;
+    // a row still being entered just steps to its own weight field.
+    if (props.state === "finished") tryComplete("reps");
+    else weightInput.value?.focus();
     return;
   }
   guardRepsKey(e);
@@ -146,7 +150,9 @@ async function onWeightKeydown(e: KeyboardEvent) {
     e.preventDefault();
     commitWeight(); // flush the buffer to the kg model before validating
     await nextTick(); // wait for the defineModel prop update to round-trip
-    tryComplete();
+    // Mid-entry the next stop is the following set's reps; correcting a finished
+    // row stays in the weight column of the next unfinished set.
+    tryComplete(props.state === "finished" ? "weight" : "reps");
     return;
   }
   guardWeightKey(e);
@@ -171,14 +177,9 @@ async function onWeightKeydown(e: KeyboardEvent) {
     </button>
     <span
       v-else
-      class="relative w-5 shrink-0 text-center text-xs font-mono font-bold text-text-light dark:text-text-dark opacity-50"
-      :title="represcribed ? 'Adjusted in-session' : undefined"
+      class="w-5 shrink-0 text-center text-xs font-mono font-bold text-text-light dark:text-text-dark opacity-50"
     >
       {{ index }}
-      <span
-        v-if="represcribed"
-        class="absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-full bg-accent"
-      />
     </span>
 
     <!-- Reps -->
@@ -247,7 +248,7 @@ async function onWeightKeydown(e: KeyboardEvent) {
         type="button"
         class="flex h-9 w-9 items-center justify-center rounded-lg bg-accent text-bg-dark hover:bg-accent-hover transition-colors duration-150 cursor-pointer"
         title="Mark set complete"
-        @click="tryToggle"
+        @click="tryComplete('reps')"
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"

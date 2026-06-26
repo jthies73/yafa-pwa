@@ -18,7 +18,7 @@ const emit = defineEmits<{
   (e: "request-delete-exercise"): void;
   (e: "request-delete-set", index: number): void;
   (e: "edit-rpe", index: number): void;
-  (e: "complete", index: number): void;
+  (e: "complete", index: number, field: "reps" | "weight"): void;
   (e: "add-set"): void;
   (e: "toggle-set", index: number): void;
   (e: "open-proposal", index: number, rect: DOMRect): void;
@@ -40,8 +40,10 @@ const setState = (i: number): "finished" | "current" | "upcoming" => {
   return i === firstIncomplete ? "current" : "upcoming";
 };
 
-const focusSet = (index: number) => {
-  rowRefs.value[index]?.focusReps();
+const focusSet = (index: number, field: "reps" | "weight" = "reps") => {
+  const row = rowRefs.value[index];
+  if (field === "weight") row?.focusWeight();
+  else row?.focusReps();
 };
 
 defineExpose({
@@ -151,9 +153,8 @@ defineExpose({
             :state="setState(setIndex)"
             :target="set.target"
             :has-proposal="proposalFlags?.[setIndex] ?? false"
-            :represcribed="set.represcribed ?? false"
             @toggle="emit('toggle-set', setIndex)"
-            @complete="emit('complete', setIndex)"
+            @complete="(field) => emit('complete', setIndex, field)"
             @edit-rpe="emit('edit-rpe', setIndex)"
             @delete="emit('request-delete-set', setIndex)"
             @open-proposal="

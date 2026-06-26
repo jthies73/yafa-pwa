@@ -15,7 +15,6 @@ export interface SetEntry {
   done: boolean;
   completedAt: number | null; // stamped when the set is marked done
   target?: PrescribedSet; // engine prescription backing this row, if any
-  represcribed?: boolean; // true once an in-session adjustment rewrote the target
 }
 
 export interface ExerciseCard {
@@ -31,6 +30,30 @@ export const setValid = (s: SetEntry) =>
 // A set counts as completed only while its inputs remain valid, so clearing a
 // value auto-uncompletes the set and retyping a valid one restores it.
 export const isDone = (s: SetEntry) => s.done && setValid(s);
+
+/**
+ * Location of the next set still needing input after (cardIndex, setIndex):
+ * the rest of that card, then the following cards. Done sets are skipped so a
+ * cold-start-filled-but-unlogged row is still a valid focus target. Null when
+ * nothing remains — submitting the last set leaves focus where it is.
+ */
+export function nextUnfinishedSet(
+  cards: ExerciseCard[],
+  cardIndex: number,
+  setIndex: number,
+): { cardIndex: number; setIndex: number } | null {
+  const card = cards[cardIndex];
+  if (card) {
+    for (let s = setIndex + 1; s < card.sets.length; s++) {
+      if (!isDone(card.sets[s])) return { cardIndex, setIndex: s };
+    }
+  }
+  for (let c = cardIndex + 1; c < cards.length; c++) {
+    const s = cards[c].sets.findIndex((set) => !isDone(set));
+    if (s !== -1) return { cardIndex: c, setIndex: s };
+  }
+  return null;
+}
 
 const newSet = (): SetEntry => ({
   id: crypto.randomUUID(),
@@ -273,7 +296,6 @@ export function useWorkoutTracker() {
     set.reps = String(proposal.reps);
     set.weight = String(proposal.weight);
     if (proposal.rpe != null) set.rpe = String(proposal.rpe);
-    set.represcribed = true; // mark the row as adjusted for the UI indicator
   }
 
   /** Applies the green-dot proposal the user confirmed for a specific set. */

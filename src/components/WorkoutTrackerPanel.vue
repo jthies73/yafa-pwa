@@ -3,7 +3,10 @@ import { ref, computed, nextTick, onMounted, onUnmounted } from "vue";
 import { useRouter } from "vue-router";
 import type { Exercise } from "../db/types";
 import { createExercise, type ExerciseInput } from "../db/repository";
-import { useWorkoutTracker } from "../composables/useWorkoutTracker";
+import {
+  useWorkoutTracker,
+  nextUnfinishedSet,
+} from "../composables/useWorkoutTracker";
 import { useActiveWorkout } from "../composables/useActiveWorkout";
 import { useSortableList } from "../composables/useSortableList";
 import type { SetAdjustment } from "../engine/adjustment";
@@ -154,18 +157,20 @@ const setCardRef = (index: number) => (el: unknown) => {
   cardRefs.value[index] = el as InstanceType<typeof WorkoutTrackerCard> | null;
 };
 
-const onComplete = (cardIndex: number, setIndex: number) => {
+const onComplete = (
+  cardIndex: number,
+  setIndex: number,
+  field: "reps" | "weight" = "reps",
+) => {
   const card = cards.value[cardIndex];
   if (!card) return;
   // The row only emits `complete` when valid, so just mark it done — no pointer
   // math means editing a finished set never drags the "current" set backward.
   completeSet(card, setIndex);
 
-  if (setIndex + 1 < card.sets.length) {
-    cardRefs.value[cardIndex]?.focusSet(setIndex + 1);
-  } else if (cardIndex + 1 < cards.value.length) {
-    cardRefs.value[cardIndex + 1]?.focusSet(0);
-  }
+  // Land focus on the next still-unfinished set in the requested column.
+  const next = nextUnfinishedSet(cards.value, cardIndex, setIndex);
+  if (next) cardRefs.value[next.cardIndex]?.focusSet(next.setIndex, field);
 };
 
 // ── Add exercise (existing picker, with create-new flow) ──────────────────────
@@ -235,7 +240,10 @@ const onSelectRpe = (rpe: string) => {
         @request-delete-exercise="requestDeleteExercise(cardIndex)"
         @request-delete-set="requestDeleteSet(cardIndex, $event)"
         @edit-rpe="editRpe(cardIndex, $event)"
-        @complete="onComplete(cardIndex, $event)"
+        @complete="
+          (setIndex: number, field: 'reps' | 'weight') =>
+            onComplete(cardIndex, setIndex, field)
+        "
         @add-set="addSet(card)"
         @toggle-set="toggleSet(card, $event)"
         @open-proposal="

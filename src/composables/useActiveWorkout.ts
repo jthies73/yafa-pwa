@@ -188,9 +188,15 @@ export function useActiveWorkout() {
    * snapshot serializes exercisesMap, so the edit also survives a resume.
    */
   const setExerciseNote = (exerciseId: string, notes: string | undefined) => {
+    const trimmed = notes?.trim() || undefined;
     const ex = exercisesMap.value[exerciseId];
-    if (ex) ex.notes = notes?.trim() || undefined;
-    void updateExerciseNotes(exerciseId, notes).catch((error) => {
+    // Skip the DB write when the value is unchanged (sheet close re-emits the
+    // current note even if the user never edited it).
+    if (ex) {
+      if (ex.notes === trimmed) return;
+      ex.notes = trimmed;
+    }
+    void updateExerciseNotes(exerciseId, trimmed).catch((error) => {
       console.error("YAFA: failed to save exercise note", error);
     });
   };

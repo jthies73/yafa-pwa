@@ -91,7 +91,6 @@ export interface RoutineExerciseConfig {
   maxReps?: number;
   targetRpe?: number;
   weightIncrement?: number;
-  notes?: string;
   // Progression-param keys (e.g. "targetSets", "topSetTargetRpe") that periodization
   // must leave untouched when computing a workout. Absent/empty ⇒ nothing locked.
   lockedFields?: string[];

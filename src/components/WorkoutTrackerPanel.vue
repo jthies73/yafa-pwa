@@ -174,7 +174,8 @@ const onUpdateGlobalNote = (notes: string | undefined) => {
 
 const onUpdateWorkoutNote = (notes: string | undefined) => {
   const card = notesCard.value;
-  if (card) card.note = notes;
+  // Only mutate on a real change — avoids re-projecting + re-saving on a no-op close.
+  if (card && card.note !== notes) card.note = notes;
 };
 
 // Remove from the notes sheet reuses the shared confirm-then-delete flow.

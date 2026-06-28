@@ -172,6 +172,7 @@ export function useWorkoutTracker() {
         sets: prescription
           ? prescription.sets.map(prescribedSetEntry)
           : Array.from({ length: plannedSetCount(i) }, newSet),
+        ...(we.note ? { note: we.note } : {}),
       };
     });
   }

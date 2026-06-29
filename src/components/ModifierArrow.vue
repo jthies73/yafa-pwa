@@ -11,6 +11,7 @@ interface Props {
 
 const props = withDefaults(defineProps<Props>(), {
   count: 1,
+  color: undefined,
 });
 
 const colorClass = computed(() => {

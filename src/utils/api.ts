@@ -8,9 +8,9 @@ const getBaseUrl = (): string | null => {
 
 async function apiPost(
   endpoint: string,
-  body?: any,
+  body?: unknown,
   force = false,
-): Promise<any> {
+): Promise<unknown> {
   if (!force && !isTrackedEnv) return;
   const baseUrl = getBaseUrl();
   if (!baseUrl) {

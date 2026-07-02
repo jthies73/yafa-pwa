@@ -131,22 +131,12 @@ const volumeLabel = computed(
         </span>
       </div>
 
-      <!-- Working sets: completed / planned, overshoot in a warning tone -->
+      <!-- Working sets: completed / planned -->
       <div
-        class="flex flex-col items-center gap-1 rounded-xl border py-3"
-        :class="
-          summary.sets.overshoot
-            ? 'border-amber-500/30 bg-amber-500/5'
-            : 'border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark'
-        "
+        class="flex flex-col items-center gap-1 rounded-xl border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark py-3"
       >
         <span
-          class="text-base font-bold font-mono"
-          :class="
-            summary.sets.overshoot
-              ? 'text-amber-500'
-              : 'text-text-h-light dark:text-text-h-dark'
-          "
+          class="text-base font-bold font-mono text-text-h-light dark:text-text-h-dark"
         >
           {{ summary.sets.completed }} / {{ summary.sets.planned }}
         </span>

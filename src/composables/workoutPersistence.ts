@@ -14,7 +14,8 @@ import type { ExerciseCard } from "./useWorkoutTracker";
 
 export const ACTIVE_WORKOUT_KEY = "yafa:activeWorkout";
 // Bump to invalidate snapshots whose shape this code can no longer read.
-export const SNAPSHOT_VERSION = 1;
+// v2: prescriptions became a slot-aligned array (was keyed by exerciseId).
+export const SNAPSHOT_VERSION = 2;
 
 // The complete running session. `cards`/`addedNames` carry the tracker's live
 // state (incl. pending inputs and adjusted targets) — `activeWorkout.exercises`
@@ -26,7 +27,7 @@ export interface WorkoutSessionSnapshot {
   workout: { id: string; routineId: string; startTime: number };
   routine: Routine | null;
   exercisesMap: Record<string, Exercise>;
-  prescriptions: Record<string, ExercisePrescription>;
+  prescriptions: (ExercisePrescription | null)[]; // slot-aligned with routine.exercises
   plannedCounts: Record<string, number>;
   calculatorSets: CalculatorSet[];
   isMinimized: boolean;

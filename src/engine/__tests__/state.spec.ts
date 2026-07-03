@@ -27,6 +27,8 @@ const LINEAR_KG: LinearProgressionParams = {
   rpeCeiling: 9,
   weightIncrement: 2.5,
   incrementUnit: "kg",
+  fatigueReduction: 0,
+  fatigueReductionUnit: "kg",
 };
 const LINEAR_PCT: LinearProgressionParams = {
   ...LINEAR_KG,
@@ -41,6 +43,8 @@ const DOUBLE: DoubleProgressionParams = {
   rpeCeiling: 9,
   weightIncrement: 2.5,
   incrementUnit: "kg",
+  fatigueReduction: 0,
+  fatigueReductionUnit: "kg",
 };
 
 const base = (overrides: Partial<ProgressionState> = {}): ProgressionState => ({

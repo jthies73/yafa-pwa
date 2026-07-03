@@ -10,8 +10,9 @@ import type {
 // Single source of truth for progression-param defaults, and the normalization
 // contract that lets the rest of the pipeline assume a fully-populated config.
 //
-// Why this file exists: targetRpe / rpeCeiling / incrementUnit are REQUIRED on
-// the param types, but configs are stored embedded in `routine.exercises[]` with
+// Why this file exists: targetRpe / rpeCeiling / incrementUnit / the fatigue
+// fields are REQUIRED on the param types, but configs are stored embedded in
+// `routine.exercises[]` with
 // no migration, so a config saved before those fields existed is missing them at
 // runtime. `normalizeProgressionParams` backfills the gaps from the defaults
 // below (saved values always win) and MUST be applied at every read boundary
@@ -32,6 +33,8 @@ export const DEFAULT_PROGRESSION_PARAMS: {
     rpeCeiling: 9,
     weightIncrement: 2.5,
     incrementUnit: "kg",
+    fatigueReduction: 10,
+    fatigueReductionUnit: "percent",
   },
   double: {
     targetSets: 3,
@@ -41,6 +44,8 @@ export const DEFAULT_PROGRESSION_PARAMS: {
     rpeCeiling: 9,
     weightIncrement: 2.5,
     incrementUnit: "kg",
+    fatigueReduction: 10,
+    fatigueReductionUnit: "percent",
   },
   topset_backoff: {
     topSetTargetReps: 3,
@@ -51,11 +56,15 @@ export const DEFAULT_PROGRESSION_PARAMS: {
     percentageDrop: 10,
     weightIncrement: 2.5,
     incrementUnit: "kg",
+    fatigueReduction: 10,
+    fatigueReductionUnit: "percent",
   },
   none: {
     targetSets: 3,
     targetReps: 8,
     targetRpe: 8,
+    fatigueReduction: 10,
+    fatigueReductionUnit: "percent",
   },
 };
 

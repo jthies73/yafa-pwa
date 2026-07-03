@@ -67,10 +67,21 @@ For each exercise in a workout, prescriptions are calculated dynamically:
 1. **Resolve base targets** from the progression model.
 2. **Apply Mesocycle Modifiers** — additive shifts to the _targets_ (RPE and reps), never a direct load multiplier; the load re-renders from the shifted targets. Deload weeks are just weeks whose focus eases those targets. Only fields not locked in the `ExerciseConfigSheet` are touched (see **Periodization & Mesocycles** below).
 3. **Consume a pending reset** — if a reset is armed, `c1rm` is dropped 10% once before rendering (this happens at workout start, not while previewing).
-4. **Compute weight** from the matrix using `c1rm` and the final reps/RPE.
-5. **Top Set + Back-Off**: Compute the top set, then recalculate back-off loads from the top-set weight every session.
+4. **Subtract session fatigue** — a transient reduction off the anchor when earlier exercises in the session tax the same muscles (see **Session Fatigue Reduction** below).
+5. **Compute weight** from the matrix using the (possibly fatigue-reduced) anchor and the final reps/RPE.
+6. **Top Set + Back-Off**: Compute the top set, then recalculate back-off loads from the top-set weight every session.
 
 All targets are clamped to sensible limits (sets ≥ 1, reps ≥ 1, RPE ≤ 10).
+
+### Session Fatigue Reduction
+
+Exercises later in a session don't start fresh. Each exercise can configure a **Fatigue Reduction** — a maximum amount (kg or % of `c1rm`, default 10%; 0 disables it) shaved off the anchor before its loads render. The reduction is purely **muscle-overlap based** (an RPE-driven scaling was considered and discarded): each prior exercise contributes `base × muscle-overlap tier`, with the **largest candidate winning** (never a sum).
+
+- **Overlap ladder** (current exercise's role weighs heavier): its primary muscle was a prior exercise's primary → **100%** of base; primary←secondary → **75%**; secondary←primary → **50%**; secondary←secondary → **25%**; no overlap → nothing.
+
+Priors are the exercises earlier in routine order, so the reduction is known at prescription time and the preview already shows the reduced loads. Post-session evaluation re-renders this same baseline with fatigue accounted for, so outcomes are judged against the weights that were actually prescribed.
+
+The reduction is session-transient: it shapes rendered loads only and never moves the stored `c1rm`. When a set is logged, a green-dot proposal can still surface if the demonstrated capacity differs materially from the prescribed load — accepting it recalibrates the exercise's remaining sets to that capacity.
 
 ---
 

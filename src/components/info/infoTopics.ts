@@ -27,7 +27,7 @@ The ceiling only limits the load — it never decides success or failure. That's
   },
   adherenceScore: {
     title: "Adherence Score",
-    body: `How closely the session followed its prescription, from 0 to 100. It's a feedback signal only — it never changes your training max.
+    body: `How closely the session followed its prescription, from 0 to 100. It's a feedback signal only — it never changes your training max (c1RM).
 
 Points come off for training harder or softer than the target RPE, for missing reps or weight, for skipping prescribed sets, and for piling on off-script "junk" volume. Tap "Why not 100%?" to see the exact breakdown.`,
   },
@@ -35,7 +35,7 @@ Points come off for training harder or softer than the target RPE, for missing r
     title: "RPE Matrix",
     body: `A lookup table mapping reps × RPE to a percentage of your 1-rep max. For example, 5 reps at RPE 8 might be ~84%.
 
-It's the engine's model of effort. The app uses it both ways: to turn your training max into a prescribed weight, and to estimate a 1RM from any set you log. You can fine-tune the matrix per exercise if your numbers differ.`,
+It's the engine's model of effort. The app uses it both ways: to turn your training max (c1RM) into a prescribed weight, and to estimate a 1RM from any set you log. You can fine-tune the matrix per exercise if your numbers differ.`,
   },
   progressionModel: {
     title: "Progression Model",
@@ -62,7 +62,7 @@ It moves deterministically: up by your set increment when you succeed, down afte
     title: "Estimated 1RM (e1RM)",
     body: `A 1-rep-max estimate read off any single set via the RPE matrix (weight ÷ the matrix percentage for those reps and RPE).
 
-It's an analytics signal for tracking trend and spotting PRs. It doesn't directly set your weights — but a sustained gap between your e1RM and your training max gently nudges the training max back toward reality over time.`,
+It's an analytics signal for tracking trend and spotting PRs. It doesn't directly set your weights — but a sustained gap between your e1RM and your training max (c1RM) gently nudges the training max back toward reality over time.`,
   },
   rpe: {
     title: "RPE",
@@ -72,9 +72,15 @@ RPE 10 means a true max (no reps left); RPE 8 means about two reps in reserve. L
   },
   reset: {
     title: "Reset / Deload",
-    body: `A built-in back-off when an exercise stalls. After several consecutive regressions, the next prescription drops your training max by a fixed amount and clears the streak.
+    body: `A built-in back-off when an exercise stalls. After several consecutive regressions, the next prescription drops your training max (c1RM) by a fixed amount and clears the streak.
 
 It's an automatic recovery valve — a short step back to rebuild momentum, not a punishment.`,
+  },
+  regressionStreak: {
+    title: "Regression Streak",
+    body: `How many sessions in a row this exercise came in under target. A success or a hold resets the count to 0 — only back-to-back regressions add up.
+
+At 3 in a row, a reset is armed: the NEXT prescription for this exercise drops the training max (c1RM) by 10% and the streak clears, giving you a lighter session to rebuild from.`,
   },
   volumeLoad: {
     title: "Volume Load",
@@ -105,10 +111,38 @@ For example, a 10% drop means back-off sets are prescribed at 90% of the top-set
 
 A lower back-off RPE means more reps in reserve on the lighter sets.`,
   },
+  weightIncrement: {
+    title: "Weight Increment",
+    body: `How much your training max (c1RM) rises after a successful session — set it in kg or as a percent of your current training max (c1RM).
+
+A flat kg amount gives consistent jumps regardless of where you are on the strength curve. A percent amount scales with your training max (c1RM), so early gains are larger and increments slow naturally as you approach your ceiling.
+
+Keep it conservative: the app never skips a progression step, so a small increment that sticks every session outperforms an optimistic one that repeatedly stalls.`,
+  },
+  fatigueReduction: {
+    title: "Fatigue Reduction (config)",
+    body: `How much to lower this exercise's prescribed weights when earlier exercises in the same session taxed the same muscles — set it in kg or as a percent of your training max (c1RM). 0 turns it off.
+
+The reduction scales with muscle overlap: full effect for the same primary muscles, less for secondary overlap. Keep the value modest; it only shapes the session's prescription, never your stored training max (c1RM).`,
+  },
+  previewFatigue: {
+    title: "Fatigue",
+    body: `The crossed-out c1RM is your usual training max; the value after the arrow is what today's sets are actually prescribed from — lowered because earlier exercises in this session share muscle groups with this one.
+
+If a reset is also pending for this exercise, you'll see an extra amber step first: that's the −10% reset drop, applied before fatigue reduces the anchor further.
+
+The fatigue reduction is subtracted from the anchor before calculating each set, so straight sets, top sets, and back-offs all scale proportionally. It's transient: it shapes today's prescription only and never alters your stored training max (c1RM).`,
+  },
+  calculatorFatigue: {
+    title: "Session Fatigue",
+    body: `Reduces the training max (c1RM) used for this calculation based on muscle overlap with exercises already performed in this session.
+
+The calculator always uses a fixed 10% reduction at full overlap, scaled down for weaker overlap — the per-exercise Fatigue Reduction setting only shapes routine prescriptions, not this calculation.`,
+  },
   calculator: {
     title: "RPE Calculator",
-    body: `Enter any two of reps, weight, and RPE — the third is calculated using your training max and the exercise's RPE matrix.
+    body: `Enter any two of reps, weight, and RPE — the third is calculated using your training max (c1RM) and the exercise's RPE matrix.
 
-Results are most accurate in the 1–10 rep range at RPE 7–10. Outside that window the e1RM calcualtion is unreliable since the calculation is clamped at the boundaries of your exercise-specific RPE matrix.`,
+Results are most accurate in the 1–10 rep range at RPE 7–10. Outside that window the calcualtion is unreliable since the calculation is clamped at the boundaries of your exercise-specific RPE matrix.`,
   },
 };

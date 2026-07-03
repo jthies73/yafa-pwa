@@ -20,8 +20,12 @@ const matrixEditor = ref<InstanceType<typeof ExerciseRpeMatrixEditor> | null>(
   null,
 );
 // Only one model's WeightIncrementField is mounted at a time (the others sit
-// behind v-if), so a single ref resolves to whichever is active.
+// behind v-if), so a single ref resolves to whichever is active. Same for the
+// fatigue-reduction instance of the field.
 const incrementField = ref<InstanceType<typeof WeightIncrementField> | null>(
+  null,
+);
+const fatigueField = ref<InstanceType<typeof WeightIncrementField> | null>(
   null,
 );
 
@@ -66,6 +70,15 @@ const incrementValue = computed<number>({
 const incrementUnit = computed<WeightIncrementUnit>({
   get: () => (configParams.value.incrementUnit as WeightIncrementUnit) ?? "kg",
   set: (v) => (configParams.value.incrementUnit = v),
+});
+const fatigueValue = computed<number>({
+  get: () => Number(configParams.value.fatigueReduction ?? 0),
+  set: (v) => (configParams.value.fatigueReduction = v),
+});
+const fatigueUnit = computed<WeightIncrementUnit>({
+  get: () =>
+    (configParams.value.fatigueReductionUnit as WeightIncrementUnit) ?? "kg",
+  set: (v) => (configParams.value.fatigueReductionUnit = v),
 });
 
 const isLocked = (field: string) => lockedFields.value.has(field);
@@ -133,7 +146,8 @@ const close = () => {
 };
 
 const save = async () => {
-  incrementField.value?.commit(); // flush the kg buffer in case Save skipped blur
+  incrementField.value?.commit(); // flush the kg buffers in case Save skipped blur
+  fatigueField.value?.commit();
   // The matrix editor owns its own override persistence.
   await matrixEditor.value?.persist();
   // Only persist locks for fields that are lockable under the current model.
@@ -393,6 +407,14 @@ const save = async () => {
                 ref="incrementField"
                 v-model:value="incrementValue"
                 v-model:unit="incrementUnit"
+                info-topic="weightIncrement"
+              />
+              <WeightIncrementField
+                ref="fatigueField"
+                v-model:value="fatigueValue"
+                v-model:unit="fatigueUnit"
+                label="Fatigue Reduction"
+                info-topic="fatigueReduction"
               />
             </div>
           </div>
@@ -555,6 +577,14 @@ const save = async () => {
                 ref="incrementField"
                 v-model:value="incrementValue"
                 v-model:unit="incrementUnit"
+                info-topic="weightIncrement"
+              />
+              <WeightIncrementField
+                ref="fatigueField"
+                v-model:value="fatigueValue"
+                v-model:unit="fatigueUnit"
+                label="Fatigue Reduction"
+                info-topic="fatigueReduction"
               />
             </div>
           </div>
@@ -746,6 +776,14 @@ const save = async () => {
                 ref="incrementField"
                 v-model:value="incrementValue"
                 v-model:unit="incrementUnit"
+                info-topic="weightIncrement"
+              />
+              <WeightIncrementField
+                ref="fatigueField"
+                v-model:value="fatigueValue"
+                v-model:unit="fatigueUnit"
+                label="Fatigue Reduction"
+                info-topic="fatigueReduction"
               />
             </div>
           </div>
@@ -835,6 +873,54 @@ const save = async () => {
           Weight targets are derived from your e1RM but won't auto-increment
           after sessions.
         </p>
+
+        <!-- Advanced -->
+        <button
+          type="button"
+          class="flex items-center justify-between gap-2 cursor-pointer group"
+          @click="advancedOpen = !advancedOpen"
+        >
+          <span
+            class="text-xs font-bold uppercase tracking-wider text-text-light dark:text-text-dark opacity-60 group-hover:opacity-90 transition-opacity"
+          >
+            Advanced
+          </span>
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            class="text-text-light dark:text-text-dark opacity-50 transition-transform duration-150"
+            :class="advancedOpen ? 'rotate-90' : ''"
+          >
+            <polyline points="9 18 15 12 9 6" />
+          </svg>
+        </button>
+        <div
+          class="grid transition-[grid-template-rows,opacity] duration-150 ease-out"
+          :class="
+            advancedOpen
+              ? 'grid-rows-[1fr] opacity-100'
+              : 'grid-rows-[0fr] opacity-0'
+          "
+        >
+          <div class="min-h-0 overflow-hidden">
+            <div class="flex flex-col gap-4 pt-1">
+              <WeightIncrementField
+                ref="fatigueField"
+                v-model:value="fatigueValue"
+                v-model:unit="fatigueUnit"
+                label="Fatigue Reduction"
+                info-topic="fatigueReduction"
+              />
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- Notes (global, saved to the exercise) -->
@@ -844,7 +930,7 @@ const save = async () => {
         >
           Exercise Note
           <span class="normal-case font-normal opacity-60 ml-1"
-            >(applies everywhere)</span
+            >(presented during workout)</span
           >
         </label>
         <textarea

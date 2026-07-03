@@ -296,6 +296,7 @@ const intensityArrow = computed<ArrowConfig | null>(() => {
               <span
                 class="font-mono text-text-h-light dark:text-text-h-dark flex items-center gap-1.5"
               >
+                <!-- Pending reset: struck-out original → the post-reset anchor -->
                 <template
                   v-if="
                     e.resetPending && e.originalC1rm != null && e.c1rm != null
@@ -307,12 +308,31 @@ const intensityArrow = computed<ArrowConfig | null>(() => {
                     {{ fmtWeight(e.originalC1rm) }}
                   </span>
                   <span class="opacity-40">→</span>
-                  <span class="font-bold text-amber-500">
-                    {{ fmtWeight(e.c1rm) }}
-                  </span>
                 </template>
-                <template v-else>
+                <!-- The anchor: struck out too when fatigue reduces it further below,
+                     staying amber when a reset is what produced it -->
+                <span
+                  :class="
+                    e.resetPending && e.originalC1rm != null && e.c1rm != null
+                      ? e.prescription?.fatigueReduction
+                        ? 'text-amber-500 line-through'
+                        : 'font-bold text-amber-500'
+                      : e.prescription?.fatigueReduction
+                        ? 'text-text-light dark:text-text-dark opacity-50 line-through'
+                        : ''
+                  "
+                >
                   {{ c1rmLine(e) }}
+                </span>
+                <!-- Session fatigue: the effective anchor sets are actually prescribed from -->
+                <template
+                  v-if="e.prescription?.fatigueReduction && e.c1rm != null"
+                >
+                  <span class="opacity-40">→</span>
+                  <span class="font-bold text-sky-500">
+                    {{ fmtWeight(e.c1rm - e.prescription.fatigueReduction) }}
+                  </span>
+                  <InfoIcon topic="previewFatigue" />
                 </template>
               </span>
             </div>
@@ -322,9 +342,11 @@ const intensityArrow = computed<ArrowConfig | null>(() => {
               "
               class="flex items-center justify-between gap-3"
             >
-              <span class="text-text-light dark:text-text-dark opacity-60"
-                >Regression streak</span
-              >
+              <span class="flex items-center gap-1.5"
+                ><span class="text-text-light dark:text-text-dark opacity-60"
+                  >Regression streak</span
+                ><InfoIcon topic="regressionStreak"
+              /></span>
               <span
                 class="font-mono text-text-h-light dark:text-text-h-dark"
                 :class="e.failureStreak >= 3 ? 'text-amber-500 font-bold' : ''"

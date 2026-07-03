@@ -7,16 +7,16 @@ import {
   useWorkoutTracker,
   nextUnfinishedSet,
 } from "../composables/useWorkoutTracker";
+import type { SetAdjustment } from "../engine/adjustment";
 import { useActiveWorkout } from "../composables/useActiveWorkout";
 import { useSortableList } from "../composables/useSortableList";
-import type { SetAdjustment } from "../engine/adjustment";
 import WorkoutTrackerCard from "./WorkoutTrackerCard.vue";
 import WorkoutExerciseNotesSheet from "./WorkoutExerciseNotesSheet.vue";
 import ExercisePickerSheet from "./ExercisePickerSheet.vue";
 import ExerciseFormSheet from "./ExerciseFormSheet.vue";
 import RpeSheet from "./RpeSheet.vue";
 import ConfirmDialog from "./ConfirmDialog.vue";
-import SetProposalPopover from "./SetProposalPopover.vue";
+import ReprescriptionPopover from "./ReprescriptionPopover.vue";
 
 const {
   cards,
@@ -45,8 +45,9 @@ const openExerciseDetail = (exerciseId: string) => {
 
 // ── Prescription adjustment proposals ─────────────────────────────────────────
 // A green dot offers a re-prescription of the next set based on the previous
-// set's outcome. Dismissed proposals are remembered by signature so they re-show
-// only if the predecessor changes (producing a different proposal).
+// set's outcome (accepting it cascades to the card's remaining sets). Dismissed
+// proposals are remembered by signature so they re-show only if the predecessor
+// changes (producing a different proposal).
 const dismissed = ref<Record<string, string>>({});
 const sig = (p: SetAdjustment) => `${p.weight}|${p.reps}`;
 
@@ -344,7 +345,7 @@ const onSelectRpe = (rpe: string) => {
     @confirm="onConfirmDelete"
   />
 
-  <SetProposalPopover
+  <ReprescriptionPopover
     :open="proposalOpen"
     :anchor-rect="proposalRect"
     :current="activeTarget"

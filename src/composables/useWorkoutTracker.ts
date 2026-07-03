@@ -165,7 +165,10 @@ export function useWorkoutTracker() {
     }
     addedNames.value = {};
     cards.value = activeWorkout.value.exercises.map((we, i) => {
-      const prescription = prescriptions.value[we.exerciseId];
+      // Slot-aligned: exercises[] mirrors the routine's slots, as do the
+      // prescriptions — duplicate slots may carry different (fatigue-adjusted)
+      // loads, so never look this up by exerciseId.
+      const prescription = prescriptions.value[i];
       return {
         id: crypto.randomUUID(),
         exerciseId: we.exerciseId,
@@ -404,11 +407,68 @@ export function useWorkoutTracker() {
     if (proposal.rpe != null) set.rpe = String(proposal.rpe);
   }
 
-  /** Applies the green-dot proposal the user confirmed for a specific set. */
+  /**
+   * Applies the green-dot proposal to the set at setIndex, then cascades it to
+   * the remaining pending sets OF THIS CARD ONLY — the accepted capacity is a
+   * fact about this exercise; other exercises' loads live on different strength
+   * curves. Back-off rows keep their contract (a fixed % drop off the top set):
+   * when the top set was re-prescribed they rescale from its new weight, never
+   * through the RPE-matrix path, and are otherwise only ever adjusted DOWN
+   * (mirroring proposalFor's guard).
+   */
   function applyProposal(card: ExerciseCard, setIndex: number): void {
     const proposal = proposalFor(card, setIndex);
+    if (!proposal) return;
     const set = card.sets[setIndex];
-    if (proposal && set) applyAdjustmentToSet(set, proposal);
+    if (!set) return;
+    applyAdjustmentToSet(set, proposal);
+
+    const matrix =
+      exercisesMap.value[card.exerciseId]?.rpeMatrix ?? DEFAULT_RPE_MATRIX;
+    for (let s = setIndex + 1; s < card.sets.length; s++) {
+      const cur = card.sets[s];
+      if (isDone(cur) || !cur.target) continue;
+
+      // Back-off rows scale directly off the re-prescribed top set rather than
+      // through the RPE matrix (matching fillColdStartFromGovernor's contract).
+      if (
+        cur.target.role === "backoff" &&
+        set.target?.role === "top" &&
+        cur.target.backoffFraction != null
+      ) {
+        const weight = roundToLoadable(
+          proposal.weight * cur.target.backoffFraction,
+        );
+        if (weight > 0) {
+          applyAdjustmentToSet(cur, {
+            reps: cur.target.reps,
+            weight,
+            rpe: cur.target.rpe,
+          });
+        }
+        continue;
+      }
+
+      if (proposal.rpe == null) continue;
+      const cascaded = proposeSetAdjustment(
+        matrix,
+        { weight: proposal.weight, reps: proposal.reps, rpe: proposal.rpe },
+        {
+          reps: cur.target.reps,
+          rpe: cur.target.rpe,
+          weight: cur.target.weight,
+        },
+      );
+      if (!cascaded) continue;
+      // Back-off sets are only ever adjusted DOWN (mirroring proposalFor's guard).
+      if (
+        cur.target.role === "backoff" &&
+        !(cur.target.weight == null || cascaded.weight < cur.target.weight)
+      ) {
+        continue;
+      }
+      applyAdjustmentToSet(cur, cascaded);
+    }
   }
 
   const addCardFor = (id: string, name: string) => {

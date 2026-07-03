@@ -71,7 +71,7 @@ jobs:
           password: ${{ secrets.GHCR_PAT }}
 
       - name: Build and push image
-        uses: docker/build-push-action@v7 
+        uses: docker/build-push-action@v7
         with:
           context: .
           push: true

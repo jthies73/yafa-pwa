@@ -109,6 +109,25 @@ export class YafaDatabase extends Dexie {
     this.version(9).stores({
       progressionStates: "exerciseId",
     });
+
+    // v10: same-session fatigue prescription. The (required) fatigueReduction /
+    // fatigueReductionUnit params are stamped onto every stored routine-exercise
+    // config so records on disk stay fully populated, using the feature's
+    // default (10% of c1RM — the same value normalizeProgressionParams
+    // backfills at read time for imports of older backups).
+    this.version(10).upgrade(async (tx) => {
+      await tx
+        .table("routines")
+        .toCollection()
+        .modify((r) => {
+          for (const ex of r.exercises ?? []) {
+            const p = ex.config?.progressionParams;
+            if (!p) continue;
+            p.fatigueReduction ??= 10;
+            p.fatigueReductionUnit ??= "percent";
+          }
+        });
+    });
   }
 }
 

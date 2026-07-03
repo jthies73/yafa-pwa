@@ -16,12 +16,7 @@ import { readPortableSettings } from "../config/settings";
 const open = defineModel<boolean>("open", { required: true });
 
 type Status =
-  | "idle"
-  | "exporting"
-  | "previewing"
-  | "importing"
-  | "done"
-  | "error";
+  "idle" | "exporting" | "previewing" | "importing" | "done" | "error";
 const status = ref<Status>("idle");
 const message = ref<string | null>(null);
 const pendingFile = ref<File | null>(null);

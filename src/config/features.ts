@@ -23,9 +23,7 @@ function parseEnvBoolean(
 export function getFeatureFlags(): FeatureFlags {
   return {
     environment: import.meta.env.MODE as
-      | "development"
-      | "staging"
-      | "production",
+      "development" | "staging" | "production",
     seedDatabase: parseEnvBoolean(import.meta.env.VITE_SEED_DATABASE, true),
     fastStartAnimation: parseEnvBoolean(
       import.meta.env.VITE_FAST_START_ANIMATION,

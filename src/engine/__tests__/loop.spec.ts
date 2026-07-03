@@ -106,6 +106,8 @@ const LINEAR: LinearProgressionParams = {
   rpeCeiling: 9,
   weightIncrement: 2.5,
   incrementUnit: "kg",
+  fatigueReduction: 0,
+  fatigueReductionUnit: "kg",
 };
 
 describe("loop — linear success increments c1RM", () => {
@@ -233,6 +235,8 @@ const DOUBLE: DoubleProgressionParams = {
   rpeCeiling: 9,
   weightIncrement: 2.5,
   incrementUnit: "kg",
+  fatigueReduction: 0,
+  fatigueReductionUnit: "kg",
 };
 
 describe("loop — double progression holds weight while reps climb, then graduates", () => {

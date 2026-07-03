@@ -22,7 +22,7 @@ const snapshot = (): Omit<WorkoutSessionSnapshot, "version"> => ({
   workout: { id: "w1", routineId: "r1", startTime: 1000 },
   routine: null,
   exercisesMap: {},
-  prescriptions: {},
+  prescriptions: [],
   plannedCounts: { ex1: 3 },
   calculatorSets: [],
   isMinimized: false,

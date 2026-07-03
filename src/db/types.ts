@@ -19,6 +19,10 @@
 
 // The weight increment can be expressed two ways; `incrementUnit` discriminates
 // how `weightIncrement` is interpreted when the engine raises the c1RM on a win.
+// `fatigueReduction` reuses the same dual interpretation (via `fatigueReductionUnit`):
+// it is the MAX transient c1RM reduction applied when this exercise's muscles were
+// already engaged earlier in the same session, scaled by muscle overlap
+// (src/engine/fatigue.ts). It shapes prescriptions only — never the stored c1RM.
 export type WeightIncrementUnit = "kg" | "percent";
 
 export interface LinearProgressionParams {
@@ -28,6 +32,8 @@ export interface LinearProgressionParams {
   rpeCeiling: number; // only caps the prescribed load (default 9)
   weightIncrement: number; // kg, or a raw percent of c1RM when incrementUnit === "percent"
   incrementUnit: WeightIncrementUnit;
+  fatigueReduction: number; // max c1RM reduction from same-session fatigue; 0 disables (default 10%)
+  fatigueReductionUnit: WeightIncrementUnit; // how fatigueReduction is interpreted
 }
 
 export interface DoubleProgressionParams {
@@ -38,6 +44,8 @@ export interface DoubleProgressionParams {
   rpeCeiling: number; // default 9
   weightIncrement: number;
   incrementUnit: WeightIncrementUnit;
+  fatigueReduction: number; // 0 disables (default 10%)
+  fatigueReductionUnit: WeightIncrementUnit;
 }
 
 export interface TopSetProgressionParams {
@@ -49,12 +57,16 @@ export interface TopSetProgressionParams {
   percentageDrop: number;
   weightIncrement: number;
   incrementUnit: WeightIncrementUnit;
+  fatigueReduction: number; // 0 disables (default 10%)
+  fatigueReductionUnit: WeightIncrementUnit;
 }
 
 export interface NoneProgressionParams {
   targetSets: number;
   targetReps: number;
   targetRpe: number; // default 8; no ceiling — "none" never prescribes above target
+  fatigueReduction: number; // 0 disables (default 10%)
+  fatigueReductionUnit: WeightIncrementUnit;
 }
 
 export type ProgressionParams =
@@ -64,10 +76,7 @@ export type ProgressionParams =
   | NoneProgressionParams;
 
 export type ProgressionModelType =
-  | "linear"
-  | "double"
-  | "topset_backoff"
-  | "none";
+  "linear" | "double" | "topset_backoff" | "none";
 
 // Record<reps, Record<rpe, percentage_of_1rm>> — percentages stored as decimals (0..1).
 export type RpeMatrix = Record<number, Record<number, number>>;
@@ -110,10 +119,7 @@ export interface Routine {
 }
 
 export type PeriodizationFocus =
-  | "hypertrophy"
-  | "strength"
-  | "peaking"
-  | "deload";
+  "hypertrophy" | "strength" | "peaking" | "deload";
 
 // An object (not a bare PeriodizationFocus string) so future iterations can
 // attach per-week tuning (intensity/volume overrides, planned RPE caps, notes)
@@ -210,20 +216,12 @@ export interface MeasurementEntry {
 // ----------------------------------------------
 
 export type AnalyticsSourceKind =
-  | "global"
-  | "muscle"
-  | "exercise"
-  | "measurement";
+  "global" | "muscle" | "exercise" | "measurement";
 
 // "value" is the raw logged measurement and only exists for the measurement
 // source; every other metric is workout-derived.
 export type AnalyticsMetric =
-  | "workouts"
-  | "sets"
-  | "reps"
-  | "volume"
-  | "e1rm"
-  | "value";
+  "workouts" | "sets" | "reps" | "volume" | "e1rm" | "value";
 
 export type AnalyticsBucket = "session" | "week" | "month" | "mesocycle";
 

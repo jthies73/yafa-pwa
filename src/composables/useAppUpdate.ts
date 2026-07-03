@@ -3,12 +3,7 @@ import { APP_VERSION } from "../config/version";
 import { usePwaUpdate } from "./usePwaUpdate";
 
 export type UpdateStatus =
-  | "idle"
-  | "checking"
-  | "up-to-date"
-  | "available"
-  | "updating"
-  | "error";
+  "idle" | "checking" | "up-to-date" | "available" | "updating" | "error";
 
 export interface ReleaseInfo {
   version: string;

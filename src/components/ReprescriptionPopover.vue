@@ -127,6 +127,12 @@ const repsChanged = computed(
           </span>
         </div>
 
+        <p
+          class="text-[0.65rem] text-text-light dark:text-text-dark opacity-50"
+        >
+          Applies to all remaining sets for this exercise.
+        </p>
+
         <!-- Actions -->
         <div class="mt-0.5 flex gap-2">
           <button

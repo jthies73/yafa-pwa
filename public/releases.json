@@ -1,6 +1,14 @@
 {
-  "latest": "0.15.1",
+  "latest": "0.16.1",
   "releases": [
+    {
+      "version": "0.16.1",
+      "notes": "- Clean up fatigue engine."
+    },
+    {
+      "version": "0.16.0",
+      "notes": "- Introduce session fatigue engine and calculator UI integration."
+    },
     {
       "version": "0.15.1",
       "notes": "- Prefill Backoff RPE."

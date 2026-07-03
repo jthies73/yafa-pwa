@@ -25,6 +25,7 @@ import {
   type MesoModifiers,
 } from "./mesocycle";
 import { prescribeExercise, type ExercisePrescription } from "./prescription";
+import { computeFatigueAdjustment, type MuscleProfile } from "./fatigue";
 import { evaluate } from "./evaluation";
 import { catchUpC1rm, consumeReset, corroboratedE1rm, step } from "./state";
 import {
@@ -33,7 +34,7 @@ import {
   isQualifyingSet,
   peakImpliedE1rm,
 } from "./matrix";
-import { groupSessionsFor, qualifyingE1rmSeries } from "./sessions";
+import { groupSessionsFor } from "./sessions";
 
 // ----------------------------------------------
 // Engine service — the ONLY impure (Dexie) layer. It orchestrates the pure
@@ -190,6 +191,7 @@ function prescribeFrom(
   exercise: Exercise,
   eff: EffectiveConfig,
   state: ProgressionState,
+  priors: MuscleProfile[] = [],
 ): ExercisePrescription {
   return prescribeExercise({
     exerciseId: exercise.id,
@@ -197,9 +199,73 @@ function prescribeFrom(
     params: eff.params,
     rpeCeiling: eff.ceiling,
     effectiveC1rm: state.c1rm,
+    fatigueReduction: fatigueReductionFor(exercise, eff, state, priors),
     doubleRepCursor: state.doubleRepCursor,
     matrix: exercise.rpeMatrix ?? DEFAULT_RPE_MATRIX,
   });
+}
+
+// ---- session fatigue baseline (muscle-overlap based; see engine/fatigue.ts) ----
+
+export const muscleProfileOf = (exercise: Exercise): MuscleProfile => ({
+  primary: exercise.primaryMuscleGroups,
+  secondary: exercise.secondaryMuscleGroups ?? [],
+});
+
+/** The kg to shave off the anchor given the session's prior exercises so far. */
+function fatigueReductionFor(
+  exercise: Exercise,
+  eff: EffectiveConfig,
+  state: ProgressionState,
+  priors: MuscleProfile[],
+): number {
+  if (state.c1rm == null || !priors.length) return 0;
+  const adj = computeFatigueAdjustment({
+    reduction: eff.params.fatigueReduction,
+    unit: eff.params.fatigueReductionUnit,
+    c1rm: state.c1rm,
+    current: muscleProfileOf(exercise),
+    priors,
+  });
+  return adj?.reductionKg ?? 0;
+}
+
+/**
+ * Per-slot fatigue priors for a routine, in routine order — the same
+ * accumulation prescribeWorkout and applyWorkoutResults each need
+ * (previewWorkout mirrors this inline, since it fetches exercises one at a
+ * time rather than from a prefetched map). Positional (one entry per slot,
+ * not keyed by exerciseId) so duplicate slots of one exercise still get their
+ * own distinct priors; a caller that instead wants the LAST slot's priors per
+ * exerciseId can fold this array down itself. A repeated exercise counts as
+ * its OWN prior too — coming back to the same lift after fatiguing it earlier
+ * counts the same as any other overlapping exercise would.
+ */
+export function priorsBySlot(
+  exerciseIds: string[],
+  exerciseOf: (id: string) => Exercise | undefined,
+): MuscleProfile[][] {
+  const seen = new Map<string, MuscleProfile>();
+  return exerciseIds.map((id) => {
+    const priors = [...seen.values()];
+    const exercise = exerciseOf(id);
+    if (exercise) seen.set(id, muscleProfileOf(exercise));
+    return priors;
+  });
+}
+
+/**
+ * The scale the session's loads were rendered under (logged weights are divided
+ * by it to "un-fatigue" them). 1 when no reduction applied — or when the
+ * reduction consumed the whole anchor (scale 0), where un-fatiguing would
+ * divide by zero and the logged weights carry no usable signal anyway.
+ */
+function fatigueScaleOf(prescription?: ExercisePrescription): number {
+  if (!prescription?.c1rm) return 1;
+  const scale =
+    (prescription.c1rm - (prescription.fatigueReduction ?? 0)) /
+    prescription.c1rm;
+  return scale > 0 ? scale : 1;
 }
 
 /** Merge duplicate exercise slots from a workout into one sorted set list per exercise. */
@@ -276,10 +342,22 @@ function foldQualifiedSession(
 
   // c1rm is non-null here: this only runs past the cold-start seed branch.
   const anchor = state.c1rm!;
-  const estimate = corroboratedE1rm(
-    qualifyingE1rmSeries(matrix, groupSessionsFor([workout], exerciseId)),
-    anchor,
-  );
+
+  // Un-fatigue logged weights before catch-up: if the session applied a fatigue
+  // reduction, the logged weight is lower than it would have been at the full
+  // anchor, so the implied e1RM would be artificially low and might false-trigger
+  // catch-up. Normalize back to "what would the unreduced anchor imply?" so we
+  // compare like with like (unreduced anchor vs unreduced implied e1RM).
+  const fatigueScale = fatigueScaleOf(prescription);
+  const sessionE1rms = groupSessionsFor([workout], exerciseId)
+    .flatMap((s) => s.sets)
+    .filter(isQualifyingSet)
+    .map((s) => {
+      const unreducedWeight = s.actualWeight / fatigueScale;
+      return impliedE1rm(matrix, unreducedWeight, s.actualReps, s.actualRpe!);
+    });
+
+  const estimate = corroboratedE1rm(sessionE1rms, anchor);
   const caught = catchUpC1rm(anchor, estimate);
   const fired = caught !== anchor;
   const persisted = fired
@@ -304,29 +382,42 @@ function foldQualifiedSession(
  * mistype/fluke) is dropped and the 2nd-furthest is used. The ≤10% gate keeps
  * corrections to honest sets that already agree with the anchor, so this only
  * refines curve shape (the >10% divergence case is catch-up's job).
+ *
+ * If fatigue reduction was applied, un-fatigue logged weights before computing
+ * their e1RMs so the correction works with the unreduced anchor.
  */
 function learnedRpeMatrix(
   matrix: RpeMatrix,
   sets: LoggedSet[],
   anchor: number,
+  prescription?: ExercisePrescription,
 ): RpeMatrix | null {
   const qualifying = sets.filter(isQualifyingSet);
   if (qualifying.length === 0) return null;
 
+  const fatigueScale = fatigueScaleOf(prescription);
+
   const ranked = qualifying
     .map((s) => ({
       set: s,
-      e1rm: impliedE1rm(matrix, s.actualWeight, s.actualReps, s.actualRpe!),
+      e1rm: impliedE1rm(
+        matrix,
+        s.actualWeight / fatigueScale,
+        s.actualReps,
+        s.actualRpe!,
+      ),
     }))
     .sort((a, b) => Math.abs(b.e1rm - anchor) - Math.abs(a.e1rm - anchor));
   const rep = ranked[Math.min(1, ranked.length - 1)];
   const deviation = Math.abs(rep.e1rm - anchor) / anchor;
   if (deviation > RPE_MATRIX_CORRECTION_MAX_DEVIATION) return null;
 
+  // Un-fatigue the representative set's weight for the correction.
+  const unreducedRepWeight = rep.set.actualWeight / fatigueScale;
   return correctRpeMatrix(
     matrix,
     {
-      actualWeight: rep.set.actualWeight,
+      actualWeight: unreducedRepWeight,
       actualReps: rep.set.actualReps,
       actualRpe: rep.set.actualRpe!,
     },
@@ -352,6 +443,7 @@ export async function previewWorkout(
   const position = await mesocyclePosition(plan, at);
 
   const exercises: ExercisePreview[] = [];
+  const priors = new Map<string, MuscleProfile>();
   for (const re of routine.exercises) {
     const exercise = await db.exercises.get(re.exerciseId);
     if (!exercise) continue;
@@ -363,6 +455,10 @@ export async function previewWorkout(
     if (resetPending) state = consumeReset(state, at); // in memory only — preview never writes
 
     const eff = effectiveConfig(re.config, mods);
+    const prescription = prescribeFrom(exercise, eff, state, [
+      ...priors.values(),
+    ]);
+    priors.set(re.exerciseId, muscleProfileOf(exercise));
     exercises.push({
       exerciseId: re.exerciseId,
       name: exercise.name,
@@ -381,7 +477,7 @@ export async function previewWorkout(
             },
           ]
         : [],
-      prescription: prescribeFrom(exercise, eff, state),
+      prescription,
     });
   }
   return {
@@ -395,11 +491,17 @@ export async function previewWorkout(
 /**
  * Prescribe the workout at START. Consumes any pending reset (dropping c1RM 10%)
  * and persists that consumption exactly once per exercise, inside a transaction.
+ *
+ * SLOT-ALIGNED with routine.exercises (null where the exercise is missing):
+ * fatigue makes duplicate slots of one exercise prescribe differently once an
+ * overlapping exercise sits between them, so consumers must NOT fold the result
+ * into a per-exerciseId map — that would render the last slot's (reduced) loads
+ * for every slot, diverging from the preview.
  */
 export async function prescribeWorkout(
   routineId: string,
   at: number = Date.now(),
-): Promise<ExercisePrescription[]> {
+): Promise<(ExercisePrescription | null)[]> {
   const routine = await db.routines.get(routineId);
   if (!routine) return [];
   const plan = await resolveOwningPlan(routineId);
@@ -408,11 +510,18 @@ export async function prescribeWorkout(
   // Pre-fetch exercises so the transaction only spans progressionStates.
   const exMap = await loadExercises(routine);
 
-  const prescriptions: ExercisePrescription[] = [];
+  const prescriptions: (ExercisePrescription | null)[] = [];
+  const slotPriors = priorsBySlot(
+    routine.exercises.map((re) => re.exerciseId),
+    (id) => exMap.get(id),
+  );
   await db.transaction("rw", db.progressionStates, async () => {
-    for (const re of routine.exercises) {
+    for (const [i, re] of routine.exercises.entries()) {
       const exercise = exMap.get(re.exerciseId);
-      if (!exercise) continue;
+      if (!exercise) {
+        prescriptions.push(null);
+        continue;
+      }
 
       let state = await getProgressionState(re.exerciseId);
       if (state.resetPending) {
@@ -420,9 +529,13 @@ export async function prescribeWorkout(
         state = consumeReset(state, at);
         await putProgressionState(state);
       }
-      prescriptions.push(
-        prescribeFrom(exercise, effectiveConfig(re.config, mods), state),
+      const prescription = prescribeFrom(
+        exercise,
+        effectiveConfig(re.config, mods),
+        state,
+        slotPriors[i],
       );
+      prescriptions.push(prescription);
     }
   });
   return prescriptions;
@@ -443,8 +556,26 @@ export async function applyWorkoutResults(
   const mods = mesoModifiers(plan, workout.startTime);
 
   const byExercise = groupSetsByExercise(workout);
-  const exMap = await loadExercisesById([...byExercise.keys()]);
+  // Unlogged routine exercises still matter here: they were assumed as fatigue
+  // priors when the session was prescribed, so they shape the re-render below.
+  const exMap = await loadExercisesById([
+    ...new Set([
+      ...(routine?.exercises.map((e) => e.exerciseId) ?? []),
+      ...byExercise.keys(),
+    ]),
+  ]);
   const configByExercise = buildConfigMap(routine);
+
+  // Rebuild the session's baseline fatigue context exactly as prescribeWorkout
+  // did (routine order, muscle profiles), so the re-rendered "original
+  // prescription" carries the same reduction the tracker displayed. Duplicate
+  // exercises fold to their LAST routine slot's priors — later slots overwrite
+  // earlier ones as the map is built.
+  const routineExerciseIds = routine?.exercises.map((e) => e.exerciseId) ?? [];
+  const slotPriors = priorsBySlot(routineExerciseIds, (id) => exMap.get(id));
+  const baselinePriors = new Map<string, MuscleProfile[]>(
+    routineExerciseIds.map((id, i) => [id, slotPriors[i]] as const),
+  );
 
   const changes: CalibrationChange[] = [];
   const finishedAt = workout.endTime ?? workout.startTime;
@@ -486,7 +617,12 @@ export async function applyWorkoutResults(
       }
 
       const eff = effectiveConfig(config, mods);
-      const prescription = prescribeFrom(exercise, eff, state);
+      const prescription = prescribeFrom(
+        exercise,
+        eff,
+        state,
+        baselinePriors.get(exerciseId) ?? [],
+      );
       const { persisted, reason } = foldQualifiedSession(
         state,
         eff,
@@ -511,8 +647,14 @@ export async function applyWorkoutResults(
       // Learn the exercise's RPE curve LAST, so it never feeds this session's own
       // prescription, evaluation, or catch-up (those all read the prior matrix).
       // The anchor is the stable rules-driven c1RM (state.c1rm), not the
-      // post-catch-up value.
-      const corrected = learnedRpeMatrix(matrix, sets, state.c1rm);
+      // post-catch-up value. Pass the prescription so fatigue adjustments can
+      // un-fatigue logged weights before curve correction.
+      const corrected = learnedRpeMatrix(
+        matrix,
+        sets,
+        state.c1rm,
+        prescription,
+      );
       if (corrected) {
         await db.exercises.update(exerciseId, { rpeMatrix: corrected });
       }

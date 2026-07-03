@@ -52,6 +52,8 @@ const LINEAR: LinearProgressionParams = {
   rpeCeiling: 9,
   weightIncrement: 2.5,
   incrementUnit: "kg",
+  fatigueReduction: 0,
+  fatigueReductionUnit: "kg",
 };
 
 describe("evaluate — linear", () => {
@@ -123,6 +125,8 @@ const DOUBLE: DoubleProgressionParams = {
   rpeCeiling: 9,
   weightIncrement: 2.5,
   incrementUnit: "kg",
+  fatigueReduction: 0,
+  fatigueReductionUnit: "kg",
 };
 
 describe("evaluate — double", () => {
@@ -175,6 +179,8 @@ const TOPSET: TopSetProgressionParams = {
   percentageDrop: 10,
   weightIncrement: 2.5,
   incrementUnit: "kg",
+  fatigueReduction: 0,
+  fatigueReductionUnit: "kg",
 };
 
 describe("evaluate — top set", () => {

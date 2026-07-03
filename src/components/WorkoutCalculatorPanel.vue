@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch } from "vue";
+import { ref, computed, watch, watchEffect } from "vue";
 import { db } from "../db/db";
 import type { Exercise, Set as LoggedSet, RpeMatrix } from "../db/types";
 import { DEFAULT_RPE_MATRIX } from "../db/rpeMatrix";
@@ -19,6 +19,11 @@ import { useActiveWorkout } from "../composables/useActiveWorkout";
 import { solveWeight, solveReps, solveRpe } from "../engine/calculator";
 import { impliedE1rm } from "../engine/matrix";
 import { liveEffectiveE1rm } from "../engine/state";
+import {
+  computeFatigueAdjustment,
+  type MuscleProfile,
+} from "../engine/fatigue";
+import { muscleProfileOf } from "../engine/service";
 import ExercisePickerSheet from "./ExercisePickerSheet.vue";
 import ExerciseFormSheet from "./ExerciseFormSheet.vue";
 import InfoIcon from "./InfoIcon.vue";
@@ -29,6 +34,8 @@ const {
   removeCalculatorSet,
   calculatorSets,
   sessionSetsFor,
+  activeWorkout,
+  exercisesMap,
 } = useActiveWorkout();
 
 // ── Exercise selection ────────────────────────────────────────────────────────
@@ -67,6 +74,76 @@ const sessionSets = computed(() =>
 const effectiveE1rm = computed(() =>
   liveEffectiveE1rm(matrix.value, sessionSets.value, dbC1rm.value),
 );
+
+// ── Fatigue toggle ────────────────────────────────────────────────────────────
+
+// The calculator is routine-agnostic, so it can't resolve a per-exercise
+// fatigueReduction config (that lives on routine exercises). It applies a fixed
+// 10% of the working e1RM at full muscle overlap instead.
+const CALCULATOR_FATIGUE_REDUCTION_PCT = 10;
+
+const applyFatigue = ref(false);
+
+// Exercise IDs that had at least one set logged this session, excluding the
+// currently selected exercise.
+const priorExerciseIds = computed(() => {
+  const result = new Set<string>();
+  for (const cs of calculatorSets.value) {
+    if (cs.exerciseId !== selected.value?.id) result.add(cs.exerciseId);
+  }
+  for (const ex of activeWorkout.value?.exercises ?? []) {
+    if (ex.sets.length && ex.exerciseId !== selected.value?.id)
+      result.add(ex.exerciseId);
+  }
+  return result;
+});
+
+const hasPriors = computed(() => priorExerciseIds.value.size > 0);
+
+// A stable primitive twin of priorExerciseIds: activeWorkout.exercises gets a
+// new array identity on every tracker keystroke (see project() in
+// useWorkoutTracker), so the Set above is never reference-stable either. This
+// string lets the fetch below skip re-running when membership hasn't changed.
+const priorExerciseIdsKey = computed(() =>
+  [...priorExerciseIds.value].sort().join(","),
+);
+
+// Muscle profiles for prior exercises — loaded reactively when the toggle is on.
+const priorExerciseData = ref<Map<string, MuscleProfile>>(new Map());
+
+watchEffect(async () => {
+  if (!applyFatigue.value) return;
+  const key = priorExerciseIdsKey.value; // tracked
+  const ids = key ? key.split(",") : [];
+  const newMap = new Map<string, MuscleProfile>();
+  for (const id of ids) {
+    const ex = exercisesMap.value[id] ?? (await db.exercises.get(id));
+    if (ex) newMap.set(id, muscleProfileOf(ex));
+  }
+  priorExerciseData.value = newMap;
+});
+
+const fatigueAdjustment = computed(() => {
+  if (!applyFatigue.value || !effectiveE1rm.value || !selected.value)
+    return null;
+  const priors = [...priorExerciseIds.value]
+    .map((id) => priorExerciseData.value.get(id))
+    .filter((p): p is MuscleProfile => p != null);
+  return computeFatigueAdjustment({
+    reduction: CALCULATOR_FATIGUE_REDUCTION_PCT,
+    unit: "percent",
+    c1rm: effectiveE1rm.value,
+    current: muscleProfileOf(selected.value),
+    priors,
+  });
+});
+
+// The e1RM fed into the solver — fatigue-scaled when the toggle is on.
+const workingE1rm = computed(() => {
+  if (applyFatigue.value && fatigueAdjustment.value && effectiveE1rm.value)
+    return effectiveE1rm.value * fatigueAdjustment.value.scale;
+  return effectiveE1rm.value;
+});
 
 const onSelect = (exercise: Exercise) => {
   selected.value = exercise;
@@ -140,7 +217,7 @@ const missing = computed<"reps" | "weight" | "rpe" | null>(() => {
 });
 
 const calc = computed<CalcResult | null>(() => {
-  const e1rm = effectiveE1rm.value;
+  const e1rm = workingE1rm.value;
   if (!e1rm || !missing.value) return null;
 
   const m = matrix.value;
@@ -269,7 +346,7 @@ const onLogSet = () => {
     targetReps = repsNum.value!;
     targetWeight = toKg(weightNum.value!);
     targetRpe = rpe.value!;
-    e1rm = effectiveE1rm.value ?? manualE1rm.value ?? 0;
+    e1rm = workingE1rm.value ?? manualE1rm.value ?? 0;
   } else {
     if (!calc.value || !missing.value) return;
     const {
@@ -379,6 +456,54 @@ const onLogSet = () => {
           <polyline points="9 18 15 12 9 6" />
         </svg>
       </button>
+    </div>
+
+    <!-- Fatigue toggle (only when prior session exercises exist) -->
+    <div v-if="selected && hasPriors" class="flex flex-col gap-1.5">
+      <div class="flex items-center gap-1">
+        <label
+          class="text-xs font-bold uppercase tracking-wider text-text-light dark:text-text-dark opacity-60"
+        >
+          Session Fatigue
+        </label>
+        <InfoIcon topic="calculatorFatigue" />
+      </div>
+      <button
+        role="switch"
+        :aria-checked="applyFatigue"
+        class="flex cursor-pointer select-none gap-1 rounded-xl border border-border-light bg-surface-light p-1 dark:border-border-dark dark:bg-surface-dark"
+        @click="applyFatigue = !applyFatigue"
+      >
+        <span
+          :class="
+            !applyFatigue
+              ? 'bg-accent text-bg-dark font-bold'
+              : 'text-text-light dark:text-text-dark'
+          "
+          class="flex-1 rounded-lg px-3 py-1.5 text-center text-xs transition-colors duration-150"
+        >
+          Off
+        </span>
+        <span
+          :class="
+            applyFatigue
+              ? 'bg-accent text-bg-dark font-bold'
+              : 'text-text-light dark:text-text-dark'
+          "
+          class="flex-1 rounded-lg px-3 py-1.5 text-center text-xs transition-colors duration-150"
+        >
+          On
+        </span>
+      </button>
+      <p v-if="applyFatigue && fatigueAdjustment" class="text-xs text-sky-500">
+        −{{ format(fatigueAdjustment!.reductionKg) }} applied to c1rm
+      </p>
+      <p
+        v-else-if="applyFatigue && !fatigueAdjustment"
+        class="text-xs text-text-light dark:text-text-dark opacity-50"
+      >
+        No muscle overlap with prior session sets.
+      </p>
     </div>
 
     <!-- No e1RM calibration notice -->

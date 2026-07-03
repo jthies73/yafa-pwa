@@ -27,6 +27,9 @@ import { solveReps } from "./calculator";
 //     is computed at maxReps while the displayed rep target is the cursor.
 //   • Cold start (c1rm == null): sets carry reps/rpe but weight: null, so the
 //     tracker shows a free-entry row and the first qualifying session seeds c1RM.
+//   • Same-session fatigue: an optional kg reduction (resolved by engine/fatigue.ts)
+//     subtracts from the anchor before rendering. The output still reports the
+//     UNREDUCED c1rm and echoes the reduction separately.
 // ----------------------------------------------
 
 export interface PrescribedSet {
@@ -43,7 +46,11 @@ export interface ExercisePrescription {
   exerciseId: string;
   model: ProgressionModelType;
   sets: PrescribedSet[];
-  c1rm: number | null;
+  c1rm: number | null; // the UNREDUCED post-reset anchor, even when fatigue applied
+  // Same-session fatigue reduction (kg) the loads were rendered under. Transient:
+  // echoed so the preview can show it and the tracker can re-derive scales; the
+  // stored c1RM never changes. Absent/0 ⇒ none applied.
+  fatigueReduction?: number;
 }
 
 export interface PrescriptionInput {
@@ -52,6 +59,7 @@ export interface PrescriptionInput {
   params: ProgressionParams; // normalized + mesocycle-shifted (effective targets)
   rpeCeiling: number; // raw guardrail (not periodized)
   effectiveC1rm: number | null; // reset already applied by the service if pending
+  fatigueReduction?: number; // kg off the anchor, resolved by engine/fatigue.ts
   doubleRepCursor?: number; // double model only
   matrix: RpeMatrix;
 }
@@ -60,13 +68,16 @@ export function prescribeExercise(
   input: PrescriptionInput,
 ): ExercisePrescription {
   const { model, params, rpeCeiling, effectiveC1rm: c1rm, matrix } = input;
+  const fatigue = input.fatigueReduction ?? 0;
 
   // Weight at (reps, targetRpe), capped so its expected RPE never exceeds the
-  // ceiling. Null until c1RM is seeded.
+  // ceiling. Null until c1RM is seeded. Renders from the fatigue-reduced anchor;
+  // being linear in it, every set (top and back-offs included) scales alike.
   const load = (reps: number, targetRpe: number): number | null => {
     if (c1rm == null) return null;
+    const anchor = Math.max(0, c1rm - fatigue);
     const loadRpe = Math.min(targetRpe, rpeCeiling);
-    return roundToLoadable(weightFromE1rm(matrix, c1rm, reps, loadRpe));
+    return roundToLoadable(weightFromE1rm(matrix, anchor, reps, loadRpe));
   };
 
   const sets = buildSets(
@@ -77,7 +88,13 @@ export function prescribeExercise(
     matrix,
     rpeCeiling,
   );
-  return { exerciseId: input.exerciseId, model, sets, c1rm };
+  return {
+    exerciseId: input.exerciseId,
+    model,
+    sets,
+    c1rm,
+    ...(fatigue > 0 && c1rm != null ? { fatigueReduction: fatigue } : {}),
+  };
 }
 
 function buildSets(

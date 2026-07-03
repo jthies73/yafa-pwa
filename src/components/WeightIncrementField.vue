@@ -3,10 +3,13 @@ import { computed } from "vue";
 import type { WeightIncrementUnit } from "../db/types";
 import { useWeightUnit } from "../composables/useWeightUnit";
 import { useWeightField } from "../composables/useWeightField";
+import InfoIcon from "./InfoIcon.vue";
 
-// The weight increment a progression model adds to the c1RM on a win. It can be
-// expressed in kg OR as a percent of c1RM, so this field owns BOTH the value and
-// the unit and renders the right input for each:
+// A c1RM-relative amount a progression model works with — by default the weight
+// increment added on a win, but relabelable for any param sharing the same
+// semantics (e.g. the fatigue reduction). It can be expressed in kg OR as a
+// percent of c1RM, so this field owns BOTH the value and the unit and renders
+// the right input for each:
 //   • kg      → reuse the kg/lbs bridge (value is stored in kg; shown/edited in
 //               the user's display unit), identical to every other weight input.
 //   • percent → a plain numeric input; the stored number is the raw percent of
@@ -17,6 +20,14 @@ import { useWeightField } from "../composables/useWeightField";
 
 const value = defineModel<number>("value", { required: true });
 const unit = defineModel<WeightIncrementUnit>("unit", { required: true });
+
+const props = withDefaults(
+  defineProps<{
+    label?: string;
+    infoTopic?: string;
+  }>(),
+  { label: "Weight Increment", infoTopic: undefined },
+);
 
 const { label: weightUnit } = useWeightUnit();
 
@@ -61,11 +72,14 @@ const inputClass =
 
 <template>
   <div class="flex flex-col gap-1.5">
-    <label
-      class="text-xs font-bold uppercase tracking-wider text-text-light dark:text-text-dark opacity-60"
-    >
-      Weight Increment
-    </label>
+    <span class="flex items-center gap-1">
+      <label
+        class="text-xs font-bold uppercase tracking-wider text-text-light dark:text-text-dark opacity-60"
+      >
+        {{ props.label }}
+      </label>
+      <InfoIcon v-if="props.infoTopic" :topic="props.infoTopic" />
+    </span>
     <div class="flex gap-2">
       <!-- Value input (suffix shows the active unit) -->
       <div class="relative flex-1">
@@ -102,7 +116,7 @@ const inputClass =
         class="flex gap-1 p-1 bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-xl w-24 cursor-pointer select-none shrink-0"
         role="switch"
         :aria-checked="unit === 'percent'"
-        aria-label="Toggle increment unit"
+        :aria-label="`Toggle ${props.label.toLowerCase()} unit`"
         @click="toggleUnit"
       >
         <span

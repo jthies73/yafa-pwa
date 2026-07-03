@@ -37,15 +37,15 @@ export interface CalculatorSet {
  */
 function buildPlannedCounts(
   r: Routine | null,
-  prescriptions: Record<string, ExercisePrescription>,
+  prescriptions: (ExercisePrescription | null)[],
 ): Record<string, number> {
   const counts: Record<string, number> = {};
-  for (const ex of r?.exercises ?? []) {
-    const prescribed = prescriptions[ex.exerciseId]?.sets.length;
+  (r?.exercises ?? []).forEach((ex, i) => {
+    const prescribed = prescriptions[i]?.sets.length;
     counts[ex.exerciseId] =
       (counts[ex.exerciseId] ?? 0) +
       (prescribed ?? getConfigSetCount(ex.config));
-  }
+  });
   return counts;
 }
 
@@ -59,10 +59,11 @@ const showSummary = ref(false);
 // session) and cleared by closeSummary, never by reset().
 const calibrations = ref<CalibrationChange[]>([]);
 const exercisesMap = ref<Record<string, Exercise>>({});
-// Engine prescriptions for the running workout, keyed by exerciseId. Duplicate
-// movements in a routine share one prescription, mirroring the engine's
-// "duplicate slots share the first slot's config" semantics.
-const prescriptions = ref<Record<string, ExercisePrescription>>({});
+// Engine prescriptions for the running workout, SLOT-ALIGNED with the routine's
+// exercises (and hence with the tracker's initial cards). Duplicate slots of one
+// exercise carry their own entries — session fatigue can prescribe a later slot
+// lighter than the first, so folding by exerciseId would mis-render early slots.
+const prescriptions = ref<(ExercisePrescription | null)[]>([]);
 // Live completed/pending counts projected from the tracker, driving the
 // finish-workout confirmation flow.
 const trackerStats = ref({ completed: 0, pending: 0 });
@@ -117,7 +118,7 @@ function reset() {
   activeWorkout.value = null;
   routine.value = null;
   exercisesMap.value = {};
-  prescriptions.value = {};
+  prescriptions.value = [];
   plannedCounts.value = {};
   trackerStats.value = { completed: 0, pending: 0 };
   calculatorSets.value = [];
@@ -131,7 +132,7 @@ export function useActiveWorkout() {
   const startWorkout = async (routineId?: string) => {
     let r: Routine | null = null;
     const eMap: Record<string, Exercise> = {};
-    let rx: Record<string, ExercisePrescription> = {};
+    let rx: (ExercisePrescription | null)[] = [];
 
     if (routineId) {
       r = (await db.routines.get(routineId)) ?? null;
@@ -144,11 +145,11 @@ export function useActiveWorkout() {
       }
 
       // Resolve prescriptions before the workout becomes active so the
-      // tracker's rebuild sees them synchronously (no prefill race). A failing
-      // prescription must never block starting a workout.
+      // tracker's rebuild sees them synchronously (no prefill race). The result
+      // is slot-aligned with r.exercises (and thus with the tracker's initial
+      // cards). A failing prescription must never block starting a workout.
       try {
-        const list = await prescribeWorkout(routineId);
-        rx = Object.fromEntries(list.map((p) => [p.exerciseId, p]));
+        rx = await prescribeWorkout(routineId);
       } catch (error) {
         console.error("YAFA: failed to prescribe workout", error);
       }

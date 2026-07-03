@@ -18,6 +18,8 @@ const LINEAR: LinearProgressionParams = {
   rpeCeiling: 9,
   weightIncrement: 2.5,
   incrementUnit: "kg",
+  fatigueReduction: 0,
+  fatigueReductionUnit: "kg",
 };
 
 describe("prescribeExercise — linear", () => {
@@ -93,6 +95,8 @@ describe("prescribeExercise — double", () => {
     rpeCeiling: 9,
     weightIncrement: 2.5,
     incrementUnit: "kg",
+    fatigueReduction: 0,
+    fatigueReductionUnit: "kg",
   };
 
   it("shows the cursor reps but holds weight at maxReps", () => {
@@ -148,6 +152,8 @@ describe("prescribeExercise — top set", () => {
     percentageDrop: 10,
     weightIncrement: 2.5,
     incrementUnit: "kg",
+    fatigueReduction: 0,
+    fatigueReductionUnit: "kg",
   };
 
   it("renders a top set plus dropped back-offs carrying the back-off RPE", () => {
@@ -207,5 +213,91 @@ describe("prescribeExercise — top set", () => {
     // top set is logged (its demonstrated weight × fraction).
     expect(p.sets[1].backoffFraction).toBe(0.9);
     expect(p.sets[2].backoffFraction).toBe(0.9);
+  });
+
+  it("fatigue reduction renders every set from the reduced anchor", () => {
+    const p = prescribeExercise({
+      exerciseId: "ex",
+      model: "topset_backoff",
+      params: TOPSET,
+      rpeCeiling: 9,
+      effectiveC1rm: 120,
+      fatigueReduction: 12,
+      matrix: M,
+    });
+    const top = roundToLoadable(weightFromE1rm(M, 108, 5, 8));
+    expect(p.sets[0].weight).toBe(top);
+    expect(p.sets[1].weight).toBe(roundToLoadable(top * 0.9));
+    // The reported anchor stays unreduced; the reduction is echoed alongside.
+    expect(p.c1rm).toBe(120);
+    expect(p.fatigueReduction).toBe(12);
+  });
+});
+
+describe("prescribeExercise — fatigue reduction", () => {
+  it("subtracts from the anchor before the matrix lookup (linear)", () => {
+    const p = prescribeExercise({
+      exerciseId: "ex",
+      model: "linear",
+      params: LINEAR,
+      rpeCeiling: 9,
+      effectiveC1rm: 120,
+      fatigueReduction: 10,
+      matrix: M,
+    });
+    expect(p.sets[0].weight).toBe(
+      roundToLoadable(weightFromE1rm(M, 110, 5, 8)),
+    );
+    expect(p.c1rm).toBe(120);
+    expect(p.fatigueReduction).toBe(10);
+  });
+
+  it("cold start ignores the reduction and does not echo it", () => {
+    const p = prescribeExercise({
+      exerciseId: "ex",
+      model: "linear",
+      params: LINEAR,
+      rpeCeiling: 9,
+      effectiveC1rm: null,
+      fatigueReduction: 10,
+      matrix: M,
+    });
+    expect(p.sets.every((s) => s.weight === null)).toBe(true);
+    expect(p.fatigueReduction).toBeUndefined();
+  });
+
+  it("a reduction at/over the anchor clamps the load to 0, not negative", () => {
+    const p = prescribeExercise({
+      exerciseId: "ex",
+      model: "linear",
+      params: LINEAR,
+      rpeCeiling: 9,
+      effectiveC1rm: 100,
+      fatigueReduction: 150,
+      matrix: M,
+    });
+    expect(p.sets[0].weight).toBe(0);
+  });
+
+  it("absent/zero reduction leaves the prescription untouched", () => {
+    const base = prescribeExercise({
+      exerciseId: "ex",
+      model: "linear",
+      params: LINEAR,
+      rpeCeiling: 9,
+      effectiveC1rm: 120,
+      matrix: M,
+    });
+    const zero = prescribeExercise({
+      exerciseId: "ex",
+      model: "linear",
+      params: LINEAR,
+      rpeCeiling: 9,
+      effectiveC1rm: 120,
+      fatigueReduction: 0,
+      matrix: M,
+    });
+    expect(zero).toEqual(base);
+    expect(zero.fatigueReduction).toBeUndefined();
   });
 });

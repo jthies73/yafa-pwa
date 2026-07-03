@@ -76,46 +76,47 @@ const isUp = (c: CalibrationChange) => {
           </p>
           <p class="text-xs text-text-light dark:text-text-dark opacity-50">
             {{ label(c) }}
-            <template
-              v-if="
-                (c.reason === 'increment' || c.reason === 'recalibrate') &&
-                c.before != null
-              "
-            >
-              · from {{ fmtWeight(c.before) }}
-            </template>
             <template v-if="c.resetArmed"> · next session −10% </template>
           </p>
         </div>
 
-        <div class="flex items-center gap-2.5 shrink-0">
-          <template v-if="c.resetArmed && c.after != null">
-            <span
-              class="text-base font-bold font-mono text-text-light dark:text-text-dark opacity-50 line-through"
-            >
-              {{ fmtWeight(c.after) }}
-            </span>
-            <span class="opacity-40">→</span>
-            <span class="text-base font-bold font-mono text-amber-500">
-              {{ fmtWeight(c.after * 0.9) }}
+        <div
+          class="flex items-center gap-1.5 shrink-0 font-mono text-base font-bold"
+        >
+          <!-- seed: no before value, just show the new anchor -->
+          <template v-if="c.reason === 'seed'">
+            <span class="text-green-600 dark:text-green-400">
+              {{ c.after != null ? fmtWeight(c.after) : "—" }}
             </span>
           </template>
-          <template v-else>
+          <!-- resetArmed: show current → projected deload -->
+          <template v-else-if="c.resetArmed && c.after != null">
             <span
-              v-if="c.after != null"
-              class="text-base font-bold font-mono text-text-h-light dark:text-text-h-dark"
+              class="text-text-light dark:text-text-dark opacity-50 line-through"
             >
               {{ fmtWeight(c.after) }}
             </span>
+            <span class="opacity-40 text-sm">→</span>
+            <span class="text-amber-500">{{ fmtWeight(c.after * 0.9) }}</span>
+          </template>
+          <!-- increment / recalibrate: before → after. Exhaustive for what
+               reaches here — seed and resetArmed are handled above, and the
+               engine (state.ts) never leaves c1RM null past cold-start. -->
+          <template v-else-if="c.before != null && c.after != null">
             <span
-              class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-xs font-bold font-mono"
+              class="text-text-light dark:text-text-dark opacity-50 line-through"
+            >
+              {{ fmtWeight(c.before) }}
+            </span>
+            <span class="opacity-40 text-sm">→</span>
+            <span
               :class="
                 isUp(c)
-                  ? 'text-green-600 dark:text-green-400 bg-green-500/10'
-                  : 'text-text-light dark:text-text-dark bg-border-light/40 dark:bg-border-dark/40'
+                  ? 'text-green-600 dark:text-green-400'
+                  : 'text-amber-500'
               "
             >
-              {{ c.reason === "seed" ? "new" : isUp(c) ? "↑" : "↓" }}
+              {{ fmtWeight(c.after) }}
             </span>
           </template>
         </div>

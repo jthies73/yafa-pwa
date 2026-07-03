@@ -176,13 +176,22 @@ describe("setMatrixCell", () => {
     expect(M[5][8]).toBe(before); // original untouched (purity)
   });
 
-  it("repairs monotonicity on adjacent RPE columns only", () => {
-    // Raising 5@8 above its higher neighbour (5@8.5 = 0.81) pulls the neighbour up.
-    const next = setMatrixCell(M, 5, 8, 0.9);
+  it("propagates the additive delta along the diagonal and preserves monotonicity", () => {
+    const oldVal = M[5][8];
+    const targetVal = oldVal + 0.1;
+    const next = setMatrixCell(M, 5, 8, targetVal);
+
+    expect(next[5][8]).toBeCloseTo(targetVal, 5);
+
+    // Cell on the same diagonal (n = 7) like 6 reps @ RPE 9 should receive the delta.
+    // Note: It might be clamped slightly below M[6][9] + 0.1 by enforceMatrixMonotonicity
+    // due to neighboring cells outside the full-weight radius.
+    expect(next[6][9]).toBeGreaterThan(M[6][9]);
+    // It should be close to the intended smoothed value (0.91) but clamped by the solver
+    expect(next[6][9]).toBeGreaterThanOrEqual(0.85);
+
+    // It should also preserve monotonicity
     expect(next[5][8.5]).toBeGreaterThanOrEqual(next[5][8] - 1e-9);
-    // A manual edit is conservative: other rows are untouched (no cross-row
-    // smoothing — that is the automatic post-session path's job).
-    expect(next[6]).toEqual(M[6]);
   });
 });
 

@@ -204,12 +204,42 @@ export function peakImpliedE1rm(
 }
 
 /**
- * Set a single matrix cell and repair monotonicity on its two adjacent RPE
- * columns in the SAME rep row, so a manual edit can't break the "pct rises with
- * RPE" ordering the lookup relies on. Pure — returns a new matrix; the input is
- * never mutated. Deliberately conservative: only the edited row's immediate
- * neighbours are touched (cross-row smoothing would surprise the editor's
- * deviation highlighting).
+ * Applies a 1-D smoothing kernel across the matrix in n-space (reps + (10 - RPE)).
+ * Returns a new matrix.
+ */
+function applySmoothingKernel(
+  matrix: RpeMatrix,
+  targetN: number,
+  smoothingRadius: number,
+  applyDelta: (r: number, c: number, pOld: number, weight: number) => number,
+): RpeMatrix {
+  const next: RpeMatrix = {};
+  for (const r of Object.keys(matrix).map(Number)) {
+    next[r] = { ...matrix[r] };
+  }
+
+  for (const r of Object.keys(next).map(Number)) {
+    const row = next[r];
+    const cols = Object.keys(row).map(Number);
+    for (const c of cols) {
+      const n = r + (10 - c);
+      const w = Math.max(0, 1 - Math.abs(n - targetN) / smoothingRadius);
+      if (w > 0) {
+        const pOld = row[c];
+        const delta = applyDelta(r, c, pOld, w);
+        const newVal = Math.max(0, Math.min(1.0, pOld + delta));
+        // Round to 4 decimal places to prevent floating point dust
+        row[c] = Number(newVal.toFixed(4));
+      }
+    }
+  }
+  return next;
+}
+
+/**
+ * Set a single matrix cell and propagate the change (additive delta) to adjacent cells
+ * using a smoothing kernel based on reps-to-failure equivalence.
+ * Finally, enforce monotonicity to ensure the "pct rises with RPE / falls with reps" invariant holds.
  */
 export function setMatrixCell(
   matrix: RpeMatrix,
@@ -217,28 +247,28 @@ export function setMatrixCell(
   rpe: number,
   value: number,
 ): RpeMatrix {
-  // Deep clone so callers (and Vue reactivity) never see in-place mutation.
-  const next: RpeMatrix = {};
-  for (const r of Object.keys(matrix).map(Number)) {
-    next[r] = { ...matrix[r] };
-  }
-  if (!next[reps]) next[reps] = {};
-  next[reps][rpe] = value;
+  const oldVal = matrix[reps]?.[rpe] ?? matrixPct(matrix, reps, rpe);
+  const delta = value - oldVal;
 
-  // pct rises with RPE within a row, so clamp the two adjacent columns back into
-  // order if the edit broke it (conservative: neighbours only, no cascade).
-  const row = next[reps];
-  const cols = numericKeys(row);
-  const idx = cols.indexOf(rpe);
-  if (idx > 0) {
-    const lo = cols[idx - 1];
-    if (row[lo] > value) row[lo] = value; // lower RPE can't exceed the edit
-  }
-  if (idx < cols.length - 1) {
-    const hi = cols[idx + 1];
-    if (row[hi] < value) row[hi] = value; // higher RPE can't fall below the edit
-  }
-  return next;
+  if (Math.abs(delta) < 1e-9) return matrix;
+
+  const targetN = reps + (10 - rpe);
+  const radius = RPE_MATRIX_CORRECTION_RADIUS;
+
+  const smoothed = applySmoothingKernel(
+    matrix,
+    targetN,
+    radius,
+    (_r, _c, _pOld, w) => {
+      return w * delta;
+    },
+  );
+
+  // Smoothing additive deltas can temporarily break the invariant that percentages must rise
+  // with RPE and fall with reps, especially with cells just outside the smoothing radius.
+  // The iterative enforceMatrixMonotonicity function resolves any out-of-order cells.
+  // We pin the manually edited cell so the user's exact input is never overwritten by the solver.
+  return enforceMatrixMonotonicity(smoothed, { reps, rpe, value });
 }
 
 /** Enforce row-wise monotonicity (pct rises with RPE) and column-wise monotonicity (pct falls with reps). */
@@ -332,30 +362,21 @@ export function correctRpeMatrix(
   const nSet = completedSet.actualReps + (10 - completedSet.actualRpe);
   const pDemo = Math.min(1.0, completedSet.actualWeight / anchorE1rm);
 
-  const next: RpeMatrix = {};
-  for (const r of Object.keys(matrix).map(Number)) {
-    next[r] = { ...matrix[r] };
-  }
+  const smoothed = applySmoothingKernel(
+    matrix,
+    nSet,
+    smoothingRadius,
+    (r, _c, pOld, w) => {
+      let delta = learningRate * w * (pDemo - pOld);
 
-  for (const r of Object.keys(next).map(Number)) {
-    const row = next[r];
-    const cols = Object.keys(row).map(Number);
-    for (const c of cols) {
-      const n = r + (10 - c);
-      const w = Math.max(0, 1 - Math.abs(n - nSet) / smoothingRadius);
-      if (w > 0) {
-        const pOld = row[c];
-        let delta = learningRate * w * (pDemo - pOld);
-
-        // Safety constraint: only allow upward adjustments for reps <= actual reps completed.
-        if (delta > 0 && r > completedSet.actualReps) {
-          delta = 0;
-        }
-
-        row[c] = Math.min(1.0, pOld + delta);
+      // Safety constraint: only allow upward adjustments for reps <= actual reps completed.
+      if (delta > 0 && r > completedSet.actualReps) {
+        delta = 0;
       }
-    }
-  }
 
-  return enforceMatrixMonotonicity(next);
+      return delta;
+    },
+  );
+
+  return enforceMatrixMonotonicity(smoothed);
 }

@@ -56,10 +56,11 @@ const tint = (reps: number, rpe: number) => {
 // Committed on change (blur/Enter), not per keystroke — intermediate typing
 // states must never reach the parent, which may smooth neighbors on each edit.
 const onCellChange = (reps: number, rpe: number, raw: string) => {
-  const n = parseInt(raw, 10);
-  // Whole percentages only — the matrix does not accept fractional %.
-  const value = Number.isNaN(n) ? 0 : Math.max(0, Math.min(100, n)) / 100;
-  emit("cell-edit", reps, rpe, value);
+  const n = parseFloat(raw);
+  // Accept fractional percentages, clamped to [0, 100] and rounded to the 0.1%
+  // resolution the table displays (pct()), so what you type is what redisplays.
+  const clamped = Number.isNaN(n) ? 0 : Math.max(0, Math.min(100, n));
+  emit("cell-edit", reps, rpe, Math.round(clamped * 10) / 1000);
 };
 </script>
 
@@ -110,11 +111,11 @@ const onCellChange = (reps: number, rpe: number, raw: string) => {
             >
               <input
                 v-if="editable"
-                v-numpad="'integer'"
+                v-numpad="'decimal'"
                 type="number"
                 min="0"
                 max="100"
-                step="1"
+                step="0.1"
                 :value="pct(modelValue[reps]?.[rpe])"
                 class="h-full w-full bg-transparent text-center text-text-h-light dark:text-text-h-dark caret-accent focus:bg-accent/10 focus:outline-none"
                 @change="

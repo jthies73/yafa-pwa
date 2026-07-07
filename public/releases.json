@@ -1,6 +1,10 @@
 {
-  "latest": "0.16.1",
+  "latest": "0.16.2",
   "releases": [
+    {
+      "version": "0.16.2",
+      "notes": "- Fixes for RPE/Load adherence calculations"
+    },
     {
       "version": "0.16.1",
       "notes": "- Clean up fatigue engine."

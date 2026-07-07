@@ -1,6 +1,11 @@
 import type { Exercise, Set as LoggedSet, Workout } from "../db/types";
 import { DEFAULT_RPE_MATRIX } from "../db/rpeMatrix";
 import {
+  repsDeviation,
+  rpeOvershoot,
+  weightDeviationPct,
+} from "../engine/comparison";
+import {
   impliedE1rm,
   isQualifyingSet,
   peakImpliedE1rm,
@@ -30,9 +35,9 @@ export interface DeductionEntry {
 
 /** What cost adherence points, by cause — values sum to (100 − score) when unclamped. */
 export interface AdherenceDeductions {
-  rpe: DeductionEntry; // trained harder/softer than the target RPE
+  rpe: DeductionEntry; // trained harder than the target RPE
   reps: DeductionEntry; // reps off target
-  load: DeductionEntry; // weight off the prescribed load
+  load: DeductionEntry; // weight off the prescribed load beyond the tolerance band
   missing: DeductionEntry; // prescribed sets that were never performed
   trash: DeductionEntry; // off-script extra ("trash") volume
 }
@@ -76,13 +81,14 @@ export interface SummaryInput {
 
 // Adherence penalty weights — TUNABLE. Ordered by importance per the spec: an RPE
 // overshoot (trained too hard) is penalized heaviest, then rep deviation, then
-// load deviation; undershooting RPE (easier than asked) is forgiven lightly.
+// load deviation. Undershooting RPE (easier than asked) is never penalized, and
+// weight deviations inside the engine's tolerance band score zero — mirroring the
+// engine, which treats both as at-prescription (see engine/comparison.ts).
 // Off-script "trash volume" is a small capped penalty.
 export const ADHERENCE_WEIGHTS = {
   rpeOver: 12, // per RPE point above target
-  rpeUnder: 3, // per RPE point below target
   rep: 4, // per rep off target
-  load: 0.5, // per percent off the target weight
+  load: 0.5, // per percent off the target weight, beyond the tolerance band
   trashPerExtraSet: 5,
   trashCap: 20,
 };
@@ -106,20 +112,15 @@ interface SetPenalty {
 /** Per-category deviation penalty for one judged set (kept separate so the
  * post-workout summary can show exactly what cost points). */
 function penaltyForSet(set: LoggedSet): SetPenalty {
-  let rpe = 0;
-  if (set.targetRpe != null && set.actualRpe != null) {
-    const d = set.actualRpe - set.targetRpe;
-    rpe =
-      d > 0 ? d * ADHERENCE_WEIGHTS.rpeOver : -d * ADHERENCE_WEIGHTS.rpeUnder;
-  }
+  const rpe =
+    set.targetRpe != null && set.actualRpe != null
+      ? rpeOvershoot(set.actualRpe, set.targetRpe) * ADHERENCE_WEIGHTS.rpeOver
+      : 0;
   const reps =
-    Math.abs(set.actualReps - set.targetReps) * ADHERENCE_WEIGHTS.rep;
-  let load = 0;
-  if (set.targetWeight > 0) {
-    const loadPct =
-      (Math.abs(set.actualWeight - set.targetWeight) / set.targetWeight) * 100;
-    load = loadPct * ADHERENCE_WEIGHTS.load;
-  }
+    repsDeviation(set.actualReps, set.targetReps) * ADHERENCE_WEIGHTS.rep;
+  const load =
+    weightDeviationPct(set.actualWeight, set.targetWeight) *
+    ADHERENCE_WEIGHTS.load;
   return { rpe, reps, load };
 }
 

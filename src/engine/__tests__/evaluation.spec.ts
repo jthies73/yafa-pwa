@@ -168,6 +168,31 @@ describe("evaluate — double", () => {
     ];
     expect(evaluate("double", DOUBLE, presc, sets)).toBe("hold");
   });
+
+  it("tolerance: a grind within ±2.5 kg of prescribed regresses, beyond holds", () => {
+    const grindAt = (w: number) => [
+      set({ actualWeight: w, actualReps: 6, actualRpe: 8 }),
+      set({ actualWeight: w, actualReps: 6, actualRpe: 8 }),
+      set({ actualWeight: w, actualReps: 6, actualRpe: 8 }),
+    ];
+    expect(evaluate("double", DOUBLE, presc, grindAt(78))).toBe("regression");
+    // 4 kg off → not "at prescribed" → says nothing about the load → hold.
+    expect(evaluate("double", DOUBLE, presc, grindAt(76))).toBe("hold");
+  });
+
+  it("cold start (no prescribed weight) → never a regression", () => {
+    const cold = prescription("double", [
+      { reps: 10, rpe: 8, weight: null, role: "straight" },
+      { reps: 10, rpe: 8, weight: null, role: "straight" },
+      { reps: 10, rpe: 8, weight: null, role: "straight" },
+    ]);
+    const sets = [
+      set({ actualWeight: 80, actualReps: 6, actualRpe: 9 }),
+      set({ actualWeight: 80, actualReps: 6, actualRpe: 9 }),
+      set({ actualWeight: 80, actualReps: 6, actualRpe: 9 }),
+    ];
+    expect(evaluate("double", DOUBLE, cold, sets)).toBe("hold");
+  });
 });
 
 const TOPSET: TopSetProgressionParams = {

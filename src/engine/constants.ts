@@ -32,10 +32,11 @@ export const RESET_DROP = 0.1;
  */
 export const LOADABLE_INCREMENT_KG = 0.1;
 /**
- * Tolerance band for the "weight == prescribed" clause in the regression rules and
- * the trivial-diff filter on in-session proposals. A logged set within ±2.5 kg of
- * the prescribed weight counts as "at" it, so plate-rounding noise never hides a
- * genuine regression nor surfaces a pointless re-prescription.
+ * Tolerance band for "weight == prescribed", consumed only via engine/comparison.ts
+ * so the regression rules, the in-session trivial-diff filter, and the adherence
+ * score all agree. A logged set within ±2.5 kg of the prescribed weight counts as
+ * "at" it, so plate-rounding noise never hides a genuine regression, surfaces a
+ * pointless re-prescription, nor costs adherence points.
  */
 export const PRESCRIBED_WEIGHT_TOLERANCE_KG = 2.5;
 

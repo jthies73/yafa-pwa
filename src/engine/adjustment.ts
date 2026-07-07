@@ -1,5 +1,5 @@
 import type { RpeMatrix } from "../db/types";
-import { PRESCRIBED_WEIGHT_TOLERANCE_KG } from "./constants";
+import { weightMatches } from "./comparison";
 import { impliedE1rm, roundToLoadable, weightFromE1rm } from "./matrix";
 
 // ----------------------------------------------
@@ -57,7 +57,7 @@ export function proposeSetAdjustment(
 
   // Established target: surface a proposal in EITHER direction, but only when it
   // differs meaningfully — trivial deviations within the tolerance band are noise.
-  if (Math.abs(newWeight - target.weight) <= PRESCRIBED_WEIGHT_TOLERANCE_KG) {
+  if (weightMatches(newWeight, target.weight)) {
     return null;
   }
   return { reps: target.reps, weight: newWeight, rpe: target.rpe };

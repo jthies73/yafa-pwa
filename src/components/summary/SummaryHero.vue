@@ -13,7 +13,7 @@ const showDetails = ref(false);
 const deductionRows = computed(() => {
   const d = props.summary.adherence.deductions;
   return [
-    { label: "RPE overshoot/undershoot", ...d.rpe },
+    { label: "RPE overshoot", ...d.rpe },
     { label: "Rep deviation", ...d.reps },
     { label: "Load deviation", ...d.load },
     { label: "Missing sets", ...d.missing },

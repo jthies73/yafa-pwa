@@ -96,6 +96,60 @@ describe("computeWorkoutSummary — adherence", () => {
     expect(a.score).toBe(61);
   });
 
+  it("weight within the ±2.5 kg tolerance band costs nothing", () => {
+    // Mirrors the engine: within the band the set is "at prescribed".
+    const a = computeWorkoutSummary(
+      input(
+        [
+          {
+            exerciseId: "ex1",
+            sets: [
+              set({ actualWeight: 102.5 }),
+              set({ actualWeight: 97.5 }),
+              set(),
+            ],
+          },
+        ],
+        { ex1: 3 },
+      ),
+    ).adherence;
+    expect(a.deductions.load.value).toBe(0);
+    expect(a.score).toBe(100);
+  });
+
+  it("weight beyond the band is penalized on the full deviation", () => {
+    // One set 10% off (110 vs 100) → 10 × 0.5 = 5, meaned over 3 sets ≈ 2.
+    const a = computeWorkoutSummary(
+      input(
+        [
+          {
+            exerciseId: "ex1",
+            sets: [set({ actualWeight: 110 }), set(), set()],
+          },
+        ],
+        { ex1: 3 },
+      ),
+    ).adherence;
+    expect(a.deductions.load.value).toBe(2);
+    expect(a.score).toBe(98);
+  });
+
+  it("undershooting the target RPE costs nothing", () => {
+    const a = computeWorkoutSummary(
+      input(
+        [
+          {
+            exerciseId: "ex1",
+            sets: [set({ actualRpe: 6 }), set({ actualRpe: 7 }), set()],
+          },
+        ],
+        { ex1: 3 },
+      ),
+    ).adherence;
+    expect(a.deductions.rpe.value).toBe(0);
+    expect(a.score).toBe(100);
+  });
+
   it("off-script extra sets add a capped trash penalty", () => {
     // 3 planned, 5 perfect logged → 2 extra → −10 trash.
     const a = computeWorkoutSummary(

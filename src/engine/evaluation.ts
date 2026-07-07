@@ -7,7 +7,7 @@ import type {
   TopSetProgressionParams,
 } from "../db/types";
 import type { ExercisePrescription } from "./prescription";
-import { PRESCRIBED_WEIGHT_TOLERANCE_KG } from "./constants";
+import { weightMatches } from "./comparison";
 
 // ----------------------------------------------
 // Per-model outcome judgment. Given an exercise's effective config, the original
@@ -30,9 +30,6 @@ import { PRESCRIBED_WEIGHT_TOLERANCE_KG } from "./constants";
 // ----------------------------------------------
 
 export type ProgressionOutcome = "success" | "hold" | "regression";
-
-const weightMatches = (a: number, b: number) =>
-  Math.abs(a - b) <= PRESCRIBED_WEIGHT_TOLERANCE_KG;
 
 /** The prescribed working sets that were actually performed, in prescribed order. */
 function orderedWorkingSets(
@@ -127,6 +124,7 @@ function evaluateDouble(
 ): ProgressionOutcome {
   const allPerformed = working.length >= prescription.sets.length;
   const worst = worstSet(working);
+  const W = prescription.sets[0]?.weight; // double holds one weight across sets
 
   // Success: every set hit the top of the rep range and the hardest set stayed
   // at/under target RPE → the load has been earned; advance it.
@@ -135,13 +133,17 @@ function evaluateDouble(
   const worstRpeOk = worst?.actualRpe != null && worst.actualRpe <= p.targetRpe;
   if (allMax && worstRpeOk) return "success";
 
-  // Regression: bottomed out at minReps and grinding (RPE+1 > target).
+  // Regression: bottomed out at minReps and grinding (RPE+1 > target), at the
+  // prescribed weight — a grind at a deviated load says nothing about the
+  // prescribed one, so it holds (same weight clause as linear/top-set).
   // NOTE (locked-but-watch): `RPE + 1 > targetRpe` ⇔ `RPE > targetRpe − 1`, so at
   // the default target 8 this fires whenever the worst set's RPE exceeds 7 while
   // reps are at/under minReps. Encoded exactly as specified; revisit with real logs.
   if (
     worst &&
+    W != null &&
     worst.actualReps <= p.minReps &&
+    weightMatches(worst.actualWeight, W) &&
     worst.actualRpe != null &&
     worst.actualRpe + 1 > p.targetRpe
   ) {

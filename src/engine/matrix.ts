@@ -12,7 +12,7 @@ import {
 
 // ----------------------------------------------
 // RPE matrix + e1RM math. The matrix maps (reps, RPE) → percentage of 1RM as a
-// decimal (0..1); see src/db/rpeMatrix.ts for the default RTS grid (reps 1–10,
+// decimal (0..1); see src/db/rpeMatrix.ts for the default RTS grid (reps 1–15,
 // RPE 6–10 in 0.5 steps, monotone). Everything the engine does with weight goes
 // through these helpers.
 //
@@ -36,7 +36,7 @@ export function snapRpe(rpe: number): number {
   return Math.min(10, Math.max(6, snapped));
 }
 
-/** Round to an integer rep count and clamp to the matrix rows (1–10). */
+/** Round to an integer rep count and clamp to the matrix rows (1–15). */
 export function clampLookupReps(reps: number): number {
   return Math.min(MATRIX_MAX_REPS, Math.max(MATRIX_MIN_REPS, Math.round(reps)));
 }
@@ -167,8 +167,8 @@ export interface PeakE1rm {
  * c1RM instead of staying anchorless.
  *
  * Unlike the qualifying gate, this has NO rep ceiling: an exercise programmed above
- * 10 reps would otherwise never seed a c1RM (and so never get a prescribed weight).
- * The matrix math clamps reps to its 10-rep row, so such a set seeds conservatively.
+ * 15 reps would otherwise never seed a c1RM (and so never get a prescribed weight).
+ * The matrix math clamps reps to its 15-rep row, so such a set seeds conservatively.
  * This relaxation stays seed-only — catch-up and analytics use isQualifyingSet.
  */
 function isUsableSet(set: LoggedSet): boolean {

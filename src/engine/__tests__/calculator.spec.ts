@@ -30,7 +30,7 @@ describe("solveReps", () => {
 
   it("clamps to the matrix domain for out-of-range loads", () => {
     expect(solveReps(M, 100, 100, 8)).toBe(1); // load above 1-rep capacity
-    expect(solveReps(M, 100, 1, 8)).toBe(10); // load below 10-rep
+    expect(solveReps(M, 100, 1, 8)).toBe(15); // load below 15-rep
   });
 });
 

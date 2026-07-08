@@ -47,9 +47,9 @@ describe("matrixPct", () => {
     expect(matrixPct(M, 5, 11)).toBe(matrixPct(M, 5, 10)); // 0.86
   });
 
-  it("clamps reps outside 1–10", () => {
+  it("clamps reps outside 1–15", () => {
     expect(matrixPct(M, 0, 8)).toBe(matrixPct(M, 1, 8));
-    expect(matrixPct(M, 99, 8)).toBe(matrixPct(M, 10, 8));
+    expect(matrixPct(M, 99, 8)).toBe(matrixPct(M, 15, 8));
   });
 
   it("rounds fractional reps to the nearest integer row", () => {
@@ -114,10 +114,10 @@ describe("snapRpe / clampLookupReps", () => {
     expect(snapRpe(5)).toBe(6);
   });
 
-  it("rounds and clamps reps to 1–10", () => {
+  it("rounds and clamps reps to 1–15", () => {
     expect(clampLookupReps(4.6)).toBe(5);
     expect(clampLookupReps(0)).toBe(1);
-    expect(clampLookupReps(50)).toBe(10);
+    expect(clampLookupReps(50)).toBe(15);
   });
 });
 
@@ -156,15 +156,15 @@ describe("peakImpliedE1rm", () => {
     expect(peak!.e1rm).toBeGreaterThan(0);
   });
 
-  it("seeds from a high-rep set (>10) via the fallback, clamped to the 10-rep row", () => {
+  it("seeds from a high-rep set (>10) via the fallback, clamped to the 15-rep row", () => {
     // A program above 10 reps would otherwise never anchor a c1RM. The strict
     // qualifying gate still rejects it (keeps catch-up/analytics at ≤10 reps); only
-    // the seed fallback accepts it, scoring it as a conservative 10-rep set.
-    const highRep = makeSet({ actualWeight: 60, actualReps: 15, actualRpe: 9 });
-    expect(peakImpliedE1rm(M, [highRep])).toBeNull(); // strict gate still rejects
+    // the seed fallback accepts it, scoring it as a conservative 15-rep set (or whatever the max matrix row is).
+    const highRep = makeSet({ actualWeight: 60, actualReps: 20, actualRpe: 9 });
+    expect(peakImpliedE1rm(M, [highRep])).toBeNull(); // strict gate still rejects (max 10)
     const seed = peakImpliedE1rm(M, [highRep], true);
     expect(seed?.set).toBe(highRep);
-    expect(seed!.e1rm).toBeCloseTo(impliedE1rm(M, 60, 10, 9), 5); // clamped to 10 reps
+    expect(seed!.e1rm).toBeCloseTo(impliedE1rm(M, 60, 15, 9), 5); // clamped to 15 reps
   });
 });
 

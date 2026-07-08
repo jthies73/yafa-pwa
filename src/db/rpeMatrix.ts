@@ -1,5 +1,5 @@
 // Standard evidence-based RTS (Reactive Training Systems) RPE-to-percentage-of-1RM matrix.
-// Keyed by reps (1-10) and then by RPE (6-10). Value is percentage of 1RM as a decimal.
+// Keyed by reps (1-15) and then by RPE (6-10). Value is percentage of 1RM as a decimal.
 // Shared between the database seed and newly created exercises so that every exercise
 // gets a sensible default load reference for autoregulated (RPE-based) progression.
 export const DEFAULT_RPE_MATRIX: Record<number, Record<number, number>> = {
@@ -112,5 +112,60 @@ export const DEFAULT_RPE_MATRIX: Record<number, Record<number, number>> = {
     7: 0.62,
     6.5: 0.59,
     6: 0.56,
+  },
+  11: {
+    10: 0.72,
+    9.5: 0.7,
+    9: 0.68,
+    8.5: 0.66,
+    8: 0.64,
+    7.5: 0.62,
+    7: 0.6,
+    6.5: 0.57,
+    6: 0.54,
+  },
+  12: {
+    10: 0.7,
+    9.5: 0.68,
+    9: 0.66,
+    8.5: 0.64,
+    8: 0.62,
+    7.5: 0.6,
+    7: 0.58,
+    6.5: 0.55,
+    6: 0.52,
+  },
+  13: {
+    10: 0.68,
+    9.5: 0.66,
+    9: 0.64,
+    8.5: 0.62,
+    8: 0.6,
+    7.5: 0.58,
+    7: 0.55,
+    6.5: 0.53,
+    6: 0.5,
+  },
+  14: {
+    10: 0.66,
+    9.5: 0.64,
+    9: 0.62,
+    8.5: 0.6,
+    8: 0.58,
+    7.5: 0.55,
+    7: 0.53,
+    6.5: 0.51,
+    6: 0.48,
+  },
+  15: {
+    10: 0.64,
+    9.5: 0.62,
+    9: 0.6,
+    8.5: 0.58,
+    8: 0.55,
+    7.5: 0.53,
+    7: 0.51,
+    6.5: 0.49,
+    6: 0.46,
   },
 };

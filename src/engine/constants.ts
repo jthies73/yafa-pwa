@@ -67,7 +67,7 @@ export const CATCHUP_CLOSE_FRACTION = 0.7; // close most of the gap in one move 
 // --- RPE matrix grid bounds (mirror src/db/rpeMatrix.ts) ---
 
 export const MATRIX_MIN_REPS = 1;
-export const MATRIX_MAX_REPS = 10;
+export const MATRIX_MAX_REPS = 15;
 export const MATRIX_MIN_RPE = 6;
 export const MATRIX_MAX_RPE = 10;
 /** RPE columns are spaced every 0.5; snapRpe rounds to this grid. */

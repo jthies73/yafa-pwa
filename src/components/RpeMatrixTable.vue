@@ -13,7 +13,7 @@ const emit = defineEmits<{
 }>();
 
 const RPE_COLS = [10, 9.5, 9, 8.5, 8, 7.5, 7, 6.5, 6];
-const REP_ROWS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+const REP_ROWS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
 
 const pct = (v: number | undefined) =>
   v == null ? "" : String(Math.round(v * 1000) / 10);

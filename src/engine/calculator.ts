@@ -30,7 +30,7 @@ export function solveWeight(
 
 /**
  * The integer rep count whose matrix load (at the given RPE) best matches the
- * observed total weight. Searches the matrix domain (1–10 reps) and returns the
+ * observed total weight. Searches the matrix domain (1–15 reps) and returns the
  * closest fit, clamped to that domain.
  */
 export function solveReps(

@@ -1,4 +1,6 @@
 import { db } from "./db";
+import { currentBodyweight } from "./measurements";
+import { bodyweightShiftKg } from "../engine/bodyweight";
 import type {
   Exercise,
   Plan,
@@ -40,6 +42,7 @@ export interface ExerciseInput {
   secondaryMuscleGroups?: string[];
   notes?: string;
   rpeMatrix?: RpeMatrix; // Present ⇒ custom override; absent ⇒ inherits the global matrix.
+  bodyweightFactor?: number; // 0..1 fraction of bodyweight the movement lifts; absent ⇒ 0
 }
 
 // ---- Plans ----
@@ -213,6 +216,7 @@ export async function createExercise(input: ExerciseInput): Promise<string> {
     notes: input.notes?.trim() || undefined,
     // Absent unless the user opted into a custom matrix; otherwise inherits global.
     rpeMatrix: input.rpeMatrix,
+    bodyweightFactor: input.bodyweightFactor ?? 0,
     created_at: Date.now(),
   };
 
@@ -228,16 +232,43 @@ export async function updateExercise(
     .map((s) => s.trim())
     .filter(Boolean);
 
-  // Passing `undefined` removes the optional key in Dexie — so clearing the
-  // override reverts the exercise to inheriting the global matrix.
-  await db.exercises.update(id, {
-    name: input.name.trim(),
-    primaryMuscleGroups: input.primaryMuscleGroups
-      .map((s) => s.trim())
-      .filter(Boolean),
-    secondaryMuscleGroups: secondary.length ? secondary : undefined,
-    notes: input.notes?.trim() || undefined,
-    rpeMatrix: input.rpeMatrix,
+  // A bodyweightFactor change re-bases the (total-load) c1RM anchor: shifting
+  // it by (new − old) × current bodyweight keeps the estimated total capacity
+  // consistent, so prescribed ADDED weights stay continuous (exact at the 1RM
+  // point; matrix-scaled targets shift by at most Δfactor × bw × (1 − pct),
+  // which the next session's catch-up absorbs). Path-dependent state (streaks,
+  // resets) is untouched. Bodyweight is read before the transaction (tx scope).
+  const before = await db.exercises.get(id);
+  const oldFactor = before?.bodyweightFactor ?? 0;
+  const newFactor = input.bodyweightFactor ?? 0;
+  const shift =
+    newFactor !== oldFactor
+      ? bodyweightShiftKg(oldFactor, newFactor, await currentBodyweight())
+      : 0;
+
+  await db.transaction("rw", [db.exercises, db.progressionStates], async () => {
+    // Passing `undefined` removes the optional key in Dexie — so clearing the
+    // override reverts the exercise to inheriting the global matrix.
+    await db.exercises.update(id, {
+      name: input.name.trim(),
+      primaryMuscleGroups: input.primaryMuscleGroups
+        .map((s) => s.trim())
+        .filter(Boolean),
+      secondaryMuscleGroups: secondary.length ? secondary : undefined,
+      notes: input.notes?.trim() || undefined,
+      rpeMatrix: input.rpeMatrix,
+      bodyweightFactor: newFactor,
+    });
+    if (shift !== 0) {
+      const state = await db.progressionStates.get(id);
+      if (state?.c1rm != null) {
+        await db.progressionStates.put({
+          ...state,
+          c1rm: state.c1rm + shift,
+          updated_at: Date.now(),
+        });
+      }
+    }
   });
 }
 

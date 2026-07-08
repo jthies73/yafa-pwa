@@ -15,6 +15,8 @@ export function useUnitField(opts: {
   getBase: () => number | null;
   setBase: (base: number | null) => void;
   decimals?: number;
+  /** Accept 0 and negative values (added weights: assistance). Default: > 0 only. */
+  allowNegative?: boolean;
 }) {
   const decimals = opts.decimals ?? 2;
   const buffer = ref("");
@@ -39,7 +41,8 @@ export function useUnitField(opts: {
   const commit = (): number | null => {
     editing.value = false;
     const n = parseFloat(buffer.value);
-    const base = Number.isFinite(n) && n > 0 ? opts.toBase(n) : null;
+    const valid = Number.isFinite(n) && (opts.allowNegative || n > 0);
+    const base = valid ? opts.toBase(n) : null;
     opts.setBase(base);
     sync();
     return base;

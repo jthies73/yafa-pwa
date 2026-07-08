@@ -4,13 +4,12 @@ aliases: [Architecture Map, MOC, Documentation Index]
 tags: [yafa/moc]
 area: shared
 order: 0
-source-commit: 326169d
 updated: 2026-07-09
 ---
 
 # YAFA Architecture — Map of Content
 
-This doc set explains **how yafa-pwa works under the hood**: the data model, the planning surface, the workout engine, and everything that happens after a set is logged. It anchors every claim to code (function names, file paths, and — in per-doc "Key functions" tables — line numbers verified at the commit in each file's `source-commit` frontmatter).
+This doc set explains **how yafa-pwa works under the hood**: the data model, the planning surface, the workout engine, and everything that happens after a set is logged. Every claim is anchored to code by function name and file path.
 
 **Boundary with the [README](../README.md):** the README owns the philosophy, feature narrative, and user-facing behavior. These docs own code anchoring, data flow, orderings, and invariants. Read the README first if you're new to the domain concepts; read [[concepts]] for the precise vocabulary.
 
@@ -74,6 +73,7 @@ flowchart LR
 | Periodization shift          | `applyMesoToParams`                         | [[mesocycles]]            |
 | Reset consumption            | `consumeReset`                              | [[prescription-pipeline]] |
 | Session fatigue              | `computeFatigueAdjustment`                  | [[fatigue-and-slots]]     |
+| Bodyweight offset            | `bodyweightOffsetKg`, `liftSets`            | [[bodyweight]]            |
 | Prescription                 | `prescribeExercise`                         | [[prescription-pipeline]] |
 | Execution & represcription   | `proposeSetAdjustment`, `useWorkoutTracker` | [[workout-tracking]]      |
 | Outcome judgment             | `evaluate`                                  | [[applying-results]]      |
@@ -103,6 +103,7 @@ The best single code reference for the full wiring is the integration harness `s
 1. [[prescription-pipeline]] — preview vs. prescribe, per-model set building
 2. [[fatigue-and-slots]] — same-session fatigue and the slot-alignment invariant
 3. [[workout-tracking]] — the running workout: tracker, green dot, snapshots
+4. [[bodyweight]] — the added↔total weight model for bodyweight exercises
 
 **Evaluation** — what happens after you train
 
@@ -120,6 +121,7 @@ The only place this doc set enumerates UI components — topical docs reference 
 | `RoutineDetailsPage.vue`                                                                  | Exercise slots, drag-reorder (load-bearing), config entry    | [[plans-and-routines]]    |
 | `ExerciseConfigSheet.vue`                                                                 | Progression model picker, params, locks, fatigue config      | [[progression-models]]    |
 | `MesocycleSheet.vue` / `MesocycleChart.vue`                                               | Week-by-week focus allocation, presets                       | [[mesocycles]]            |
+| `ExerciseFormSheet.vue`                                                                   | Exercise editor: muscles, notes, bodyweight involvement      | [[bodyweight]]            |
 | `ExerciseRpeMatrixEditor.vue` / `RpeMatrixTable.vue`                                      | Per-exercise matrix override editing                         | [[rpe-matrix]]            |
 | `WorkoutPreviewSheet.vue`                                                                 | Read-only prescription preview, pending-reset display        | [[prescription-pipeline]] |
 | `WorkoutBottomSheet.vue`                                                                  | Minimizable running-workout shell (Tracker/Calculator pager) | [[workout-tracking]]      |
@@ -128,7 +130,7 @@ The only place this doc set enumerates UI components — topical docs reference 
 | `WorkoutCalculatorPanel.vue`                                                              | Solve-for-the-third calculator, live effective e1RM          | [[workout-tracking]]      |
 | `summary/WorkoutSummarySheet.vue` (+ `SummaryHero`, `PrHighlights`, `CalibrationSummary`) | Post-workout summary                                         | [[analytics]]             |
 | `AnalyticsPage.vue` / `AnalyticsChart.vue` / `AnalyticsChartCard.vue`                     | Configurable charts, CSV export                              | [[analytics]]             |
-| `MeasurementsPage.vue`                                                                    | Body measurement tracking                                    | [[data-model]]            |
+| `MeasurementsPage.vue`                                                                    | Body measurement tracking (incl. the system Bodyweight type) | [[data-model]]            |
 | `ImportExportSheet.vue`                                                                   | Backup export/import with merge preview                      | [[backup-restore]]        |
 | `SettingsPage.vue`                                                                        | Theme, units, global matrix display, danger zone             | [[rpe-matrix]]            |
 | `AppBottomSheet.vue` / `ConfirmDialog.vue` / `NumericKeypad.vue`                          | Shared primitives (drag-dismiss sheet, confirms, keypad)     | —                         |
@@ -137,7 +139,6 @@ Routes live in `src/router/index.ts`: `/` dashboard, `/plans(/:id)`, `/routines/
 
 ## Maintenance
 
-- **Anchors:** prose references use symbol + path only. Exact `path:line` anchors appear solely in each doc's "Key functions" table and are valid at that doc's `source-commit`. When updating a doc: re-verify with `grep -n "<symbol>" <path>`, fix lines, bump `source-commit` and `updated`.
-- **Constants:** always cited by name with the current value in parentheses ("`CATCHUP_THRESHOLD` (currently 10%)") so a tuning change doesn't silently falsify prose. All tuning values live in `src/engine/constants.ts`.
-- **Internal functions** (not exported, e.g. `buildSets`, `foldQualifiedSession`) are marked "(internal)" — they rot faster, so their descriptions stay behavioral.
-- **Verification:** wikilink targets must match a filename or alias; Mermaid blocks use only Obsidian-bundled diagram types (`flowchart`, `sequenceDiagram`, `stateDiagram-v2`, `erDiagram`, `classDiagram`).
+- **References:** code is cited by symbol name + file path, never line numbers. When updating a doc, verify the symbol still exists (`grep -n "<symbol>" <path>`) and bump `updated` in the frontmatter.
+- **Constants:** cited by name with the current value in parentheses ("`CATCHUP_THRESHOLD` (currently 10%)") so a tuning change doesn't silently falsify prose. All tuning values live in `src/engine/constants.ts`.
+- **Verification:** wikilink targets must match a filename or alias (escape `|` as `\|` inside tables); Mermaid blocks use only Obsidian-bundled diagram types (`flowchart`, `sequenceDiagram`, `stateDiagram-v2`, `erDiagram`, `classDiagram`).

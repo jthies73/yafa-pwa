@@ -1,4 +1,5 @@
 import { db } from "../db/db";
+import { BODYWEIGHT_TYPE_ID } from "../db/measurements";
 import type {
   AnalyticsChartConfig,
   MeasurementCategory,
@@ -93,9 +94,18 @@ export async function buildChartSeries(
     };
   }
 
-  const [workouts, exercises] = await Promise.all([
+  const [workouts, exercises, bodyweightEntries] = await Promise.all([
     db.workouts.toArray(),
     db.exercises.toArray(),
+    // e1RM lifts sets by the workout-time bodyweight. Deliberately NOT filtered
+    // by the timeframe cutoff: points before the first entry fall back to the
+    // earliest one, which may lie outside the window.
+    config.metric === "e1rm"
+      ? db.measurementEntries
+          .where("measurementTypeId")
+          .equals(BODYWEIGHT_TYPE_ID)
+          .toArray()
+      : Promise.resolve([]),
   ]);
 
   const scope: WorkoutScope =
@@ -113,6 +123,7 @@ export async function buildChartSeries(
     workouts: workouts.filter((w) => w.startTime >= cutoff),
     exercisesById: new Map(exercises.map((e) => [e.id, e])),
     mesocycle,
+    bodyweightEntries,
   });
 
   return {
@@ -134,9 +145,13 @@ export async function buildWorkoutSummary(
   workout: Workout,
   plannedCounts: Record<string, number>,
 ): Promise<WorkoutSummary> {
-  const [workouts, exercises] = await Promise.all([
+  const [workouts, exercises, bodyweightEntries] = await Promise.all([
     db.workouts.toArray(),
     db.exercises.toArray(),
+    db.measurementEntries
+      .where("measurementTypeId")
+      .equals(BODYWEIGHT_TYPE_ID)
+      .toArray(),
   ]);
 
   return computeWorkoutSummary({
@@ -144,5 +159,6 @@ export async function buildWorkoutSummary(
     history: workouts.filter((w) => w.id !== workout.id),
     exercisesById: new Map(exercises.map((e) => [e.id, e])),
     plannedCounts,
+    bodyweightEntries,
   });
 }

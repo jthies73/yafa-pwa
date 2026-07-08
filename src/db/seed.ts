@@ -13,6 +13,7 @@ const measurementTypes: MeasurementType[] = [
     id: BODYWEIGHT_TYPE_ID,
     name: "Bodyweight",
     category: "WEIGHT",
+    isSystem: true,
     created_at: Date.now(),
   },
 ];

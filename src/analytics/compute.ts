@@ -1,5 +1,10 @@
 import type { AnalyticsBucket, Exercise, Workout } from "../db/types";
 import { DEFAULT_RPE_MATRIX } from "../db/rpeMatrix";
+import {
+  bodyweightOffsetKg,
+  liftSet,
+  pickBodyweightAt,
+} from "../engine/bodyweight";
 import { impliedE1rm, isQualifyingSet } from "../engine/matrix";
 
 // ----------------------------------------------
@@ -51,6 +56,16 @@ export interface BucketContribution {
   value: number; // multiplier-weighted contribution to the bucket's metric
 }
 
+// The set behind an e1RM bucket's max. `weight` is the ADDED weight the user
+// loaded; `bodyweightOffsetKg` (present when > 0) is the bodyweight share that
+// was folded into the plotted e1RM — the tooltip renders the breakdown.
+export interface BestSet {
+  weight: number;
+  reps: number;
+  rpe?: number;
+  bodyweightOffsetKg?: number;
+}
+
 export interface BucketPoint {
   key: string;
   start: number; // bucket start, epoch ms (sort key)
@@ -59,7 +74,7 @@ export interface BucketPoint {
   direct: number; // ×1.0 share (equals value outside muscle scope)
   indirect: number; // ×0.5 share (0 outside muscle scope)
   contributions: BucketContribution[];
-  bestSet?: { weight: number; reps: number; rpe?: number }; // e1RM buckets only
+  bestSet?: BestSet; // e1RM buckets only
   samples?: number; // measurement buckets: number of entries averaged
 }
 
@@ -198,7 +213,7 @@ interface BucketAcc {
   workoutIds: Set<string>;
   contributions: Map<string, BucketContribution>;
   e1rmMax: number | null;
-  bestSet?: { weight: number; reps: number; rpe?: number };
+  bestSet?: BestSet;
 }
 
 export interface WorkoutSeriesOptions {
@@ -208,6 +223,10 @@ export interface WorkoutSeriesOptions {
   workouts: Workout[];
   exercisesById: Map<string, Exercise>;
   mesocycle?: MesocycleSpec;
+  // All logged bodyweight entries (NOT timeframe-filtered — points before the
+  // first entry fall back to the earliest). e1rm metric only: lifts each set
+  // by its workout-time bodyweight share so plotted e1RMs are total-load.
+  bodyweightEntries?: TimestampedValue[];
 }
 
 /** Buckets and aggregates one workout-derived metric into a chartable series. */
@@ -247,6 +266,11 @@ export function computeWorkoutSeries(
       continue;
     }
 
+    const workoutBodyweight =
+      opts.metric === "e1rm"
+        ? pickBodyweightAt(opts.bodyweightEntries ?? [], workout.startTime)
+        : undefined;
+
     for (const workoutExercise of workout.exercises) {
       const exercise = opts.exercisesById.get(workoutExercise.exerciseId);
       if (!exercise || !workoutExercise.sets.length) continue;
@@ -259,15 +283,23 @@ export function computeWorkoutSeries(
 
       if (opts.metric === "e1rm") {
         const matrix = exercise.rpeMatrix ?? DEFAULT_RPE_MATRIX;
+        const offsetKg = bodyweightOffsetKg(
+          exercise.bodyweightFactor,
+          workoutBodyweight,
+        );
         for (const set of workoutExercise.sets) {
+          // Lift into total-load space first: qualifying and the implied e1RM
+          // both work on added + bodyweight share (0-added bodyweight sets
+          // qualify). The plotted value is the total-load e1RM.
+          const lifted = liftSet(set, offsetKg);
           // Only honest near-limit sets (RPE ≥ 8, reps ≤ 10) imply a usable
           // e1RM; buckets without one are omitted, never interpolated.
-          if (!isQualifyingSet(set)) continue;
+          if (!isQualifyingSet(lifted)) continue;
           const e1rm = impliedE1rm(
             matrix,
-            set.actualWeight,
-            set.actualReps,
-            set.actualRpe!,
+            lifted.actualWeight,
+            lifted.actualReps,
+            lifted.actualRpe!,
           );
           // MAX, not mean: the peak estimated 1RM in a period is the
           // meaningful signal. Sessions mix top sets and back-offs at varying
@@ -276,9 +308,10 @@ export function computeWorkoutSeries(
           if (acc.e1rmMax === null || e1rm > acc.e1rmMax) {
             acc.e1rmMax = e1rm;
             acc.bestSet = {
-              weight: set.actualWeight,
+              weight: set.actualWeight, // ADDED weight, as the user loaded it
               reps: set.actualReps,
               rpe: set.actualRpe,
+              ...(offsetKg > 0 ? { bodyweightOffsetKg: offsetKg } : {}),
             };
           }
         }

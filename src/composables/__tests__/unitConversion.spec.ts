@@ -343,6 +343,60 @@ describe("useUnitField", () => {
     expect(field.buffer.value).toBe("");
   });
 
+  it("commit() nullifies negative entries by default (length fields etc.)", async () => {
+    const { useUnitField } = await import("../useUnitField");
+    const { useWeightUnit } = await import("../useWeightUnit");
+    const { setUnit, toDisplay, toKg, unit } = useWeightUnit();
+    setUnit("kg");
+
+    let storedKg: number | null = 80;
+    const field = useUnitField({
+      unit,
+      toDisplay,
+      toBase: toKg,
+      getBase: () => storedKg,
+      setBase: (kg) => {
+        storedKg = kg;
+      },
+      decimals: 1,
+    });
+
+    field.onFocus();
+    field.buffer.value = "-10";
+    field.commit();
+    expect(storedKg).toBeNull();
+  });
+
+  it("commit() accepts 0 and negatives with allowNegative (added weights)", async () => {
+    const { useUnitField } = await import("../useUnitField");
+    const { useWeightUnit } = await import("../useWeightUnit");
+    const { setUnit, toDisplay, toKg, unit } = useWeightUnit();
+    setUnit("kg");
+
+    let storedKg: number | null = 80;
+    const field = useUnitField({
+      unit,
+      toDisplay,
+      toBase: toKg,
+      getBase: () => storedKg,
+      setBase: (kg) => {
+        storedKg = kg;
+      },
+      decimals: 1,
+      allowNegative: true,
+    });
+
+    field.onFocus();
+    field.buffer.value = "-10"; // band/machine assistance
+    expect(field.commit()).toBe(-10);
+    expect(storedKg).toBe(-10);
+
+    field.onFocus();
+    field.buffer.value = "0"; // plain bodyweight set
+    expect(field.commit()).toBe(0);
+    expect(storedKg).toBe(0);
+  });
+
   it("buffer re-syncs when unit changes while not editing", async () => {
     const { useUnitField } = await import("../useUnitField");
     const { useWeightUnit } = await import("../useWeightUnit");

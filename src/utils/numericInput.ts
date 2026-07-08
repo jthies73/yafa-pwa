@@ -16,7 +16,10 @@ export function guardRepsKey(e: KeyboardEvent): void {
 
 export function guardWeightKey(e: KeyboardEvent): void {
   if (e.ctrlKey || e.metaKey || PASS.includes(e.key)) return;
-  if (e.key === "." && !(e.target as HTMLInputElement).value.includes("."))
+  const input = e.target as HTMLInputElement;
+  if (e.key === "." && !input.value.includes(".")) return;
+  // A single leading minus — negative added weight means assistance.
+  if (e.key === "-" && !input.value.includes("-") && input.selectionStart === 0)
     return;
   if (/^\d$/.test(e.key)) return;
   e.preventDefault();
@@ -29,5 +32,6 @@ export function sanitizeReps(val: string): string {
 
 export function sanitizeWeight(val: string): string {
   const n = parseFloat(val);
-  return n > 0 ? String(Math.round(n * 100) / 100) : "";
+  // 0 and negative added weights are valid (bodyweight / assisted sets).
+  return Number.isFinite(n) ? String(Math.round(n * 100) / 100) : "";
 }

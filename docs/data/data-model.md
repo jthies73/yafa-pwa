@@ -4,7 +4,6 @@ aliases: [Database Schema, Dexie Schema, types.ts]
 tags: [yafa/data]
 area: data
 order: 1
-source-commit: 326169d
 updated: 2026-07-09
 ---
 
@@ -16,20 +15,21 @@ Everything the app stores lives in **IndexedDB via Dexie**, declared in `src/db/
 
 ## Stores and schema versions
 
-Eight tables, evolved through ten schema versions. **Migration policy** (from CLAUDE.md): structural or required-field changes get a Dexie version + upgrade; read-time backfill (`normalizeProgressionParams`, see [[progression-models#Defaults and normalization|progression-models]]) is only a convenience for optional fields with safe defaults. Never edit an existing version — append a new one.
+Eight tables, evolved through eleven schema versions. **Migration policy** (from CLAUDE.md): structural or required-field changes get a Dexie version + upgrade; read-time backfill (`normalizeProgressionParams`, see [[progression-models#Defaults and normalization|progression-models]]) is only a convenience for optional fields with safe defaults. Never edit an existing version — append a new one.
 
-| Version | Change                                                                                                                                                                                 |
-| ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| v1      | Initial stores: `exercises` (multi-entry index on muscle groups), `routines`, `plans`, `workouts`                                                                                      |
-| v2      | `progressionStates` — per-exercise engine state                                                                                                                                        |
-| v3      | `measurementTypes` + `measurementEntries` (body measurements)                                                                                                                          |
-| v4      | `primaryMuscleGroup: string` → `primaryMuscleGroups: string[]` (upgrade rewrites every exercise)                                                                                       |
-| v5      | `analyticsCharts` — user-configured chart configs                                                                                                                                      |
-| v6      | Bodyweight feature removal (drops `bodyweightFactor`, `isSystem`)                                                                                                                      |
-| v7      | Engine rewrite to derived-state reducer: adds `recalibrations`, clears `progressionStates`                                                                                             |
-| v8      | Core engine teardown: drops `progressionStates` and `recalibrations`                                                                                                                   |
-| v9      | Progression engine rebuild: re-introduces `progressionStates` keyed by `exerciseId` (c1RM anchor, streak, reset flag, double-rep cursor); rows created lazily                          |
-| v10     | Session fatigue: stamps required `fatigueReduction` (10) / `fatigueReductionUnit` (`"percent"`) onto every stored routine config — the migration counterpart of the read-time backfill |
+| Version | Change                                                                                                                                                                                                 |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| v1      | Initial stores: `exercises` (multi-entry index on muscle groups), `routines`, `plans`, `workouts`                                                                                                      |
+| v2      | `progressionStates` — per-exercise engine state                                                                                                                                                        |
+| v3      | `measurementTypes` + `measurementEntries` (body measurements)                                                                                                                                          |
+| v4      | `primaryMuscleGroup: string` → `primaryMuscleGroups: string[]` (upgrade rewrites every exercise)                                                                                                       |
+| v5      | `analyticsCharts` — user-configured chart configs                                                                                                                                                      |
+| v6      | Bodyweight feature removal (drops `bodyweightFactor`, `isSystem`)                                                                                                                                      |
+| v7      | Engine rewrite to derived-state reducer: adds `recalibrations`, clears `progressionStates`                                                                                                             |
+| v8      | Core engine teardown: drops `progressionStates` and `recalibrations`                                                                                                                                   |
+| v9      | Progression engine rebuild: re-introduces `progressionStates` keyed by `exerciseId` (c1RM anchor, streak, reset flag, double-rep cursor); rows created lazily                                          |
+| v10     | Session fatigue: stamps required `fatigueReduction` (10) / `fatigueReductionUnit` (`"percent"`) onto every stored routine config — the migration counterpart of the read-time backfill                 |
+| v11     | Bodyweight support (reverses v6): backfills `exercise.bodyweightFactor ??= 0` and makes the Bodyweight measurement a protected **system type** (`isSystem`, recreated if deleted) — see [[bodyweight]] |
 
 ## Entity relationships
 
@@ -55,20 +55,20 @@ Embedded vs. referenced matters: routine slots and their configs are **embedded*
 
 All in `src/db/types.ts`. The file's header comment states the pipeline these types serve: _config → mesocycle → prescription → execution → finish → c1RM update → next prescription_.
 
-| Type                                   | Anchor                    | Meaning                                                                                                                                                                                                                  |
-| -------------------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `Exercise`                             | `src/db/types.ts:84`      | Movement library entry: `primaryMuscleGroups`/`secondaryMuscleGroups` (drive [[fatigue-and-slots                                                                                                                         | fatigue]]), `notes`, optional `rpeMatrix` override (absent ⇒ inherits the global default)                                                |
-| `RoutineExerciseConfig`                | `src/db/types.ts:94`      | Per-slot progression contract: `progressionModel`, `progressionParams`, `lockedFields?`. ⚠️ The loose top-level mirror fields (`targetSets`, `minReps`, …) are **vestigial** — the engine reads only `progressionParams` |
-| `RoutineExercise`                      | `src/db/types.ts:108`     | One ordered slot: `exerciseId` + optional `config`; duplicates of the same exercise are distinct slots ([[concepts#Slot alignment                                                                                        | slot alignment]])                                                                                                                        |
-| `Routine`                              | `src/db/types.ts:113`     | Ordered `exercises: RoutineExercise[]`, optional `weeklyTarget`                                                                                                                                                          |
-| `PeriodizationFocus` / `MesocycleWeek` | `src/db/types.ts:121/127` | Week focus; kept as an object `{focus}` so per-week tuning can be added without migration                                                                                                                                |
-| `Plan`                                 | `src/db/types.ts:131`     | `routineIds: string[]`, `active` (single-active invariant), optional `mesocycle: MesocycleWeek[]`                                                                                                                        |
-| `Set`                                  | `src/db/types.ts:145`     | Logged set: `targetReps/actualReps`, `targetWeight/actualWeight`, `targetRpe?/actualRpe?`, `failure`, `timestamp`                                                                                                        |
-| `WorkoutExercise` / `Workout`          | `src/db/types.ts:157/165` | Session record: `routineId`, `startTime`, `endTime?`, exercises with sets                                                                                                                                                |
-| `ProgressionState`                     | `src/db/types.ts:179`     | The engine's persisted row per exercise: `c1rm` ([[concepts#c1RM                                                                                                                                                         | unrounded anchor]], null until seeded), `regressionStreak`, `resetPending`, `doubleRepCursor?`, `lastWorkoutId` (fold idempotency guard) |
-| `RpeMatrix`                            | `src/db/types.ts:82`      | `Record<reps, Record<rpe, pctOf1RM>>`, decimals 0–1 — see [[rpe-matrix]]                                                                                                                                                 |
-| `MeasurementType` / `MeasurementEntry` | `src/db/types.ts:198/205` | Body measurements; values stored in source-of-truth units (kg/cm/%) — imperial never reaches the DB                                                                                                                      |
-| `AnalyticsChartConfig`                 | `src/db/types.ts:231`     | Chart definition: `sourceKind` (`global`/`muscle`/`exercise`/`measurement`), flat optional source fields (exactly one set, kept flat for Dexie), `metric`, `bucket`, `order`                                             |
+| Type                                   | File              | Meaning                                                                                                                                                                                                                                 |
+| -------------------------------------- | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Exercise`                             | `src/db/types.ts` | Movement library entry: `primaryMuscleGroups`/`secondaryMuscleGroups` (drive [[fatigue-and-slots\|fatigue]]), `notes`, optional `rpeMatrix` override, `bodyweightFactor?` (share of bodyweight lifted, absent ⇒ 0 — see [[bodyweight]]) |
+| `RoutineExerciseConfig`                | `src/db/types.ts` | Per-slot progression contract: `progressionModel`, `progressionParams`, `lockedFields?`. ⚠️ The loose top-level mirror fields (`targetSets`, `minReps`, …) are **vestigial** — the engine reads only `progressionParams`                |
+| `RoutineExercise`                      | `src/db/types.ts` | One ordered slot: `exerciseId` + optional `config`; duplicates of the same exercise are distinct slots ([[concepts#Slot alignment\|slot alignment]])                                                                                    |
+| `Routine`                              | `src/db/types.ts` | Ordered `exercises: RoutineExercise[]`, optional `weeklyTarget`                                                                                                                                                                         |
+| `PeriodizationFocus` / `MesocycleWeek` | `src/db/types.ts` | Week focus; kept as an object `{focus}` so per-week tuning can be added without migration                                                                                                                                               |
+| `Plan`                                 | `src/db/types.ts` | `routineIds: string[]`, `active` (single-active invariant), optional `mesocycle: MesocycleWeek[]`                                                                                                                                       |
+| `Set`                                  | `src/db/types.ts` | Logged set: `targetReps/actualReps`, `targetWeight/actualWeight`, `targetRpe?/actualRpe?`, `failure`, `timestamp`                                                                                                                       |
+| `WorkoutExercise` / `Workout`          | `src/db/types.ts` | Session record: `routineId`, `startTime`, `endTime?`, exercises with sets                                                                                                                                                               |
+| `ProgressionState`                     | `src/db/types.ts` | The engine's persisted row per exercise: `c1rm` ([[concepts#c1RM\|unrounded total-load anchor]], null until seeded), `regressionStreak`, `resetPending`, `doubleRepCursor?`, `lastWorkoutId` (fold idempotency guard)                   |
+| `RpeMatrix`                            | `src/db/types.ts` | `Record<reps, Record<rpe, pctOf1RM>>`, decimals 0–1 — see [[rpe-matrix]]                                                                                                                                                                |
+| `MeasurementType` / `MeasurementEntry` | `src/db/types.ts` | Body measurements; values stored in source-of-truth units (kg/cm/%) — imperial never reaches the DB. `isSystem?` marks engine-consumed types (the Bodyweight type) as non-deletable                                                     |
+| `AnalyticsChartConfig`                 | `src/db/types.ts` | Chart definition: `sourceKind` (`global`/`muscle`/`exercise`/`measurement`), flat optional source fields (exactly one set, kept flat for Dexie), `metric`, `bucket`, `order`                                                            |
 
 `ProgressionState` is **persisted rather than derived** on purpose: percentage-based increments and −10% resets make the c1RM path-dependent, so it can't be recomputed cheaply from history. The analytics-side [[concepts#Implied e1RM|implied e1RM]] is never stored here.
 
@@ -76,30 +76,33 @@ All in `src/db/types.ts`. The file's header comment states the pipeline these ty
 
 `src/db/repository.ts` is the single CRUD gate — consistent ids (`crypto.randomUUID`), timestamps, and **cascades so no orphaned references survive**:
 
-| Invariant                                                                    | Function(s)                                                                                                                                                                                                         |
-| ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Only one plan active at a time                                               | `createPlan` (`repository.ts:47`), `setPlanActive` (`repository.ts:96`) — both deactivate all others in a transaction                                                                                               |
-| Mesocycle persisted separately from name/description                         | `setPlanMesocycle` (`repository.ts:84`) — strips Vue proxies; empty list clears periodization                                                                                                                       |
-| Deleting a plan removes only _exclusively-owned_ routines                    | `deletePlan` (`repository.ts:117`) — computes which routines are referenced elsewhere                                                                                                                               |
-| Deleting a routine strips its id from every plan                             | `deleteRoutine` (`repository.ts:184`)                                                                                                                                                                               |
-| Deleting an exercise strips every routine slot **and** its progression state | `deleteExercise` (`repository.ts:271`), warned by `countExerciseUsage` (`repository.ts:260`)                                                                                                                        |
-| Progression state reads never persist defaults                               | `getProgressionState` (`repository.ts:327`) returns a fresh blank row (`freshProgressionState`, `repository.ts:311`) if none stored; only `putProgressionState` (`repository.ts:341`) writes, stamping `updated_at` |
+| Invariant                                                                    | Function(s)                                                                                                                                                                                             |
+| ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Only one plan active at a time                                               | `createPlan` (`repository.ts`), `setPlanActive` (`repository.ts`) — both deactivate all others in a transaction                                                                                         |
+| Mesocycle persisted separately from name/description                         | `setPlanMesocycle` (`repository.ts`) — strips Vue proxies; empty list clears periodization                                                                                                              |
+| Deleting a plan removes only _exclusively-owned_ routines                    | `deletePlan` (`repository.ts`) — computes which routines are referenced elsewhere                                                                                                                       |
+| Deleting a routine strips its id from every plan                             | `deleteRoutine` (`repository.ts`)                                                                                                                                                                       |
+| Deleting an exercise strips every routine slot **and** its progression state | `deleteExercise` (`repository.ts`), warned by `countExerciseUsage` (`repository.ts`)                                                                                                                    |
+| Progression state reads never persist defaults                               | `getProgressionState` (`repository.ts`) returns a fresh blank row (`freshProgressionState`, `repository.ts`) if none stored; only `putProgressionState` (`repository.ts`) writes, stamping `updated_at` |
+| Editing `bodyweightFactor` re-bases c1RM                                     | `updateExercise` (`repository.ts`) shifts the total-load anchor by `bodyweightShiftKg` in a transaction so prescribed added weights stay continuous ([[bodyweight]])                                    |
+| System measurement types can't be deleted                                    | `deleteMeasurementType` (`measurements.ts`) refuses `isSystem` types; the Bodyweight type feeds the engine (`currentBodyweight` / `bodyweightAt`)                                                       |
 
 The engine's only persistence surface is that last pair — everything else in the engine is pure (see [[prescription-pipeline]]).
 
 ## Seeding
 
-`src/db/seed.ts` runs once when the database is empty: a starter exercise library, three routines with fully-specified configs, one active plan with a 6-week mesocycle (Hypertrophy ×2, Strength ×2, Peaking, Deload), a "Bodyweight" measurement type, and a default chart. `devSeed.ts` is a separate dev-only fixture. A different kind of seeding — deriving an initial c1RM from workout history (`seedC1rmFromHistory`, `src/engine/sessions.ts:61`) — belongs to the engine; see [[applying-results#History seeding and cold start|applying-results]].
+`src/db/seed.ts` runs once when the database is empty: a starter exercise library, three routines with fully-specified configs, one active plan with a 6-week mesocycle (Hypertrophy ×2, Strength ×2, Peaking, Deload), a "Bodyweight" measurement type, and a default chart. `devSeed.ts` is a separate dev-only fixture. A different kind of seeding — deriving an initial c1RM from workout history (`seedC1rmFromHistory`, `src/engine/sessions.ts`) — belongs to the engine; see [[applying-results#History seeding and cold start|applying-results]].
 
 ## Key functions
 
-| Function              | Anchor                     | Note                                         |
-| --------------------- | -------------------------- | -------------------------------------------- |
-| `setPlanActive`       | `src/db/repository.ts:96`  | Single-active-plan transaction               |
-| `setPlanMesocycle`    | `src/db/repository.ts:84`  | Proxy-stripping meso persistence             |
-| `deletePlan`          | `src/db/repository.ts:117` | Orphan-only routine cascade                  |
-| `deleteExercise`      | `src/db/repository.ts:271` | Slot + progression-state cascade             |
-| `getProgressionState` | `src/db/repository.ts:327` | Read-or-default, never persists              |
-| `putProgressionState` | `src/db/repository.ts:341` | The engine's only write path for progression |
-| v10 fatigue migration | `src/db/db.ts:118`         | Latest schema upgrade                        |
-| `seedDatabase`        | `src/db/seed.ts:423`       | First-run seed, only when empty              |
+| Function                             | File                     | Note                                         |
+| ------------------------------------ | ------------------------ | -------------------------------------------- |
+| `setPlanActive`                      | `src/db/repository.ts`   | Single-active-plan transaction               |
+| `setPlanMesocycle`                   | `src/db/repository.ts`   | Proxy-stripping meso persistence             |
+| `deletePlan`                         | `src/db/repository.ts`   | Orphan-only routine cascade                  |
+| `deleteExercise`                     | `src/db/repository.ts`   | Slot + progression-state cascade             |
+| `getProgressionState`                | `src/db/repository.ts`   | Read-or-default, never persists              |
+| `putProgressionState`                | `src/db/repository.ts`   | The engine's only write path for progression |
+| Migration v11                        | `src/db/db.ts`           | Latest schema upgrade (bodyweight support)   |
+| `currentBodyweight` / `bodyweightAt` | `src/db/measurements.ts` | Engine's bodyweight reads                    |
+| `seedDatabase`                       | `src/db/seed.ts`         | First-run seed, only when empty              |

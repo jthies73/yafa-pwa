@@ -118,9 +118,15 @@ export function tooltipLines(
 ): string[] {
   if (ctx.metric === "e1rm") {
     if (!point.bestSet) return [];
-    const { weight, reps, rpe } = point.bestSet;
+    const { weight, reps, rpe, bodyweightOffsetKg } = point.bestSet;
     const rpePart = rpe !== undefined ? ` @ RPE ${rpe}` : "";
-    return [`Best set: ${ctx.formatValue(weight)} × ${reps}${rpePart}`];
+    // Added weight + the bodyweight share folded into the plotted e1RM.
+    const bwPart = bodyweightOffsetKg
+      ? ` + ${ctx.formatValue(bodyweightOffsetKg)} BW`
+      : "";
+    return [
+      `Best set: ${ctx.formatValue(weight)}${bwPart} × ${reps}${rpePart}`,
+    ];
   }
   if (ctx.metric === "value") {
     return point.samples && point.samples > 1

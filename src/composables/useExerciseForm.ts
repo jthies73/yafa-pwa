@@ -9,6 +9,8 @@ export function useExerciseForm(
   const primaryMuscleGroups = ref<string[]>([]);
   const secondaryTags = ref<string[]>([]);
   const notes = ref("");
+  // Displayed as a whole percent ("90"); stored as a 0..1 decimal. Empty ⇒ 0.
+  const bodyweightPct = ref("");
 
   watch(
     isOpen,
@@ -20,6 +22,8 @@ export function useExerciseForm(
       ];
       secondaryTags.value = [...(initial.value?.secondaryMuscleGroups ?? [])];
       notes.value = initial.value?.notes ?? "";
+      const factor = initial.value?.bodyweightFactor ?? 0;
+      bodyweightPct.value = factor > 0 ? String(Math.round(factor * 100)) : "";
     },
     { immediate: true },
   );
@@ -38,11 +42,18 @@ export function useExerciseForm(
     secondaryTags.value = secondaryTags.value.filter((t) => t !== tag);
   };
 
+  const parsedBodyweightFactor = (): number => {
+    const pct = parseInt(bodyweightPct.value, 10);
+    if (!Number.isFinite(pct)) return 0;
+    return Math.min(100, Math.max(0, pct)) / 100;
+  };
+
   const getFormData = (): ExerciseInput => ({
     name: name.value,
     primaryMuscleGroups: primaryMuscleGroups.value,
     secondaryMuscleGroups: secondaryTags.value,
     notes: notes.value,
+    bodyweightFactor: parsedBodyweightFactor(),
   });
 
   return {
@@ -50,6 +61,7 @@ export function useExerciseForm(
     primaryMuscleGroups,
     secondaryTags,
     notes,
+    bodyweightPct,
     canSave,
     removePrimaryTag,
     removeTag,

@@ -4,7 +4,6 @@ aliases: [Import Export, Backup, backup.json]
 tags: [yafa/data]
 area: data
 order: 2
-source-commit: 326169d
 updated: 2026-07-09
 ---
 
@@ -16,11 +15,11 @@ Because everything is on-device, a single portable **`backup.json`** is the only
 
 ## What travels in a backup
 
-`exportData` (`src/db/backup.ts:97`) reads every table in parallel and produces a `BackupFile` (`src/db/backup.ts:70`):
+`exportData` (`src/db/backup.ts`) reads every table in parallel and produces a `BackupFile` (`src/db/backup.ts`):
 
 - **All domain tables**: exercises, routines, plans, workouts, measurement types/entries, analytics charts, and `progressionStates` (so [[concepts#c1RM|c1RM]] anchors survive a device move — restore does **not** re-derive them).
 - **Portable settings**: the localStorage allowlist in `src/config/settings.ts` — `yafa:theme`, `yafa:weightUnit`, `yafa:lengthUnit`, and the two chart timeframes. Device/session state (notably the `yafa:activeWorkout` snapshot, see [[workout-tracking#Snapshot persistence|workout-tracking]]) is deliberately excluded.
-- **`rawWorkouts`**: the redundancy payload — `exercise name → [{timestamp, reps, weight, rpe}]`, built by `buildRawWorkouts` (`src/db/rawWorkouts.ts:43`).
+- **`rawWorkouts`**: the redundancy payload — `exercise name → [{timestamp, reps, weight, rpe}]`, built by `buildRawWorkouts` (`src/db/rawWorkouts.ts`).
 
 ## Import pipeline
 
@@ -41,10 +40,11 @@ flowchart TD
 
 Stages, with anchors:
 
-1. **Parse** — `parseBackupFile` (`src/db/backup.ts:422`) accepts `.json` or `.zip` (extracts `backup.json`).
-2. **Preview** — `previewImport` (`src/db/backup.ts:300`) dry-runs the whole import: `diffEntities` (`src/db/backup.ts:278`) classifies each record as new/updated/unchanged by deep-equal, and the workout section reports one of four modes: `structured`, `reconstructed`, `unrecoverable`, or `empty` — the reconstruction is dry-run to count without writing.
-3. **Merge** — `importData` (`src/db/backup.ts:184`) validates `app === "yafa"`, applies settings first, then upserts every non-workout table by id via `bulkPut`. Re-importing the same file (or one that overlaps existing data) never duplicates and never deletes.
-4. **Workouts with fallback** — `importWorkouts` (internal, `src/db/backup.ts:221`): structured workouts are shape-checked by `assertStructuredWorkoutsValid` (`src/db/backup.ts:142`) — ids, timestamps, set shapes, and that every `exerciseId` resolves. On any validation failure (or a legacy backup with no structured list), it falls back to `reconstructWorkoutsFromRaw` (`src/db/rawWorkouts.ts:96`).
+1. **Parse** — `parseBackupFile` (`src/db/backup.ts`) accepts `.json` or `.zip` (extracts `backup.json`).
+2. **Preview** — `previewImport` (`src/db/backup.ts`) dry-runs the whole import: `diffEntities` (`src/db/backup.ts`) classifies each record as new/updated/unchanged by deep-equal, and the workout section reports one of four modes: `structured`, `reconstructed`, `unrecoverable`, or `empty` — the reconstruction is dry-run to count without writing.
+3. **Normalize** — `normalizeBackupData` (`src/db/backup.ts`, pure) runs before both preview and merge: it backfills `exercise.bodyweightFactor ??= 0` and re-protects the Bodyweight system type, so importing an old backup can't strip migration-stamped fields ([[bodyweight]]).
+4. **Merge** — `importData` (`src/db/backup.ts`) validates `app === "yafa"`, applies settings first, then upserts every non-workout table by id via `bulkPut`. Re-importing the same file (or one that overlaps existing data) never duplicates and never deletes.
+5. **Workouts with fallback** — `importWorkouts` (internal, `src/db/backup.ts`): structured workouts are shape-checked by `assertStructuredWorkoutsValid` (`src/db/backup.ts`) — ids, timestamps, set shapes, and that every `exerciseId` resolves. On any validation failure (or a legacy backup with no structured list), it falls back to `reconstructWorkoutsFromRaw` (`src/db/rawWorkouts.ts`).
 
 ## Raw reconstruction semantics
 
@@ -52,7 +52,7 @@ Stages, with anchors:
 
 - **Exercises** are matched by normalized name; missing ones are recreated with a default config and empty muscle groups.
 - **Sets** are grouped into **one workout per local calendar day** — the raw form has no session boundaries, so a day is the safest unit.
-- **Routines are unrecoverable** from raw data, so reconstructed sessions are filed under the `UNKNOWN_ROUTINE_ID` sentinel (`src/db/rawWorkouts.ts:36`).
+- **Routines are unrecoverable** from raw data, so reconstructed sessions are filed under the `UNKNOWN_ROUTINE_ID` sentinel (`src/db/rawWorkouts.ts`).
 - Days already present on the imported routine are skipped, keeping re-import idempotent.
 
 ## Merge semantics summary
@@ -74,12 +74,12 @@ Restore never re-runs progression: `ProgressionState` travels as plain data, and
 
 ## Key functions
 
-| Function                        | Anchor                     | Note                                      |
-| ------------------------------- | -------------------------- | ----------------------------------------- |
-| `exportData`                    | `src/db/backup.ts:97`      | Full export incl. settings + raw fallback |
-| `importData`                    | `src/db/backup.ts:184`     | Idempotent merge entry point              |
-| `previewImport`                 | `src/db/backup.ts:300`     | Dry-run diff + workout mode               |
-| `assertStructuredWorkoutsValid` | `src/db/backup.ts:142`     | Gate between structured and raw paths     |
-| `parseBackupFile`               | `src/db/backup.ts:422`     | `.json` / `.zip` handling                 |
-| `buildRawWorkouts`              | `src/db/rawWorkouts.ts:43` | Structured → raw flattening at export     |
-| `reconstructWorkoutsFromRaw`    | `src/db/rawWorkouts.ts:96` | Raw → one-workout-per-day recovery        |
+| Function                        | File                    | Note                                      |
+| ------------------------------- | ----------------------- | ----------------------------------------- |
+| `exportData`                    | `src/db/backup.ts`      | Full export incl. settings + raw fallback |
+| `importData`                    | `src/db/backup.ts`      | Idempotent merge entry point              |
+| `previewImport`                 | `src/db/backup.ts`      | Dry-run diff + workout mode               |
+| `assertStructuredWorkoutsValid` | `src/db/backup.ts`      | Gate between structured and raw paths     |
+| `parseBackupFile`               | `src/db/backup.ts`      | `.json` / `.zip` handling                 |
+| `buildRawWorkouts`              | `src/db/rawWorkouts.ts` | Structured → raw flattening at export     |
+| `reconstructWorkoutsFromRaw`    | `src/db/rawWorkouts.ts` | Raw → one-workout-per-day recovery        |

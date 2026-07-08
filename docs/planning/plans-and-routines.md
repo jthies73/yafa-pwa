@@ -4,7 +4,6 @@ aliases: [Plans, Routines, Exercise Config, RoutineExerciseConfig]
 tags: [yafa/planning]
 area: planning
 order: 1
-source-commit: 326169d
 updated: 2026-07-09
 ---
 
@@ -24,8 +23,8 @@ flowchart LR
     EFF --> PRESC["prescribeExercise"]
 ```
 
-1. **Stored config** — `RoutineExerciseConfig` (`src/db/types.ts:94`): `progressionModel`, `progressionParams`, `lockedFields?`. Configs are embedded in the routine document, so old records may lack newer fields.
-2. **Normalization** — `normalizeProgressionParams` (`src/config/progression.ts:77`) merges `DEFAULT_PROGRESSION_PARAMS` with the saved params at **every read boundary** (config sheet, preview, engine service). Details in [[progression-models#Defaults and normalization|progression-models]].
+1. **Stored config** — `RoutineExerciseConfig` (`src/db/types.ts`): `progressionModel`, `progressionParams`, `lockedFields?`. Configs are embedded in the routine document, so old records may lack newer fields.
+2. **Normalization** — `normalizeProgressionParams` (`src/config/progression.ts`) merges `DEFAULT_PROGRESSION_PARAMS` with the saved params at **every read boundary** (config sheet, preview, engine service). Details in [[progression-models#Defaults and normalization|progression-models]].
 3. **Periodization** — `applyMesoToParams` shifts RPE/rep targets per the active week's [[concepts#Mesocycle focus|focus]], skipping [[concepts#lockedFields|locked fields]]. Details in [[mesocycles]].
 4. The result feeds the [[prescription-pipeline]].
 
@@ -33,7 +32,7 @@ flowchart LR
 
 ## Exercise order is load-bearing
 
-The drag-to-reorder in `RoutineDetailsPage.vue` (via `useSortableList`, persisted by `persistExercises`) doesn't just change display order: **slot order defines the fatigue priors**. `priorsBySlot` (`src/engine/service.ts:244`) walks the routine in order so each slot sees the muscle profiles of every earlier slot — moving an exercise up or down changes the loads of exercises after it. See [[fatigue-and-slots#Slot priors|fatigue-and-slots]].
+The drag-to-reorder in `RoutineDetailsPage.vue` (via `useSortableList`, persisted by `persistExercises`) doesn't just change display order: **slot order defines the fatigue priors**. `priorsBySlot` (`src/engine/service.ts`) walks the routine in order so each slot sees the muscle profiles of every earlier slot — moving an exercise up or down changes the loads of exercises after it. See [[fatigue-and-slots#Slot priors|fatigue-and-slots]].
 
 Duplicate slots of the same exercise are allowed and are treated as distinct slots throughout ([[concepts#Slot alignment|slot alignment]]) — a repeated exercise even counts as its own fatigue prior.
 
@@ -55,11 +54,11 @@ Duplicate slots of the same exercise are allowed and are treated as distinct slo
 
 ## Key functions
 
-| Function                                           | Anchor                                  | Note                                            |
+| Function                                           | File                                    | Note                                            |
 | -------------------------------------------------- | --------------------------------------- | ----------------------------------------------- |
-| `normalizeProgressionParams`                       | `src/config/progression.ts:77`          | Read-time backfill — see [[progression-models]] |
-| `priorsBySlot`                                     | `src/engine/service.ts:244`             | Routine order → fatigue priors                  |
-| `setPlanActive`                                    | `src/db/repository.ts:96`               | Single-active invariant                         |
-| `setPlanMesocycle`                                 | `src/db/repository.ts:84`               | Persists periodization weeks                    |
-| `createRoutine`                                    | `src/db/repository.ts:143`              | Optionally appends to a plan's `routineIds`     |
+| `normalizeProgressionParams`                       | `src/config/progression.ts`             | Read-time backfill — see [[progression-models]] |
+| `priorsBySlot`                                     | `src/engine/service.ts`                 | Routine order → fatigue priors                  |
+| `setPlanActive`                                    | `src/db/repository.ts`                  | Single-active invariant                         |
+| `setPlanMesocycle`                                 | `src/db/repository.ts`                  | Persists periodization weeks                    |
+| `createRoutine`                                    | `src/db/repository.ts`                  | Optionally appends to a plan's `routineIds`     |
 | `handleSaveConfig` / `persistExercises` (internal) | `src/components/RoutineDetailsPage.vue` | Slot insert/replace + ordered persistence       |

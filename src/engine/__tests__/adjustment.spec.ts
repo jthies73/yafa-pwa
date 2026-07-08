@@ -93,3 +93,62 @@ describe("proposeSetAdjustment", () => {
     expect(roundToLoadable(adj!.weight)).toBe(adj!.weight);
   });
 });
+
+describe("proposeSetAdjustment — bodyweight offset", () => {
+  const OFFSET = 72; // e.g. 0.9 × 80 kg
+
+  it("a 0-added bodyweight set is a valid governor (total > 0)", () => {
+    const adj = proposeSetAdjustment(
+      M,
+      { weight: 0, reps: 5, rpe: 8 },
+      { reps: 5, rpe: 8, weight: null },
+      OFFSET,
+    );
+    expect(adj).not.toBeNull();
+  });
+
+  it("matrix math runs in total space; the proposal returns to added space", () => {
+    const prev = { weight: 20, reps: 5, rpe: 9.5 };
+    const target = { reps: 5, rpe: 8, weight: 20 };
+    const withOffset = proposeSetAdjustment(M, prev, target, OFFSET)!;
+    // Same demonstration lifted manually must give the same result.
+    const liftedEquivalent = proposeSetAdjustment(
+      M,
+      { ...prev, weight: prev.weight + OFFSET },
+      { ...target, weight: target.weight + OFFSET },
+    )!;
+    expect(withOffset.weight).toBeCloseTo(liftedEquivalent.weight - OFFSET, 10);
+  });
+
+  it("may propose a NEGATIVE added weight while the total stays positive", () => {
+    // Very hard 0-added set → the target effort needs less than bodyweight.
+    const adj = proposeSetAdjustment(
+      M,
+      { weight: 0, reps: 10, rpe: 10 },
+      { reps: 10, rpe: 7, weight: null },
+      OFFSET,
+    );
+    expect(adj).not.toBeNull();
+    expect(adj!.weight).toBeLessThan(0);
+    expect(adj!.weight + OFFSET).toBeGreaterThan(0);
+  });
+
+  it("returns null when even the TOTAL load would be non-positive", () => {
+    expect(
+      proposeSetAdjustment(
+        M,
+        { weight: -80, reps: 5, rpe: 8 },
+        { reps: 5, rpe: 8, weight: null },
+        OFFSET,
+      ),
+    ).toBeNull();
+  });
+
+  it("offset 0 matches the un-offset behavior exactly", () => {
+    const prev = { weight: 100, reps: 5, rpe: 9.5 };
+    const target = { reps: 5, rpe: 8, weight: 100 };
+    expect(proposeSetAdjustment(M, prev, target, 0)).toEqual(
+      proposeSetAdjustment(M, prev, target),
+    );
+  });
+});

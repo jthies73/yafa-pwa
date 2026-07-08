@@ -17,6 +17,8 @@ import type {
 import { normalizeProgressionParams } from "../config/progression";
 import { DEFAULT_RPE_MATRIX } from "../db/rpeMatrix";
 import { getProgressionState, putProgressionState } from "../db/repository";
+import { bodyweightAt, currentBodyweight } from "../db/measurements";
+import { bodyweightOffsetKg, liftSets } from "./bodyweight";
 import { RESET_DROP, RPE_MATRIX_CORRECTION_MAX_DEVIATION } from "./constants";
 import {
   applyMesoToParams,
@@ -74,6 +76,12 @@ export interface ExercisePreview {
   currentTargetReps?: number;
   resetEffects: ResetEffect[];
   prescription: ExercisePrescription | null;
+  // kg of bodyweight folded into the (total-space) c1rm; set when the exercise
+  // has a bodyweightFactor and a bodyweight is known. Display context only.
+  bodyweightOffsetKg?: number;
+  // The exercise has a bodyweightFactor but no bodyweight was ever logged, so
+  // the engine runs without the bodyweight share — worth a UI hint.
+  bodyweightMissing?: boolean;
 }
 
 export interface MesocyclePosition {
@@ -192,6 +200,7 @@ function prescribeFrom(
   eff: EffectiveConfig,
   state: ProgressionState,
   priors: MuscleProfile[] = [],
+  bodyweightKg?: number,
 ): ExercisePrescription {
   return prescribeExercise({
     exerciseId: exercise.id,
@@ -202,6 +211,10 @@ function prescribeFrom(
     fatigueReduction: fatigueReductionFor(exercise, eff, state, priors),
     doubleRepCursor: state.doubleRepCursor,
     matrix: exercise.rpeMatrix ?? DEFAULT_RPE_MATRIX,
+    bodyweightOffsetKg: bodyweightOffsetKg(
+      exercise.bodyweightFactor,
+      bodyweightKg,
+    ),
   });
 }
 
@@ -329,7 +342,10 @@ function foldQualifiedSession(
   sets: LoggedSet[],
   workout: Workout,
   finishedAt: number,
+  offsetKg: number,
 ): SessionFold {
+  // Evaluation compares logged vs prescribed weights, BOTH in added space — the
+  // bodyweight offset cancels, so it must never see lifted sets.
   const outcome = evaluate(eff.model, eff.params, prescription, sets);
   const next = step(
     state,
@@ -348,9 +364,13 @@ function foldQualifiedSession(
   // anchor, so the implied e1RM would be artificially low and might false-trigger
   // catch-up. Normalize back to "what would the unreduced anchor imply?" so we
   // compare like with like (unreduced anchor vs unreduced implied e1RM).
+  // Lift into total space FIRST — fatigue scaled the total load, so
+  // total = (added + offset) / scale; the transforms don't commute.
   const fatigueScale = fatigueScaleOf(prescription);
-  const sessionE1rms = groupSessionsFor([workout], exerciseId)
-    .flatMap((s) => s.sets)
+  const sessionE1rms = liftSets(
+    groupSessionsFor([workout], exerciseId).flatMap((s) => s.sets),
+    offsetKg,
+  )
     .filter(isQualifyingSet)
     .map((s) => {
       const unreducedWeight = s.actualWeight / fatigueScale;
@@ -391,8 +411,11 @@ function learnedRpeMatrix(
   sets: LoggedSet[],
   anchor: number,
   prescription?: ExercisePrescription,
+  offsetKg = 0,
 ): RpeMatrix | null {
-  const qualifying = sets.filter(isQualifyingSet);
+  // Lift into total space first — the anchor is total, and un-fatiguing (below)
+  // must divide the total load (see foldQualifiedSession).
+  const qualifying = liftSets(sets, offsetKg).filter(isQualifyingSet);
   if (qualifying.length === 0) return null;
 
   const fatigueScale = fatigueScaleOf(prescription);
@@ -441,6 +464,7 @@ export async function previewWorkout(
   const plan = await resolveOwningPlan(routineId);
   const mods = mesoModifiers(plan, at);
   const position = await mesocyclePosition(plan, at);
+  const bodyweight = await currentBodyweight();
 
   const exercises: ExercisePreview[] = [];
   const priors = new Map<string, MuscleProfile>();
@@ -455,10 +479,15 @@ export async function previewWorkout(
     if (resetPending) state = consumeReset(state, at); // in memory only — preview never writes
 
     const eff = effectiveConfig(re.config, mods);
-    const prescription = prescribeFrom(exercise, eff, state, [
-      ...priors.values(),
-    ]);
+    const prescription = prescribeFrom(
+      exercise,
+      eff,
+      state,
+      [...priors.values()],
+      bodyweight,
+    );
     priors.set(re.exerciseId, muscleProfileOf(exercise));
+    const offsetKg = bodyweightOffsetKg(exercise.bodyweightFactor, bodyweight);
     exercises.push({
       exerciseId: re.exerciseId,
       name: exercise.name,
@@ -478,6 +507,10 @@ export async function previewWorkout(
           ]
         : [],
       prescription,
+      ...(offsetKg > 0 ? { bodyweightOffsetKg: offsetKg } : {}),
+      ...((exercise.bodyweightFactor ?? 0) > 0 && bodyweight == null
+        ? { bodyweightMissing: true }
+        : {}),
     });
   }
   return {
@@ -507,8 +540,9 @@ export async function prescribeWorkout(
   const plan = await resolveOwningPlan(routineId);
   const mods = mesoModifiers(plan, at);
 
-  // Pre-fetch exercises so the transaction only spans progressionStates.
+  // Pre-fetch exercises + bodyweight so the transaction only spans progressionStates.
   const exMap = await loadExercises(routine);
+  const bodyweight = await currentBodyweight();
 
   const prescriptions: (ExercisePrescription | null)[] = [];
   const slotPriors = priorsBySlot(
@@ -534,6 +568,7 @@ export async function prescribeWorkout(
         effectiveConfig(re.config, mods),
         state,
         slotPriors[i],
+        bodyweight,
       );
       prescriptions.push(prescription);
     }
@@ -554,6 +589,8 @@ export async function applyWorkoutResults(
   // Re-render with the modifiers AS AT the session, so N/targets match what was
   // prescribed that day (not "what week is it now").
   const mods = mesoModifiers(plan, workout.startTime);
+  // Session-time bodyweight (not current) so re-running this fold reproduces it.
+  const sessionBodyweight = await bodyweightAt(workout.startTime);
 
   const byExercise = groupSetsByExercise(workout);
   // Unlogged routine exercises still matter here: they were assumed as fatigue
@@ -590,10 +627,15 @@ export async function applyWorkoutResults(
 
       const sets = [...rawSets].sort((a, b) => a.timestamp - b.timestamp);
       const matrix = exercise.rpeMatrix ?? DEFAULT_RPE_MATRIX;
+      const offsetKg = bodyweightOffsetKg(
+        exercise.bodyweightFactor,
+        sessionBodyweight,
+      );
 
-      // Cold start: seed the anchor and stop — no progression on the first session.
+      // Cold start: seed the anchor and stop — no progression on the first
+      // session. Lifted sets so the seed lands in total space.
       if (state.c1rm == null) {
-        const seeded = seedC1rm(matrix, sets);
+        const seeded = seedC1rm(matrix, liftSets(sets, offsetKg));
         await putProgressionState({
           ...state,
           c1rm: seeded,
@@ -622,6 +664,7 @@ export async function applyWorkoutResults(
         eff,
         state,
         baselinePriors.get(exerciseId) ?? [],
+        sessionBodyweight,
       );
       const { persisted, reason } = foldQualifiedSession(
         state,
@@ -632,6 +675,7 @@ export async function applyWorkoutResults(
         sets,
         workout,
         finishedAt,
+        offsetKg,
       );
 
       changes.push({
@@ -654,6 +698,7 @@ export async function applyWorkoutResults(
         sets,
         state.c1rm,
         prescription,
+        offsetKg,
       );
       if (corrected) {
         await db.exercises.update(exerciseId, { rpeMatrix: corrected });

@@ -1,11 +1,13 @@
 import { db } from "./db";
+import { pickBodyweightAt } from "../engine/bodyweight";
 import type { MeasurementCategory, MeasurementEntry } from "./types";
 // ----------------------------------------------
 // Body measurements: types (what to track) + entries (timestamped values).
 //
-// Source of truth lives entirely in Dexie. "Bodyweight" is seeded as a sensible
-// default measurement on first boot, but is otherwise an ordinary, editable and
-// deletable type like any other.
+// Source of truth lives entirely in Dexie. "Bodyweight" is a non-deletable
+// SYSTEM type (isSystem): the engine reads it to lift added weights into
+// total-load space for bodyweightFactor exercises. All other types are
+// ordinary, user-managed records.
 // ----------------------------------------------
 
 export const BODYWEIGHT_TYPE_ID = "bodyweight";
@@ -24,6 +26,26 @@ export async function latestEntry(
     .toArray();
   if (!entries.length) return undefined;
   return entries.reduce((a, b) => (b.timestamp > a.timestamp ? b : a));
+}
+
+/** Latest bodyweight (kg), or undefined when none logged. Prescriptions use this. */
+export async function currentBodyweight(): Promise<number | undefined> {
+  return (await latestEntry(BODYWEIGHT_TYPE_ID))?.value;
+}
+
+/**
+ * Bodyweight (kg) in effect at `timestamp` (latest entry ≤ it, falling back to
+ * the earliest entry), or undefined when none logged. Folds and historical
+ * analytics use this so results are reproducible.
+ */
+export async function bodyweightAt(
+  timestamp: number,
+): Promise<number | undefined> {
+  const entries = await db.measurementEntries
+    .where("measurementTypeId")
+    .equals(BODYWEIGHT_TYPE_ID)
+    .toArray();
+  return pickBodyweightAt(entries, timestamp);
 }
 
 // ---- Measurement types ----
@@ -46,10 +68,10 @@ export async function createMeasurementType(
   return id;
 }
 
-/** Deletes a measurement type and all its entries. */
+/** Deletes a measurement type and all its entries. System types are protected. */
 export async function deleteMeasurementType(id: string): Promise<void> {
   const type = await db.measurementTypes.get(id);
-  if (!type) return;
+  if (!type || type.isSystem) return;
 
   await db.transaction(
     "rw",

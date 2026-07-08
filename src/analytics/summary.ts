@@ -1,6 +1,11 @@
 import type { Exercise, Set as LoggedSet, Workout } from "../db/types";
 import { DEFAULT_RPE_MATRIX } from "../db/rpeMatrix";
 import {
+  bodyweightOffsetKg,
+  liftSets,
+  pickBodyweightAt,
+} from "../engine/bodyweight";
+import {
   repsDeviation,
   rpeOvershoot,
   weightDeviationPct,
@@ -10,6 +15,7 @@ import {
   isQualifyingSet,
   peakImpliedE1rm,
 } from "../engine/matrix";
+import type { TimestampedValue } from "./compute";
 
 // ----------------------------------------------
 // Post-workout summary (pure). Reports what happened in a session: duration,
@@ -77,6 +83,10 @@ export interface SummaryInput {
   history: Workout[]; // MUST exclude the current session
   exercisesById: Map<string, Exercise>;
   plannedCounts: Record<string, number>;
+  // All logged bodyweight entries. e1RM PRs compare TOTAL loads: each session's
+  // sets are lifted by ITS OWN workout-time bodyweight (capacity at the time),
+  // so logging a new bodyweight never creates or destroys past PRs.
+  bodyweightEntries?: TimestampedValue[];
 }
 
 // Adherence penalty weights — TUNABLE. Ordered by importance per the spec: an RPE
@@ -222,6 +232,8 @@ function computeAdherence(input: SummaryInput): AdherenceResult {
 
 function detectPrs(input: SummaryInput): PrResult[] {
   const { workout, history, exercisesById } = input;
+  const bwEntries = input.bodyweightEntries ?? [];
+  const sessionBodyweight = pickBodyweightAt(bwEntries, workout.startTime);
   const prs: PrResult[] = [];
   const seen = new Set<string>();
 
@@ -234,11 +246,23 @@ function detectPrs(input: SummaryInput): PrResult[] {
     const sessionSets = setsForExercise(workout, we.exerciseId);
 
     // e1RM PR: the session's best honest set beats every prior honest set.
-    const sessionPeak = peakImpliedE1rm(matrix, sessionSets);
+    // Both sides are lifted to total load with their own workout-time bodyweight.
+    const sessionOffset = bodyweightOffsetKg(
+      exercise.bodyweightFactor,
+      sessionBodyweight,
+    );
+    const sessionPeak = peakImpliedE1rm(
+      matrix,
+      liftSets(sessionSets, sessionOffset),
+    );
     if (sessionPeak) {
       let historicalBest = 0;
       for (const w of history) {
-        for (const s of setsForExercise(w, we.exerciseId)) {
+        const offset = bodyweightOffsetKg(
+          exercise.bodyweightFactor,
+          pickBodyweightAt(bwEntries, w.startTime),
+        );
+        for (const s of liftSets(setsForExercise(w, we.exerciseId), offset)) {
           if (!isQualifyingSet(s)) continue;
           historicalBest = Math.max(
             historicalBest,
@@ -252,7 +276,8 @@ function detectPrs(input: SummaryInput): PrResult[] {
           exerciseName: exercise.name,
           type: "e1rm",
           e1rm: sessionPeak.e1rm,
-          weight: sessionPeak.set.actualWeight,
+          // Back to the ADDED weight the user loaded (the peak set is lifted).
+          weight: sessionPeak.set.actualWeight - sessionOffset,
           reps: sessionPeak.set.actualReps,
           rpe: sessionPeak.set.actualRpe,
         });

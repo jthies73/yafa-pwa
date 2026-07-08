@@ -106,11 +106,19 @@ const categoryLabel: Record<MeasurementType["category"], string> = {
           >
             {{ type.name }}
           </h3>
-          <span
-            class="shrink-0 rounded-md border border-border-light dark:border-border-dark px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-text-light dark:text-text-dark opacity-55"
-          >
-            {{ categoryLabel[type.category] }}
-          </span>
+          <div class="flex shrink-0 items-center gap-1.5">
+            <span
+              v-if="type.isSystem"
+              class="rounded-md border border-accent/40 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-accent"
+            >
+              System
+            </span>
+            <span
+              class="rounded-md border border-border-light dark:border-border-dark px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-text-light dark:text-text-dark opacity-55"
+            >
+              {{ categoryLabel[type.category] }}
+            </span>
+          </div>
         </div>
         <div
           class="font-mono text-2xl font-bold"

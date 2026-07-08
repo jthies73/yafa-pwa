@@ -8,6 +8,7 @@ const {
   dotEnabled,
   pressDigit,
   pressDot,
+  pressSign,
   pressBackspace,
   pressEnter,
   dismiss,
@@ -17,11 +18,12 @@ interface Key {
   label: string;
   area: string;
   digit?: string;
-  act?: "dot" | "back" | "enter";
+  act?: "dot" | "sign" | "back" | "enter";
 }
 
 // 4-column grid: digits 1-9 fill columns 1-3, a tall Enter spans the right
-// column under the backspace key, "0" spans the bottom-left two cells.
+// column under the backspace key, "±"/"0"/"." fill the bottom row. The ± key
+// (assistance weights) shares the dot's decimal-only enablement.
 const KEYS: Key[] = [
   { label: "1", digit: "1", area: "1 / 1 / 2 / 2" },
   { label: "2", digit: "2", area: "1 / 2 / 2 / 3" },
@@ -34,13 +36,15 @@ const KEYS: Key[] = [
   { label: "7", digit: "7", area: "3 / 1 / 4 / 2" },
   { label: "8", digit: "8", area: "3 / 2 / 4 / 3" },
   { label: "9", digit: "9", area: "3 / 3 / 4 / 4" },
-  { label: "0", digit: "0", area: "4 / 1 / 5 / 3" },
+  { label: "±", act: "sign", area: "4 / 1 / 5 / 2" },
+  { label: "0", digit: "0", area: "4 / 2 / 5 / 3" },
   { label: ".", act: "dot", area: "4 / 3 / 5 / 4" },
 ];
 
 const onKey = (k: Key) => {
   if (k.digit) pressDigit(k.digit);
   else if (k.act === "dot") pressDot();
+  else if (k.act === "sign") pressSign();
   else if (k.act === "back") pressBackspace();
   else if (k.act === "enter") pressEnter();
 };
@@ -122,7 +126,7 @@ onUnmounted(() => {
         :key="k.label"
         type="button"
         :style="{ gridArea: k.area }"
-        :disabled="k.act === 'dot' && !dotEnabled"
+        :disabled="(k.act === 'dot' || k.act === 'sign') && !dotEnabled"
         class="flex items-center justify-center rounded-lg text-xl font-mono font-semibold cursor-pointer transition-colors duration-150 disabled:opacity-30 disabled:cursor-default"
         :class="
           k.act === 'enter'

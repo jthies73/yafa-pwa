@@ -76,11 +76,14 @@ export function buildChartCsv(
   // --- Per-period table (columns adapt to the chart type) ---
   const bestSet = (p: BucketPoint): string => {
     if (!p.bestSet) return "";
-    const { weight, reps, rpe } = p.bestSet;
-    const w = `${roundTo(opts.toDisplay(weight), opts.decimals)}${
-      opts.unitLabel ? ` ${opts.unitLabel}` : ""
-    }`;
-    return `${w} × ${reps}${rpe !== undefined ? ` @ RPE ${rpe}` : ""}`;
+    const { weight, reps, rpe, bodyweightOffsetKg } = p.bestSet;
+    const unit = opts.unitLabel ? ` ${opts.unitLabel}` : "";
+    const w = `${roundTo(opts.toDisplay(weight), opts.decimals)}${unit}`;
+    // Added weight + the bodyweight share folded into the e1RM (mirrors tooltip).
+    const bw = bodyweightOffsetKg
+      ? ` + ${roundTo(opts.toDisplay(bodyweightOffsetKg), opts.decimals)}${unit} BW`
+      : "";
+    return `${w}${bw} × ${reps}${rpe !== undefined ? ` @ RPE ${rpe}` : ""}`;
   };
 
   if (type === "stackedBar") {

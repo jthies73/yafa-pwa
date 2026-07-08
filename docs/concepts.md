@@ -4,7 +4,6 @@ aliases: [Glossary, Concepts, Terminology]
 tags: [yafa/concepts]
 area: shared
 order: 1
-source-commit: 326169d
 updated: 2026-07-09
 ---
 
@@ -19,9 +18,14 @@ Canonical definitions for the terms used across this documentation set. **Defini
 A 0–100 score of how faithfully a session followed its prescription, computed from RPE overshoot, rep deviation, weight deviation, and missing/trashed sets. Adherence is **analytics-only**: it colors the post-workout summary gauge but never feeds progression decisions. Anchor: `computeAdherence` (internal) in `src/analytics/summary.ts`, weights in `ADHERENCE_WEIGHTS`.
 Mechanics: [[analytics#Workout summary, adherence and PRs|analytics]]
 
+## Bodyweight offset
+
+The bridge between the two weight spaces of a bodyweight exercise: `total load = added weight + offset`, where `offset = bodyweightFactor × bodyweight`. Stored set weights are always the **added** weight (0 = plain bodyweight, negative = assistance); [[#c1RM|c1RM]] and e1RMs live in **total-load** space. Offset 0 is a strict identity, so factor-0 exercises take the pre-feature code path. Anchor: `src/engine/bodyweight.ts`.
+Mechanics: [[bodyweight]]
+
 ## c1RM
 
-The **calculative 1RM** — the persistent planning anchor for one exercise. Every prescribed weight is `c1rm × matrixPct(reps, rpe)`. It rises by `weightIncrement` on a success, drops −10% when a pending reset is consumed, and can jump via [[#Catch-up|catch-up]]. It is kept **unrounded** (only rendered weights snap to loadable increments) and is the only value progression persists. Distinct from [[#Demonstrated e1RM|demonstrated e1RM]] and the analytics-only [[#Implied e1RM|implied e1RM]]. Anchor: `ProgressionState.c1rm`, `src/db/types.ts`.
+The **calculative 1RM** — the persistent planning anchor for one exercise. Every prescribed weight is `c1rm × matrixPct(reps, rpe)`, minus any [[#Bodyweight offset|bodyweight offset]]. It rises by `weightIncrement` on a success, drops −10% when a pending reset is consumed, and can jump via [[#Catch-up|catch-up]]. It lives in **total-load space**, is kept **unrounded** (only rendered weights snap to loadable increments), and is the only value progression persists. Distinct from [[#Demonstrated e1RM|demonstrated e1RM]] and the analytics-only [[#Implied e1RM|implied e1RM]]. Anchor: `ProgressionState.c1rm`, `src/db/types.ts`.
 Mechanics: [[applying-results]] (movement), [[prescription-pipeline]] (consumption)
 
 ## Catch-up
@@ -71,7 +75,7 @@ Mechanics: [[mesocycles]]
 
 ## Qualifying set
 
-A logged set honest enough to inform calibration: `actualRpe ≥ QUALIFYING_MIN_RPE` (currently 8), `reps` between 1 and `QUALIFYING_MAX_REPS` (currently 10), and positive weight. Only qualifying sets produce [[#Demonstrated e1RM|demonstrated e1RMs]], seed [[#c1RM|c1RM]], drive the [[#Catch-up|catch-up]], or count toward e1RM PRs. Anchor: `isQualifyingSet` in `src/engine/matrix.ts`.
+A logged set honest enough to inform calibration: `actualRpe ≥ QUALIFYING_MIN_RPE` (currently 8), `reps` between 1 and `QUALIFYING_MAX_REPS` (currently 10), and positive weight — judged in **total-load space**, so a plain bodyweight rep qualifies once its [[#Bodyweight offset|offset]] is added. Only qualifying sets produce [[#Demonstrated e1RM|demonstrated e1RMs]], seed [[#c1RM|c1RM]], drive the [[#Catch-up|catch-up]], or count toward e1RM PRs. Anchor: `isQualifyingSet` in `src/engine/matrix.ts`.
 Mechanics: [[rpe-matrix#Qualifying sets|rpe-matrix]]
 
 ## Regression streak

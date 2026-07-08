@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { ref, computed } from "vue";
+import { ref, computed, watch } from "vue";
 import type { Exercise, Workout, Set as LoggedSet } from "../db/types";
 import type { PrType, WorkoutSummary } from "../analytics/summary";
 import { deleteWorkout } from "../db/repository";
+import { bodyweightAt } from "../db/measurements";
+import { bodyweightOffsetKg, liftSet } from "../engine/bodyweight";
 import { impliedE1rm, isQualifyingSet } from "../engine/matrix";
 import { DEFAULT_RPE_MATRIX } from "../db/rpeMatrix";
 import { useWeightUnit } from "../composables/useWeightUnit";
@@ -56,16 +58,31 @@ const formatDate = (ts: number): string =>
 const formatDuration = (ms: number): string =>
   ms > 0 ? `${Math.round(ms / 60000)} min` : "—";
 
-/** Implied e1RM (raw kg) for a near-limit set; null when the set isn't honest enough to count. */
+// Bodyweight (kg) at the shown workout's time — lifts bodyweightFactor
+// exercises' sets to total load for their e1RM readouts.
+const workoutBodyweight = ref<number | undefined>(undefined);
+watch(
+  () => props.workout?.startTime,
+  async (ts) => {
+    workoutBodyweight.value = ts != null ? await bodyweightAt(ts) : undefined;
+  },
+  { immediate: true },
+);
+
+/** Implied e1RM (raw kg, total load) for a near-limit set; null when the set isn't honest enough to count. */
 const setE1rm = (set: LoggedSet, exerciseId: string): number | null => {
-  if (!isQualifyingSet(set)) return null;
-  const matrix =
-    props.exercisesById.get(exerciseId)?.rpeMatrix ?? DEFAULT_RPE_MATRIX;
+  const exercise = props.exercisesById.get(exerciseId);
+  const lifted = liftSet(
+    set,
+    bodyweightOffsetKg(exercise?.bodyweightFactor, workoutBodyweight.value),
+  );
+  if (!isQualifyingSet(lifted)) return null;
+  const matrix = exercise?.rpeMatrix ?? DEFAULT_RPE_MATRIX;
   const e1rm = impliedE1rm(
     matrix,
-    set.actualWeight,
-    set.actualReps,
-    set.actualRpe!,
+    lifted.actualWeight,
+    lifted.actualReps,
+    lifted.actualRpe!,
   );
   return e1rm > 0 ? e1rm : null;
 };

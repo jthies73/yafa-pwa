@@ -125,6 +125,66 @@ describe("buildChartCsv", () => {
     expect(csv).toContain("Aggregation,Weekly");
   });
 
+  it("renders the e1RM best set with its bodyweight share, unit-converted", () => {
+    const series: ChartSeries = {
+      valueKind: "weight",
+      points: [
+        point({
+          value: 115,
+          direct: 115,
+          indirect: 0,
+          bestSet: { weight: 20, reps: 5, rpe: 8, bodyweightOffsetKg: 72 },
+        }),
+      ],
+    };
+    const csv = buildChartCsv(
+      series,
+      config({
+        sourceKind: "exercise",
+        metric: "e1rm",
+        muscleGroups: undefined,
+      }),
+      "Pull Up",
+      {
+        ...identityOpts,
+        scopeLabel: "Pull Up",
+        unitLabel: "kg",
+        toDisplay: (v) => v,
+        decimals: 1,
+      },
+    );
+
+    expect(csv).toContain("Date,Period,e1RM (kg),Best set");
+    expect(dataRow(csv)).toBe(
+      "2026-01-06,Jan 6,115,20 kg + 72 kg BW × 5 @ RPE 8",
+    );
+  });
+
+  it("omits the bodyweight share from the best set when there is none", () => {
+    const series: ChartSeries = {
+      valueKind: "weight",
+      points: [
+        point({
+          value: 126.6,
+          direct: 126.6,
+          indirect: 0,
+          bestSet: { weight: 100, reps: 5, rpe: 8 },
+        }),
+      ],
+    };
+    const csv = buildChartCsv(
+      series,
+      config({
+        sourceKind: "exercise",
+        metric: "e1rm",
+        muscleGroups: undefined,
+      }),
+      "Bench",
+      { ...identityOpts, scopeLabel: "Bench", unitLabel: "kg" },
+    );
+    expect(dataRow(csv)).toBe("2026-01-06,Jan 6,126.6,100 kg × 5 @ RPE 8");
+  });
+
   it("appends an Excel + Google Sheets guide tailored to the chart type", () => {
     const series: ChartSeries = { valueKind: "count", points: [point()] };
 

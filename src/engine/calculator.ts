@@ -17,15 +17,23 @@ import { matrixPct, roundToLoadable } from "./matrix";
 // the engine would prescribe.
 // ----------------------------------------------
 
-/** Weight (kg) for a given e1RM, rep count, and RPE — rounded to a loadable bar. */
+/**
+ * ADDED weight (kg) for a given (total-space) e1RM, rep count, and RPE — rounded
+ * to a loadable bar. bodyweightOffsetKg is the exercise's bodyweight share; the
+ * result may be negative (assistance). solveReps/solveRpe take a weight as
+ * input instead — callers pass added + offset there.
+ */
 export function solveWeight(
   matrix: RpeMatrix,
   e1rm: number,
   reps: number,
   rpe: number,
+  bodyweightOffsetKg = 0,
 ): number {
   if (e1rm <= 0) return 0;
-  return roundToLoadable(e1rm * matrixPct(matrix, reps, rpe));
+  return roundToLoadable(
+    e1rm * matrixPct(matrix, reps, rpe) - bodyweightOffsetKg,
+  );
 }
 
 /**

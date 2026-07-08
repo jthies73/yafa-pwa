@@ -5,6 +5,8 @@ name: CI / CD - yafa-pwa
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
   release:
     types: [published]
   workflow_dispatch:
@@ -43,7 +45,7 @@ jobs:
   # ── Staging (push to main) ─────────────────────────────────────────────────
   build-staging:
     name: Build & Push (staging)
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request'
     needs: [lint, test]
     runs-on: ubuntu-latest
     permissions:

@@ -13,6 +13,7 @@ import {
   reconstructWorkoutsFromRaw,
   type RawWorkouts,
 } from "./rawWorkouts";
+import { BODYWEIGHT_TYPE_ID } from "./measurements";
 import type {
   Exercise,
   Routine,
@@ -135,6 +136,24 @@ export async function exportData(): Promise<BackupFile> {
 }
 
 /**
+ * Backfill fields a backup from an older app version lacks, in place. Runs
+ * before both the import merge and the preview diff so that (a) `bulkPut`
+ * never strips the migration-stamped fields off local rows and (b) old-backup
+ * rows aren't misreported as "updated" when they only miss new defaults.
+ * Pure (no Dexie) so it stays unit-testable.
+ */
+export function normalizeBackupData(data: BackupFile["data"]): void {
+  for (const e of data.exercises ?? []) {
+    e.bodyweightFactor ??= 0;
+  }
+  // The Bodyweight system flag must survive merging a backup created while
+  // bodyweight was an ordinary (pre-v11) type.
+  for (const t of data.measurementTypes ?? []) {
+    if (t.id === BODYWEIGHT_TYPE_ID) t.isSystem = true;
+  }
+}
+
+/**
  * Validate that structured workouts are usable: well-formed shape, sane set
  * numbers, and every referenced exercise exists. A throw is the signal to fall
  * back to the raw reconstruction. Pure (no Dexie) so it stays unit-testable.
@@ -186,6 +205,7 @@ export async function importData(backup: BackupFile): Promise<void> {
     throw new Error("This file is not a valid YAFA backup.");
   }
   const { data } = backup;
+  normalizeBackupData(data);
 
   // 1) Settings first — independent of the DB; unknown keys are ignored.
   applyPortableSettings(backup.settings, localStorage);
@@ -304,6 +324,7 @@ export async function previewImport(
     throw new Error("This file is not a valid YAFA backup.");
   }
   const { data } = backup;
+  normalizeBackupData(data);
 
   const [
     localExercises,

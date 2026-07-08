@@ -128,6 +128,34 @@ export class YafaDatabase extends Dexie {
           }
         });
     });
+
+    // v11: bodyweight-factor progression (reverses v6). Every exercise gets an
+    // explicit bodyweightFactor (0 = pre-feature behavior) and the seeded
+    // Bodyweight measurement type becomes a non-deletable system type again —
+    // recreated if the user deleted it while it was an ordinary type, since the
+    // engine now reads bodyweight from it. Literal "bodyweight" id: importing
+    // BODYWEIGHT_TYPE_ID from measurements.ts would create an import cycle.
+    this.version(11).upgrade(async (tx) => {
+      await tx
+        .table("exercises")
+        .toCollection()
+        .modify((e) => {
+          e.bodyweightFactor ??= 0;
+        });
+      const types = tx.table("measurementTypes");
+      const bodyweight = await types.get("bodyweight");
+      if (bodyweight) {
+        await types.update("bodyweight", { isSystem: true });
+      } else {
+        await types.add({
+          id: "bodyweight",
+          name: "Bodyweight",
+          category: "WEIGHT",
+          isSystem: true,
+          created_at: Date.now(),
+        });
+      }
+    });
   }
 }
 

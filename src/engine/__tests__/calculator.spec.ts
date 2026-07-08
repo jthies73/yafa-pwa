@@ -19,6 +19,20 @@ describe("solveWeight", () => {
   it("returns 0 for a non-positive e1RM", () => {
     expect(solveWeight(M, 0, 5, 8)).toBe(0);
   });
+
+  it("bodyweight offset: returns the ADDED weight, rounded in added space", () => {
+    const offset = 73.17; // off the loadable grid on purpose
+    const total = solveWeight(M, 150, 5, 8);
+    const added = solveWeight(M, 150, 5, 8, offset);
+    expect(added).toBe(roundToLoadable(150 * M[5][8] - offset));
+    expect(added).toBeLessThan(total);
+    // Round-trip: added + offset inverts back to the same reps.
+    expect(solveReps(M, 150, added + offset, 8)).toBe(5);
+  });
+
+  it("bodyweight offset: may return a negative added weight (assistance)", () => {
+    expect(solveWeight(M, 80, 5, 8, 90)).toBeLessThan(0);
+  });
 });
 
 describe("solveReps", () => {

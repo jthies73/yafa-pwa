@@ -33,21 +33,35 @@ export function proposeSetAdjustment(
   matrix: RpeMatrix,
   prev: { weight: number; reps: number; rpe: number },
   target: { reps: number; rpe: number | null; weight: number | null },
+  // bodyweightFactor × bodyweight (kg): prev.weight and the proposed weight are
+  // ADDED weights; the matrix math in between runs on the TOTAL load.
+  bodyweightOffsetKg = 0,
 ): SetAdjustment | null {
   // Need a target effort (reps + RPE) to re-anchor against. Back-off sets carry a
   // null RPE — their load is a consequence of the top set, not a target — so they
   // are left alone.
   if (target.rpe == null) return null;
-  // Defensive: the tracker pre-guards, but never trust raw inputs.
-  if (!(prev.reps >= 1) || !(prev.weight > 0) || Number.isNaN(prev.rpe)) {
+  // Defensive: the tracker pre-guards, but never trust raw inputs. Weight gates
+  // test the TOTAL load — a 0-added bodyweight set is a valid demonstration.
+  if (
+    !(prev.reps >= 1) ||
+    !(prev.weight + bodyweightOffsetKg > 0) ||
+    Number.isNaN(prev.rpe)
+  ) {
     return null;
   }
 
-  const demoE1rm = impliedE1rm(matrix, prev.weight, prev.reps, prev.rpe);
-  const newWeight = roundToLoadable(
-    weightFromE1rm(matrix, demoE1rm, target.reps, target.rpe),
+  const demoE1rm = impliedE1rm(
+    matrix,
+    prev.weight + bodyweightOffsetKg,
+    prev.reps,
+    prev.rpe,
   );
-  if (!(newWeight > 0)) return null;
+  const newWeight = roundToLoadable(
+    weightFromE1rm(matrix, demoE1rm, target.reps, target.rpe) -
+      bodyweightOffsetKg,
+  );
+  if (!(newWeight + bodyweightOffsetKg > 0)) return null;
 
   // Cold start: no prescribed weight yet, so the governing set's derived weight is
   // the fill outright (no comparison band applies).

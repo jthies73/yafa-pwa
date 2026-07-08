@@ -7,6 +7,7 @@ on:
     branches: [main]
   release:
     types: [published]
+  workflow_dispatch:
 
 env:
   REGISTRY: ghcr.io
@@ -42,7 +43,7 @@ jobs:
   # ── Staging (push to main) ─────────────────────────────────────────────────
   build-staging:
     name: Build & Push (staging)
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     needs: [lint, test]
     runs-on: ubuntu-latest
     permissions:

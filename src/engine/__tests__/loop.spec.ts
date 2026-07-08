@@ -10,6 +10,7 @@ import type {
 } from "../../db/types";
 import { prescribeExercise, type ExercisePrescription } from "../prescription";
 import { evaluate } from "../evaluation";
+import { liftSets } from "../bodyweight";
 import {
   catchUpC1rm,
   consumeReset,
@@ -22,7 +23,9 @@ import {
   correctRpeMatrix,
   impliedE1rm,
   isQualifyingSet,
+  matrixPct,
   peakImpliedE1rm,
+  roundToLoadable,
 } from "../matrix";
 import { RPE_MATRIX_CORRECTION_MAX_DEVIATION } from "../constants";
 
@@ -396,5 +399,104 @@ describe("loop — RPE matrix correction gating mirrors the service", () => {
     // RPE 6 is below the qualifying threshold (≥ 8).
     const out = correctMatrixForSession(M, [mkSet(80, 5, 6)], 100);
     expect(out).toBe(M);
+  });
+});
+
+// Mirrors the service's bodyweight lifting: sets store ADDED weight; the fold
+// lifts them into total space (added + factor × bodyweight) before any matrix
+// math, and prescription subtracts the offset again on the way out.
+describe("loop — bodyweight factor closes the circle in total space", () => {
+  const OFFSET = 72; // 0.9 × 80 kg
+
+  it("a 0-added bodyweight session seeds a total anchor; the next prescription's added weight is ~0, then inches up", () => {
+    // Cold start: free entry, user does 3×5 @ RPE 8 with no added weight.
+    const cold = prescribeExercise({
+      exerciseId: "ex",
+      model: "linear",
+      params: LINEAR,
+      rpeCeiling: 9,
+      effectiveC1rm: null,
+      matrix: M,
+      bodyweightOffsetKg: OFFSET,
+    });
+    expect(cold.sets.every((s) => s.weight === null)).toBe(true);
+    const logged = logSets(cold, { weight: 0, reps: 5, rpe: 8 });
+
+    // Fold: lift, then seed — the anchor lands in total space.
+    const lifted = liftSets(logged, OFFSET);
+    const seeded = peakImpliedE1rm(M, lifted)!.e1rm;
+    expect(seeded).toBeCloseTo(OFFSET / matrixPct(M, 5, 8));
+
+    // Next prescription converts back to added space: bodyweight reps again.
+    const next = prescribeExercise({
+      exerciseId: "ex",
+      model: "linear",
+      params: LINEAR,
+      rpeCeiling: 9,
+      effectiveC1rm: seeded,
+      matrix: M,
+      bodyweightOffsetKg: OFFSET,
+    });
+    expect(next.sets[0].weight).toBe(0);
+
+    // A success increments the TOTAL anchor; the added weight rises by
+    // increment × pct — a small positive step, not the full 2.5 kg.
+    const state = { ...initState("ex", 0), c1rm: seeded };
+    const after = step(state, "success", "linear", LINEAR, "w1", 0);
+    const following = prescribeExercise({
+      exerciseId: "ex",
+      model: "linear",
+      params: LINEAR,
+      rpeCeiling: 9,
+      effectiveC1rm: after.c1rm,
+      matrix: M,
+      bodyweightOffsetKg: OFFSET,
+    });
+    const added = following.sets[0].weight!;
+    expect(added).toBeGreaterThan(0);
+    expect(added).toBeLessThan(2.5);
+    expect(added).toBeCloseTo(roundToLoadable(2.5 * matrixPct(M, 5, 8)), 10);
+  });
+
+  it("catch-up un-fatigues AFTER lifting: total = (added + offset) / scale", () => {
+    const anchor = 130; // total-space c1RM
+    const fatigue = 13;
+    const scale = (anchor - fatigue) / anchor; // 0.9, as the fold derives it
+
+    // Prescribed added weight under fatigue, performed exactly as written.
+    const prescription = prescribeExercise({
+      exerciseId: "ex",
+      model: "linear",
+      params: LINEAR,
+      rpeCeiling: 9,
+      effectiveC1rm: anchor,
+      fatigueReduction: fatigue,
+      matrix: M,
+      bodyweightOffsetKg: OFFSET,
+    });
+    const sets = logSets(prescription);
+
+    // Correct order (the fold's): lift first, then divide by the scale.
+    const rightE1rms = liftSets(sets, OFFSET)
+      .filter(isQualifyingSet)
+      .map((s) =>
+        impliedE1rm(M, s.actualWeight / scale, s.actualReps, s.actualRpe!),
+      );
+    // Recovers the unreduced total anchor (up to loadable rounding).
+    expect(rightE1rms[0]).toBeCloseTo(anchor, 0);
+
+    // Wrong order (un-fatigue the added weight, then lift) overstates the
+    // e1RM by offset × (1/scale − 1) — proves the transforms don't commute.
+    const wrongE1rms = sets
+      .filter((s) => s.actualRpe != null)
+      .map((s) =>
+        impliedE1rm(
+          M,
+          s.actualWeight / scale + OFFSET,
+          s.actualReps,
+          s.actualRpe!,
+        ),
+      );
+    expect(Math.abs(wrongE1rms[0] - anchor)).toBeGreaterThan(5);
   });
 });

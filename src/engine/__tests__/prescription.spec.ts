@@ -301,3 +301,88 @@ describe("prescribeExercise — fatigue reduction", () => {
     expect(zero.fatigueReduction).toBeUndefined();
   });
 });
+
+describe("prescribeExercise — bodyweight offset", () => {
+  it("subtracts the offset AFTER the matrix lookup, rounding in added space", () => {
+    const offset = 73.17; // deliberately off the 0.1 loadable grid
+    const p = prescribeExercise({
+      exerciseId: "ex",
+      model: "linear",
+      params: LINEAR,
+      rpeCeiling: 9,
+      effectiveC1rm: 120,
+      matrix: M,
+      bodyweightOffsetKg: offset,
+    });
+    expect(p.sets[0].weight).toBe(
+      roundToLoadable(weightFromE1rm(M, 120, 5, 8) - offset),
+    );
+    // The anchor reported stays the total-space c1RM.
+    expect(p.c1rm).toBe(120);
+  });
+
+  it("does NOT clamp a negative added weight (assistance)", () => {
+    const p = prescribeExercise({
+      exerciseId: "ex",
+      model: "linear",
+      params: LINEAR,
+      rpeCeiling: 9,
+      effectiveC1rm: 80, // total capacity below the bodyweight share
+      matrix: M,
+      bodyweightOffsetKg: 90,
+    });
+    expect(p.sets[0].weight).toBeLessThan(0);
+  });
+
+  it("computes top-set back-offs in TOTAL space (drop % of total, not added)", () => {
+    const TOPSET: TopSetProgressionParams = {
+      topSetTargetReps: 5,
+      topSetTargetRpe: 8,
+      rpeCeiling: 9,
+      backOffSets: 1,
+      backOffRpe: 7,
+      percentageDrop: 10,
+      weightIncrement: 2.5,
+      incrementUnit: "kg",
+      fatigueReduction: 0,
+      fatigueReductionUnit: "kg",
+    };
+    const offset = 72;
+    const p = prescribeExercise({
+      exerciseId: "ex",
+      model: "topset_backoff",
+      params: TOPSET,
+      rpeCeiling: 9,
+      effectiveC1rm: 130,
+      matrix: M,
+      bodyweightOffsetKg: offset,
+    });
+    const top = p.sets[0].weight as number;
+    expect(p.sets[1].weight).toBe(
+      roundToLoadable((top + offset) * 0.9 - offset),
+    );
+    // A naive drop off the ADDED weight would differ — guard against it.
+    expect(p.sets[1].weight).not.toBe(roundToLoadable(top * 0.9));
+  });
+
+  it("offset 0 / absent is byte-identical to today's behavior", () => {
+    const base = prescribeExercise({
+      exerciseId: "ex",
+      model: "linear",
+      params: LINEAR,
+      rpeCeiling: 9,
+      effectiveC1rm: 120,
+      matrix: M,
+    });
+    const zero = prescribeExercise({
+      exerciseId: "ex",
+      model: "linear",
+      params: LINEAR,
+      rpeCeiling: 9,
+      effectiveC1rm: 120,
+      matrix: M,
+      bodyweightOffsetKg: 0,
+    });
+    expect(zero).toEqual(base);
+  });
+});

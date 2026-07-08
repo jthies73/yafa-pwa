@@ -19,13 +19,16 @@ import {
 // Pipeline stage: math foundation — feeds prescription (load = pct × c1RM),
 // evaluation/seeding (impliedE1rm), the manual calculator, and analytics.
 //
-// Two invariants worth stating up front:
+// Three invariants worth stating up front:
 //   • c1RM (the progression anchor) is abstract and kept UNROUNDED; only the
 //     rendered prescribed weight is rounded (roundToLoadable). So matrix helpers
 //     never round on their own — weightFromE1rm returns a raw weight and the
 //     caller rounds after any ceiling cap.
 //   • impliedE1rm here is the ANALYTICS e1RM; it never feeds prescription (which
 //     uses c1RM). The two are deliberately separate values.
+//   • The 1RM space is the TOTAL load. Sets store the ADDED weight; callers of
+//     these helpers lift bodyweightFactor exercises' sets into total space
+//     first (engine/bodyweight.ts) — including isQualifyingSet's weight gate.
 // ----------------------------------------------
 
 /** Round half-up to the 0.5 RPE grid, then clamp to the matrix's RPE range. */

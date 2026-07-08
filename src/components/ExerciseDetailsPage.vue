@@ -21,7 +21,14 @@ import {
   type WorkoutSummary,
 } from "../analytics/summary";
 import type { PrType } from "../analytics/summary";
+import type { TimestampedValue } from "../analytics/compute";
+import {
+  bodyweightOffsetKg,
+  liftSets,
+  pickBodyweightAt,
+} from "../engine/bodyweight";
 import { peakImpliedE1rm } from "../engine/matrix";
+import { BODYWEIGHT_TYPE_ID } from "../db/measurements";
 import { DEFAULT_RPE_MATRIX } from "../db/rpeMatrix";
 import { TIMEFRAME_OPTIONS } from "../analytics/presentation";
 import type { Timeframe } from "../analytics/service";
@@ -41,24 +48,30 @@ const exerciseWorkouts = ref<Workout[]>([]); // sessions containing this exercis
 const exercisesById = ref<Map<string, Exercise>>(new Map());
 const routinesById = ref<Map<string, Routine>>(new Map());
 const summaries = ref<Map<string, WorkoutSummary>>(new Map());
+const bodyweightEntries = ref<TimestampedValue[]>([]);
 const loading = ref(true);
 let subscription: { unsubscribe(): void } | undefined;
 
 onMounted(() => {
   subscription = liveQuery(async () => {
-    const [ex, workouts, exercises, routines] = await Promise.all([
+    const [ex, workouts, exercises, routines, bwEntries] = await Promise.all([
       db.exercises.get(props.id),
       getWorkouts(),
       db.exercises.toArray(),
       db.routines.toArray(),
+      db.measurementEntries
+        .where("measurementTypeId")
+        .equals(BODYWEIGHT_TYPE_ID)
+        .toArray(),
     ]);
-    return { ex: ex ?? null, workouts, exercises, routines };
+    return { ex: ex ?? null, workouts, exercises, routines, bwEntries };
   }).subscribe({
-    next: ({ ex, workouts, exercises, routines }) => {
+    next: ({ ex, workouts, exercises, routines, bwEntries }) => {
       loading.value = false;
       exercise.value = ex;
       exercisesById.value = new Map(exercises.map((e) => [e.id, e]));
       routinesById.value = new Map(routines.map((r) => [r.id, r]));
+      bodyweightEntries.value = bwEntries;
 
       const mine = workouts.filter((w) =>
         w.exercises.some((e) => e.exerciseId === props.id),
@@ -76,6 +89,7 @@ onMounted(() => {
             history: workouts.filter((o) => o.id !== w.id),
             exercisesById: exercisesById.value,
             plannedCounts: {},
+            bodyweightEntries: bwEntries,
           }),
         );
       }
@@ -145,7 +159,13 @@ const rows = computed<HistoryRow[]>(() => {
     const sets = w.exercises
       .filter((e) => e.exerciseId === props.id)
       .flatMap((e) => e.sets);
-    const peak = peakImpliedE1rm(matrix, sets);
+    // Total-load e1RM with the workout-time bodyweight; the displayed best-set
+    // weight is converted back to the added weight the user loaded.
+    const offset = bodyweightOffsetKg(
+      exercise.value?.bodyweightFactor,
+      pickBodyweightAt(bodyweightEntries.value, w.startTime),
+    );
+    const peak = peakImpliedE1rm(matrix, liftSets(sets, offset));
     return {
       workout: w,
       date: formatDate(w.startTime),
@@ -153,7 +173,7 @@ const rows = computed<HistoryRow[]>(() => {
       setCount: sets.length,
       best: peak
         ? {
-            weight: peak.set.actualWeight,
+            weight: peak.set.actualWeight - offset,
             reps: peak.set.actualReps,
             rpe: peak.set.actualRpe,
             e1rm: peak.e1rm,
@@ -182,6 +202,7 @@ const formInitial = computed<ExerciseInput | undefined>(() => {
     secondaryMuscleGroups: e.secondaryMuscleGroups,
     notes: e.notes,
     rpeMatrix: e.rpeMatrix,
+    bodyweightFactor: e.bodyweightFactor,
   };
 });
 const handleSave = async (input: ExerciseInput) => {

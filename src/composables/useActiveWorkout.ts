@@ -1,6 +1,7 @@
 import { ref, computed } from "vue";
 import { db } from "../db/db";
 import { updateExerciseNotes } from "../db/repository";
+import { currentBodyweight } from "../db/measurements";
 import { getConfigSetCount } from "../utils/progression";
 import type {
   Workout,
@@ -69,6 +70,9 @@ const prescriptions = ref<(ExercisePrescription | null)[]>([]);
 const trackerStats = ref({ completed: 0, pending: 0 });
 const isMinimized = ref(false);
 const showSheet = ref(false);
+// Bodyweight (kg) at session start — the added↔total transform base for
+// bodyweightFactor exercises. null when the user never logged one (offset 0).
+const bodyweightKg = ref<number | null>(null);
 
 // Calculator sets are kept separate from the tracker's exercise projection so
 // that the tracker's continuous project() writes don't clobber them. Merged into
@@ -104,6 +108,11 @@ export function restoreActiveWorkout() {
   exercisesMap.value = snap.exercisesMap;
   calculatorSets.value = snap.calculatorSets;
   trackerStats.value = { completed: 0, pending: 0 };
+  bodyweightKg.value = snap.bodyweightKg ?? null;
+  if (snap.bodyweightKg === undefined) {
+    // Pre-feature snapshot: fetch lazily; prescriptions in it are already final.
+    void currentBodyweight().then((bw) => (bodyweightKg.value = bw ?? null));
+  }
   // exercises are re-projected from the hydrated cards by the tracker's project().
   activeWorkout.value = { ...snap.workout, exercises: [] };
   pendingRestore = { cards: snap.cards, addedNames: snap.addedNames };
@@ -122,6 +131,7 @@ function reset() {
   plannedCounts.value = {};
   trackerStats.value = { completed: 0, pending: 0 };
   calculatorSets.value = [];
+  bodyweightKg.value = null;
   isMinimized.value = false;
   showSheet.value = false;
   // A finished/discarded session must never resurface on the next launch.
@@ -133,6 +143,10 @@ export function useActiveWorkout() {
     let r: Routine | null = null;
     const eMap: Record<string, Exercise> = {};
     let rx: (ExercisePrescription | null)[] = [];
+
+    // Captured once per session: prescriptions were rendered against this
+    // bodyweight, so in-session transforms must use the same base.
+    bodyweightKg.value = (await currentBodyweight()) ?? null;
 
     if (routineId) {
       r = (await db.routines.get(routineId)) ?? null;
@@ -200,6 +214,22 @@ export function useActiveWorkout() {
     void updateExerciseNotes(exerciseId, trimmed).catch((error) => {
       console.error("YAFA: failed to save exercise note", error);
     });
+  };
+
+  /**
+   * Make sure an exercise added mid-session is in exercisesMap, so its custom
+   * RPE matrix and bodyweightFactor are honored (not silently defaulted).
+   */
+  const ensureExerciseLoaded = (exerciseId: string) => {
+    if (exercisesMap.value[exerciseId]) return;
+    void db.exercises
+      .get(exerciseId)
+      .then((e) => {
+        if (e) exercisesMap.value[exerciseId] = e;
+      })
+      .catch((error) => {
+        console.error("YAFA: failed to load exercise", error);
+      });
   };
 
   const logCalculatorSet = (entry: CalculatorSet) => {
@@ -304,6 +334,7 @@ export function useActiveWorkout() {
   return {
     activeWorkout: computed(() => activeWorkout.value),
     routine: computed(() => routine.value),
+    bodyweightKg: computed(() => bodyweightKg.value),
     exercisesMap: computed(() => exercisesMap.value),
     prescriptions: computed(() => prescriptions.value),
     plannedCounts: computed(() => plannedCounts.value),
@@ -338,6 +369,7 @@ export function useActiveWorkout() {
     syncExercises,
     syncProgress,
     setExerciseNote,
+    ensureExerciseLoaded,
     logCalculatorSet,
     removeCalculatorSet,
     sessionSetsFor,

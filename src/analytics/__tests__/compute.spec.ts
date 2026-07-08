@@ -287,3 +287,94 @@ describe("exercise volume", () => {
     expect(computeWorkoutSeries({ ...base, metric: "reps" })[0].value).toBe(5);
   });
 });
+
+describe("e1RM metric with bodyweight factor", () => {
+  const pullup = makeExercise({
+    name: "Weighted Pull Up",
+    primaryMuscleGroups: ["Lats"],
+    bodyweightFactor: 0.9,
+  });
+  const exercisesById = byId(pullup);
+  // 20 kg added × 5 @ RPE 8 on Tuesday; bodyweight 80 kg logged before it.
+  const qualifyingSet = makeSet({
+    actualWeight: 20,
+    actualReps: 5,
+    actualRpe: 8,
+  });
+  const workouts = [
+    makeWorkout(TUE, [{ exerciseId: pullup.id, sets: [qualifyingSet] }]),
+  ];
+  const base = {
+    scope: { kind: "exercise", exerciseId: pullup.id } as const,
+    metric: "e1rm" as const,
+    bucket: "session" as const,
+    workouts,
+    exercisesById,
+  };
+
+  it("plots the TOTAL-load e1RM and records the added weight + BW share", () => {
+    const withBw = computeWorkoutSeries({
+      ...base,
+      bodyweightEntries: [{ timestamp: TUE - 1000, value: 80 }],
+    });
+    const withoutBw = computeWorkoutSeries(base);
+    // 0.9 × 80 = 72 kg lifted on top of the added 20 kg.
+    expect(withBw[0].value).toBeCloseTo(withoutBw[0].value * ((20 + 72) / 20));
+    expect(withBw[0].bestSet).toMatchObject({
+      weight: 20, // stays the ADDED weight
+      reps: 5,
+      rpe: 8,
+      bodyweightOffsetKg: 72,
+    });
+  });
+
+  it("a 0-added bodyweight set qualifies once lifted", () => {
+    const points = computeWorkoutSeries({
+      ...base,
+      workouts: [
+        makeWorkout(TUE, [
+          {
+            exerciseId: pullup.id,
+            sets: [makeSet({ actualWeight: 0, actualReps: 5, actualRpe: 8 })],
+          },
+        ]),
+      ],
+      bodyweightEntries: [{ timestamp: TUE - 1000, value: 80 }],
+    });
+    expect(points).toHaveLength(1);
+    expect(points[0].bestSet?.weight).toBe(0);
+    expect(points[0].bestSet?.bodyweightOffsetKg).toBeCloseTo(72);
+  });
+
+  it("workouts before the first entry fall back to the EARLIEST bodyweight", () => {
+    const points = computeWorkoutSeries({
+      ...base,
+      // Only entries AFTER the workout exist — earliest (82) is used.
+      bodyweightEntries: [
+        { timestamp: NEXT_TUE, value: 82 },
+        { timestamp: NEXT_TUE + 1000, value: 85 },
+      ],
+    });
+    expect(points[0].bestSet?.bodyweightOffsetKg).toBeCloseTo(0.9 * 82);
+  });
+
+  it("no bodyweight entries / factor 0 ⇒ identical to the pre-feature series", () => {
+    const noEntries = computeWorkoutSeries({ ...base, bodyweightEntries: [] });
+    const noOption = computeWorkoutSeries(base);
+    expect(noEntries).toEqual(noOption);
+    expect(noOption[0].bestSet?.bodyweightOffsetKg).toBeUndefined();
+
+    const plain = makeExercise({ name: "Bench", bodyweightFactor: 0 });
+    const plainPoints = computeWorkoutSeries({
+      scope: { kind: "exercise", exerciseId: plain.id },
+      metric: "e1rm",
+      bucket: "session",
+      workouts: [
+        makeWorkout(TUE, [{ exerciseId: plain.id, sets: [qualifyingSet] }]),
+      ],
+      exercisesById: byId(plain),
+      bodyweightEntries: [{ timestamp: TUE - 1000, value: 80 }],
+    });
+    expect(plainPoints[0].bestSet?.bodyweightOffsetKg).toBeUndefined();
+  });
+});

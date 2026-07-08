@@ -4,6 +4,7 @@ import type { Set as LoggedSet, WorkoutExercise } from "../db/types";
 import type { PrescribedSet } from "../engine/prescription";
 import { DEFAULT_RPE_MATRIX } from "../db/rpeMatrix";
 import { proposeSetAdjustment, type SetAdjustment } from "../engine/adjustment";
+import { bodyweightOffsetKg } from "../engine/bodyweight";
 import { roundToLoadable } from "../engine/matrix";
 import { useActiveWorkout, takePendingRestore } from "./useActiveWorkout";
 import { writeWorkoutSnapshot } from "./workoutPersistence";
@@ -26,8 +27,10 @@ export interface ExerciseCard {
 }
 
 // Mirror the row's own validity checks exactly (RPE is not required to complete).
+// Weight only needs to be a number: 0 (plain bodyweight reps) and negatives
+// (band/machine assistance) are valid ADDED weights.
 export const setValid = (s: SetEntry) =>
-  parseInt(s.reps, 10) >= 1 && parseFloat(s.weight) > 0;
+  parseInt(s.reps, 10) >= 1 && Number.isFinite(parseFloat(s.weight));
 
 // A set counts as completed only while its inputs remain valid, so clearing a
 // value auto-uncompletes the set and retyping a valid one restores it.
@@ -139,6 +142,7 @@ export function useWorkoutTracker() {
   const {
     activeWorkout,
     routine,
+    bodyweightKg,
     exercisesMap,
     prescriptions,
     plannedCounts,
@@ -146,9 +150,18 @@ export function useWorkoutTracker() {
     isMinimized,
     syncExercises,
     syncProgress,
+    ensureExerciseLoaded,
   } = useActiveWorkout();
 
   const cards = ref<ExerciseCard[]>([]);
+
+  // bodyweightFactor × session bodyweight for a card's exercise — the added↔total
+  // transform base for in-session engine math. 0 without factor or bodyweight.
+  const offsetFor = (card: ExerciseCard): number =>
+    bodyweightOffsetKg(
+      exercisesMap.value[card.exerciseId]?.bodyweightFactor,
+      bodyweightKg.value,
+    );
 
   // Names of exercises added on the fly (not part of the original routine) so the
   // card header can resolve them without round-tripping through the composable.
@@ -227,6 +240,7 @@ export function useWorkoutTracker() {
       isMinimized: isMinimized.value,
       cards: cards.value,
       addedNames: addedNames.value,
+      bodyweightKg: bodyweightKg.value,
     });
   }
 
@@ -315,10 +329,12 @@ export function useWorkoutTracker() {
   function fillColdStartFromGovernor(card: ExerciseCard): void {
     const gov = card.sets[0];
     if (!gov || !isDone(gov)) return;
+    const offset = offsetFor(card);
     const gReps = parseInt(gov.reps, 10);
     const gWeight = parseFloat(gov.weight);
     const gRpe = parseFloat(gov.rpe);
-    if (!(gReps >= 1) || !(gWeight > 0) || isNaN(gRpe)) return;
+    // Weight gates test the TOTAL load — a 0-added bodyweight set still governs.
+    if (!(gReps >= 1) || !(gWeight + offset > 0) || isNaN(gRpe)) return;
 
     const matrix =
       exercisesMap.value[card.exerciseId]?.rpeMatrix ?? DEFAULT_RPE_MATRIX;
@@ -328,10 +344,13 @@ export function useWorkoutTracker() {
 
       // Back-off sets carry no target RPE to re-anchor against — their load is a
       // fixed drop off the top set, so fill it directly from the demonstrated
-      // top weight rather than the RPE-derived path below.
+      // top weight rather than the RPE-derived path below. The % drop applies to
+      // the TOTAL load; the filled value is back in added space.
       if (s.target.role === "backoff" && s.target.backoffFraction != null) {
-        const weight = roundToLoadable(gWeight * s.target.backoffFraction);
-        if (weight > 0) {
+        const weight = roundToLoadable(
+          (gWeight + offset) * s.target.backoffFraction - offset,
+        );
+        if (weight + offset > 0) {
           applyAdjustmentToSet(s, { reps: s.target.reps, weight, rpe: null });
         }
         continue;
@@ -341,6 +360,7 @@ export function useWorkoutTracker() {
         matrix,
         { weight: gWeight, reps: gReps, rpe: gRpe },
         { reps: s.target.reps, rpe: s.target.rpe, weight: s.target.weight },
+        offset,
       );
       if (proposal) applyAdjustmentToSet(s, proposal);
     }
@@ -363,10 +383,11 @@ export function useWorkoutTracker() {
     const prev = card.sets[setIndex - 1];
     if (!prev || !isDone(prev)) return null;
 
+    const offset = offsetFor(card);
     const pReps = parseInt(prev.reps, 10);
     const pWeight = parseFloat(prev.weight);
     const pRpe = parseFloat(prev.rpe);
-    if (!(pReps >= 1) || !(pWeight > 0) || isNaN(pRpe)) return null;
+    if (!(pReps >= 1) || !(pWeight + offset > 0) || isNaN(pRpe)) return null;
 
     const matrix =
       exercisesMap.value[card.exerciseId]?.rpeMatrix ?? DEFAULT_RPE_MATRIX;
@@ -374,6 +395,7 @@ export function useWorkoutTracker() {
       matrix,
       { weight: pWeight, reps: pReps, rpe: pRpe },
       { reps: cur.target.reps, rpe: cur.target.rpe, weight: cur.target.weight },
+      offset,
     );
     if (cur.target.role === "backoff") {
       // Back-off load is a fixed % drop. Re-prescribe only downward: if the drop
@@ -423,6 +445,7 @@ export function useWorkoutTracker() {
     if (!set) return;
     applyAdjustmentToSet(set, proposal);
 
+    const offset = offsetFor(card);
     const matrix =
       exercisesMap.value[card.exerciseId]?.rpeMatrix ?? DEFAULT_RPE_MATRIX;
     for (let s = setIndex + 1; s < card.sets.length; s++) {
@@ -431,15 +454,16 @@ export function useWorkoutTracker() {
 
       // Back-off rows scale directly off the re-prescribed top set rather than
       // through the RPE matrix (matching fillColdStartFromGovernor's contract).
+      // The % drop applies to the TOTAL load.
       if (
         cur.target.role === "backoff" &&
         set.target?.role === "top" &&
         cur.target.backoffFraction != null
       ) {
         const weight = roundToLoadable(
-          proposal.weight * cur.target.backoffFraction,
+          (proposal.weight + offset) * cur.target.backoffFraction - offset,
         );
-        if (weight > 0) {
+        if (weight + offset > 0) {
           applyAdjustmentToSet(cur, {
             reps: cur.target.reps,
             weight,
@@ -458,6 +482,7 @@ export function useWorkoutTracker() {
           rpe: cur.target.rpe,
           weight: cur.target.weight,
         },
+        offset,
       );
       if (!cascaded) continue;
       // Back-off sets are only ever adjusted DOWN (mirroring proposalFor's guard).
@@ -473,6 +498,8 @@ export function useWorkoutTracker() {
 
   const addCardFor = (id: string, name: string) => {
     addedNames.value[id] = name;
+    // Load the full record so its custom RPE matrix / bodyweightFactor apply.
+    ensureExerciseLoaded(id);
     cards.value.push({
       id: crypto.randomUUID(),
       exerciseId: id,

@@ -88,6 +88,11 @@ export interface Exercise {
   secondaryMuscleGroups?: string[];
   notes?: string;
   rpeMatrix?: RpeMatrix; // Present ⇒ custom override; absent ⇒ inherits the global matrix.
+  // Fraction of bodyweight this movement lifts (0..1; absent ⇒ 0). The engine's
+  // c1RM/e1RM space is TOTAL load = added + bodyweightFactor × bodyweight; sets
+  // keep storing the ADDED weight and are lifted at the engine boundary
+  // (src/engine/bodyweight.ts).
+  bodyweightFactor?: number;
   created_at: number;
 }
 
@@ -173,9 +178,11 @@ export interface Workout {
 // Per-exercise progression state — one row per exercise, keyed by exerciseId.
 // c1RM ("calculative 1RM") is the working anchor every prescribed weight derives
 // from (load = matrixPct(reps, targetRpe) × c1rm) and the ONLY value progression
-// advances. The analytics e1RM (impliedE1rm) is a separate, display-only number
-// and is never stored here. State is persisted (not folded from history each time)
-// because percentage increments and resets make the c1RM path-dependent.
+// advances. It lives in TOTAL-load space (added + bodyweightFactor × bodyweight);
+// for bodyweightFactor 0 that equals the added weight. The analytics e1RM
+// (impliedE1rm) is a separate, display-only number and is never stored here.
+// State is persisted (not folded from history each time) because percentage
+// increments and resets make the c1RM path-dependent.
 export interface ProgressionState {
   exerciseId: string;
   c1rm: number | null; // null until seeded from the first qualifying session
@@ -199,6 +206,9 @@ export interface MeasurementType {
   id: string;
   name: string; // e.g. "Biceps", "Waist", "Bodyweight"
   category: MeasurementCategory;
+  // System types (currently only Bodyweight) are consumed by the engine and
+  // cannot be deleted; the UI hides their delete affordance.
+  isSystem?: boolean;
   created_at: number;
 }
 

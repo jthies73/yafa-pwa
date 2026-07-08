@@ -18,7 +18,9 @@ import { impliedE1rm, isQualifyingSet, peakImpliedE1rm } from "./matrix";
 // ----------------------------------------------
 // Progression state transitions. These pure functions are what actually MOVE the
 // c1RM. Everything is immutable (new objects, never in-place) and deterministic —
-// `now` and `workoutId` are injected so there is no hidden clock.
+// `now` and `workoutId` are injected so there is no hidden clock. The c1RM (and
+// every set handed in here) lives in TOTAL-load space — the service lifts
+// bodyweightFactor exercises' sets before calling (engine/bodyweight.ts).
 //
 // Pipeline stage: finish workout → step (advances c1RM from an outcome), and
 // next prescription → consumeReset (applies a pending −10% drop).

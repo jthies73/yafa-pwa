@@ -4,6 +4,7 @@ import type { PrescribedSet } from "../../engine/prescription";
 import {
   useWorkoutTracker,
   nextUnfinishedSet,
+  setValid,
   type SetEntry,
   type ExerciseCard,
 } from "../useWorkoutTracker";
@@ -32,6 +33,21 @@ const card = (id: string, sets: SetEntry[]): ExerciseCard => ({
   id,
   exerciseId: `ex-${id}`,
   sets,
+});
+
+describe("setValid", () => {
+  it("accepts 0 and negative weights (bodyweight / assisted sets)", () => {
+    expect(setValid(setEntry({ reps: "5", weight: "0" }))).toBe(true);
+    expect(setValid(setEntry({ reps: "5", weight: "-10" }))).toBe(true);
+    expect(setValid(setEntry({ reps: "5", weight: "100" }))).toBe(true);
+  });
+
+  it("still rejects an empty or non-numeric weight and invalid reps", () => {
+    expect(setValid(setEntry({ reps: "5", weight: "" }))).toBe(false);
+    expect(setValid(setEntry({ reps: "5", weight: "abc" }))).toBe(false);
+    expect(setValid(setEntry({ reps: "0", weight: "100" }))).toBe(false);
+    expect(setValid(setEntry({ reps: "", weight: "100" }))).toBe(false);
+  });
 });
 
 describe("nextUnfinishedSet", () => {

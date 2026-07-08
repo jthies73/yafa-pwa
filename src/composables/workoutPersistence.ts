@@ -33,6 +33,10 @@ export interface WorkoutSessionSnapshot {
   isMinimized: boolean;
   cards: ExerciseCard[];
   addedNames: Record<string, string>;
+  // Bodyweight (kg) captured at session start, for added↔total transforms.
+  // Additive + optional so pre-feature snapshots restore (no version bump);
+  // restore refetches when absent.
+  bodyweightKg?: number | null;
 }
 
 /** Read the session snapshot, or null when absent, corrupt, or a stale version. */

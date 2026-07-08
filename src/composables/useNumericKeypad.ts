@@ -103,6 +103,18 @@ function pressDot() {
   });
 }
 
+// Toggle a leading minus (negative added weight = assistance). Decimal-mode
+// only, mirroring the physical-keyboard guard (guardWeightKey).
+function pressSign() {
+  const el = activeEl.value;
+  if (!el || mode.value !== "decimal") return;
+  editValue(el, (val, s) => {
+    if (val.startsWith("-"))
+      return { value: val.slice(1), caret: Math.max(0, s - 1) };
+    return { value: "-" + val, caret: s + 1 };
+  });
+}
+
 function pressBackspace() {
   const el = activeEl.value;
   if (!el) return;
@@ -137,6 +149,7 @@ export function useNumericKeypad() {
     scheduleHide,
     pressDigit,
     pressDot,
+    pressSign,
     pressBackspace,
     pressEnter,
     dismiss: () => activeEl.value?.blur(),

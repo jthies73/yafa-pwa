@@ -87,6 +87,23 @@ describe("writeWorkoutSnapshot / readWorkoutSnapshot", () => {
       readWorkoutSnapshot(fakeStore({ [ACTIVE_WORKOUT_KEY]: broken })),
     ).toBeNull();
   });
+
+  it("round-trips the session bodyweight", () => {
+    const store = fakeStore();
+    writeWorkoutSnapshot(store, { ...snapshot(), bodyweightKg: 82.5 });
+    expect(readWorkoutSnapshot(store)?.bodyweightKg).toBe(82.5);
+  });
+
+  it("a pre-bodyweight snapshot (no field, same version) still restores", () => {
+    // The field is additive — SNAPSHOT_VERSION was deliberately NOT bumped so
+    // an in-progress workout survives the app upgrade.
+    const legacy = JSON.stringify({ ...snapshot(), version: SNAPSHOT_VERSION });
+    const read = readWorkoutSnapshot(
+      fakeStore({ [ACTIVE_WORKOUT_KEY]: legacy }),
+    );
+    expect(read).not.toBeNull();
+    expect(read!.bodyweightKg).toBeUndefined();
+  });
 });
 
 describe("clearWorkoutSnapshot", () => {

@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, watch } from "vue";
 import type { ExerciseInput } from "../db/repository";
+import { BODYWEIGHT_TYPE_ID, latestEntry } from "../db/measurements";
+import { guardRepsKey } from "../utils/numericInput";
 import AppBottomSheet from "./AppBottomSheet.vue";
 import ExerciseMusclePicker from "./ExerciseMusclePicker.vue";
 import ExerciseRpeMatrixEditor from "./ExerciseRpeMatrixEditor.vue";
@@ -25,11 +27,29 @@ const {
   primaryMuscleGroups,
   secondaryTags,
   notes,
+  bodyweightPct,
   canSave,
   removePrimaryTag,
   removeTag,
   getFormData,
 } = useExerciseForm(initialProp, open);
+
+// Clamp the bodyweight involvement percent to 0–100 on blur; empty means 0.
+const sanitizeBodyweightPct = () => {
+  const n = parseInt(bodyweightPct.value, 10);
+  bodyweightPct.value =
+    Number.isFinite(n) && n > 0 ? String(Math.min(100, n)) : "";
+};
+
+// Whether any bodyweight was ever logged — a factor without one contributes 0,
+// so surface a hint (checked on open; cheap single-type lookup).
+const hasBodyweightData = ref(true);
+watch(open, (isOpen) => {
+  if (!isOpen) return;
+  void latestEntry(BODYWEIGHT_TYPE_ID).then((entry) => {
+    hasBodyweightData.value = entry !== undefined;
+  });
+});
 
 // --- Picker UI State ---
 const selectingMode = ref<"primary" | "secondary" | null>(null);
@@ -282,6 +302,48 @@ const save = async () => {
               placeholder="Form cues, setup notes, variations…"
               class="resize-none rounded-lg border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2.5 text-sm text-text-h-light dark:text-text-h-dark placeholder-text-light/40 dark:placeholder-text-dark/40 focus:border-accent/50 focus:outline-none focus:ring-2 focus:ring-accent/40"
             ></textarea>
+          </div>
+
+          <!-- Bodyweight involvement -->
+          <div class="flex flex-col gap-1.5">
+            <label
+              class="text-xs font-bold uppercase tracking-wider text-text-light dark:text-text-dark opacity-60"
+            >
+              Bodyweight Involvement
+              <span class="ml-1 font-normal normal-case opacity-60"
+                >(optional)</span
+              >
+            </label>
+            <div class="relative">
+              <input
+                v-model="bodyweightPct"
+                v-numpad="'integer'"
+                type="text"
+                inputmode="numeric"
+                placeholder="0"
+                class="w-full rounded-lg border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2.5 pr-8 font-mono text-sm text-text-h-light dark:text-text-h-dark placeholder-text-light/40 dark:placeholder-text-dark/40 focus:border-accent/50 focus:outline-none focus:ring-2 focus:ring-accent/40"
+                @keydown="guardRepsKey"
+                @blur="sanitizeBodyweightPct"
+              />
+              <span
+                class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-text-light dark:text-text-dark opacity-50"
+              >
+                %
+              </span>
+            </div>
+            <p class="text-xs text-text-light dark:text-text-dark opacity-50">
+              Share of your bodyweight this movement lifts — e.g. ~90% for
+              pull-ups or dips, 0% for barbell lifts. Predictions then work on
+              bodyweight + added weight; you keep entering only the added
+              weight.
+            </p>
+            <p
+              v-if="!hasBodyweightData && parseInt(bodyweightPct, 10) > 0"
+              class="text-xs text-amber-600 dark:text-amber-400"
+            >
+              No bodyweight logged yet — add one under Measurements, otherwise
+              this setting has no effect.
+            </p>
           </div>
 
           <!-- RPE Matrix (existing exercises only) -->

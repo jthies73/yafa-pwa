@@ -165,3 +165,98 @@ describe("computeWorkoutSummary — adherence", () => {
     expect(a.score).toBe(90);
   });
 });
+
+describe("computeWorkoutSummary — e1RM PRs with bodyweight factor", () => {
+  const pullup: Exercise = {
+    id: "pullup",
+    name: "Pull Up",
+    primaryMuscleGroups: ["Lats"],
+    bodyweightFactor: 0.9,
+    created_at: 0,
+  };
+  const exercisesById = new Map([[pullup.id, pullup]]);
+
+  const historyWorkout = (
+    startTime: number,
+    sets: LoggedSet[],
+    id: string,
+  ): Workout => ({
+    id,
+    routineId: "r",
+    startTime,
+    exercises: [{ exerciseId: pullup.id, sets }],
+  });
+
+  it("PRs compare TOTAL loads, each session lifted by its own bodyweight", () => {
+    // History: 15 kg added at bodyweight 90 → total 15 + 81 = 96.
+    // Session: 20 kg added at bodyweight 80 → total 20 + 72 = 92 < 96: no PR
+    // even though the ADDED weight rose.
+    const summary = computeWorkoutSummary({
+      workout: workout([
+        {
+          exerciseId: pullup.id,
+          sets: [set({ actualWeight: 20, actualReps: 5, actualRpe: 8 })],
+        },
+      ]),
+      history: [
+        historyWorkout(
+          500,
+          [set({ actualWeight: 15, actualReps: 5, actualRpe: 8 })],
+          "w0",
+        ),
+      ],
+      exercisesById,
+      plannedCounts: {},
+      bodyweightEntries: [
+        { timestamp: 400, value: 90 }, // in effect for the history session
+        { timestamp: 900, value: 80 }, // in effect for the current session
+      ],
+    });
+    expect(summary.prs.filter((p) => p.type === "e1rm")).toHaveLength(0);
+  });
+
+  it("reports the PR's weight as the ADDED weight the user loaded", () => {
+    const summary = computeWorkoutSummary({
+      workout: workout([
+        {
+          exerciseId: pullup.id,
+          sets: [set({ actualWeight: 20, actualReps: 5, actualRpe: 8 })],
+        },
+      ]),
+      history: [],
+      exercisesById,
+      plannedCounts: {},
+      bodyweightEntries: [{ timestamp: 400, value: 80 }],
+    });
+    const pr = summary.prs.find((p) => p.type === "e1rm");
+    expect(pr).toBeDefined();
+    expect(pr!.weight).toBeCloseTo(20);
+  });
+
+  it("without bodyweight entries the detection matches pre-feature behavior", () => {
+    const build = (
+      bodyweightEntries?: { timestamp: number; value: number }[],
+    ) =>
+      computeWorkoutSummary({
+        workout: workout([
+          {
+            exerciseId: pullup.id,
+            sets: [set({ actualWeight: 20, actualReps: 5, actualRpe: 8 })],
+          },
+        ]),
+        history: [
+          historyWorkout(
+            500,
+            [set({ actualWeight: 15, actualReps: 5, actualRpe: 8 })],
+            "w0",
+          ),
+        ],
+        exercisesById,
+        plannedCounts: {},
+        bodyweightEntries,
+      }).prs;
+    expect(build([])).toEqual(build(undefined));
+    // 20 kg added beats 15 kg added when no bodyweight is known (offset 0).
+    expect(build([]).some((p) => p.type === "e1rm")).toBe(true);
+  });
+});

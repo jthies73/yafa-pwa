@@ -78,7 +78,8 @@ function focusWeight() {
 defineExpose({ focusReps, focusWeight });
 
 const repsValid = computed(() => parseInt(reps.value, 10) >= 1);
-const weightValid = computed(() => parseFloat(weight.value) > 0);
+// 0 (plain bodyweight) and negative (assistance) added weights are valid.
+const weightValid = computed(() => Number.isFinite(parseFloat(weight.value)));
 const rpeValid = computed(() => rpe.value !== "");
 // Back-off sets carry no target RPE — their load is a consequence of the top
 // set, not a target — so RPE is optional to complete them.

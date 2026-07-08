@@ -1,6 +1,10 @@
 {
-  "latest": "0.16.3",
+  "latest": "0.17.0",
   "releases": [
+    {
+      "version": "0.17.0",
+      "notes": "- Add proper support for bodyweight exercises."
+    },
     {
       "version": "0.16.3",
       "notes": "- Present days ago on workout cards."

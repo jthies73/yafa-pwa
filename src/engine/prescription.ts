@@ -30,6 +30,9 @@ import { solveReps } from "./calculator";
 //   • Same-session fatigue: an optional kg reduction (resolved by engine/fatigue.ts)
 //     subtracts from the anchor before rendering. The output still reports the
 //     UNREDUCED c1rm and echoes the reduction separately.
+//   • Weight spaces: the c1RM anchor is a TOTAL load (added + bodyweight share);
+//     output set weights are the ADDED weight — bodyweightOffsetKg is subtracted
+//     before rounding and may push a prescription negative (assistance).
 // ----------------------------------------------
 
 export interface PrescribedSet {
@@ -62,6 +65,10 @@ export interface PrescriptionInput {
   fatigueReduction?: number; // kg off the anchor, resolved by engine/fatigue.ts
   doubleRepCursor?: number; // double model only
   matrix: RpeMatrix;
+  // bodyweightFactor × current bodyweight (kg). The anchor is a TOTAL load; the
+  // offset is subtracted before rounding so output weights are the ADDED weight
+  // the user loads. May yield negative weights (assistance). 0/absent ⇒ no-op.
+  bodyweightOffsetKg?: number;
 }
 
 export function prescribeExercise(
@@ -69,15 +76,19 @@ export function prescribeExercise(
 ): ExercisePrescription {
   const { model, params, rpeCeiling, effectiveC1rm: c1rm, matrix } = input;
   const fatigue = input.fatigueReduction ?? 0;
+  const offset = input.bodyweightOffsetKg ?? 0;
 
-  // Weight at (reps, targetRpe), capped so its expected RPE never exceeds the
-  // ceiling. Null until c1RM is seeded. Renders from the fatigue-reduced anchor;
-  // being linear in it, every set (top and back-offs included) scales alike.
+  // ADDED weight at (reps, targetRpe), capped so its expected RPE never exceeds
+  // the ceiling. Null until c1RM is seeded. Renders from the fatigue-reduced
+  // TOTAL anchor, then drops the bodyweight share — subtracting before rounding
+  // keeps the displayed weight on the loadable grid.
   const load = (reps: number, targetRpe: number): number | null => {
     if (c1rm == null) return null;
     const anchor = Math.max(0, c1rm - fatigue);
     const loadRpe = Math.min(targetRpe, rpeCeiling);
-    return roundToLoadable(weightFromE1rm(matrix, anchor, reps, loadRpe));
+    return roundToLoadable(
+      weightFromE1rm(matrix, anchor, reps, loadRpe) - offset,
+    );
   };
 
   const sets = buildSets(
@@ -87,6 +98,7 @@ export function prescribeExercise(
     load,
     matrix,
     rpeCeiling,
+    offset,
   );
   return {
     exerciseId: input.exerciseId,
@@ -104,6 +116,7 @@ function buildSets(
   load: (reps: number, targetRpe: number) => number | null,
   matrix: RpeMatrix,
   rpeCeiling: number,
+  bodyweightOffsetKg: number,
 ): PrescribedSet[] {
   switch (model) {
     case "linear": {
@@ -131,8 +144,15 @@ function buildSets(
       const p = params as TopSetProgressionParams;
       const topWeight = load(p.topSetTargetReps, p.topSetTargetRpe);
       const backoffFraction = 1 - p.percentageDrop / 100;
+      // The % drop applies to the TOTAL load (the capacity the drop is relative
+      // to), so lift the added top weight, scale, and drop back to added.
       const backWeight =
-        topWeight == null ? null : roundToLoadable(topWeight * backoffFraction);
+        topWeight == null
+          ? null
+          : roundToLoadable(
+              (topWeight + bodyweightOffsetKg) * backoffFraction -
+                bodyweightOffsetKg,
+            );
       // Back-off reps are DERIVED, not configured: at the dropped load, how many
       // reps land on backOffRpe? Independent of c1RM because the back-off's
       // %-of-1RM is just the top set's (at its capped load) scaled by the drop —

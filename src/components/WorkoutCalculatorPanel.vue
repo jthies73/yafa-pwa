@@ -16,7 +16,9 @@ import {
 } from "../utils/numericInput";
 import { useWeightUnit } from "../composables/useWeightUnit";
 import { useActiveWorkout } from "../composables/useActiveWorkout";
+import { currentBodyweight } from "../db/measurements";
 import { solveWeight, solveReps, solveRpe } from "../engine/calculator";
+import { bodyweightOffsetKg, liftSets } from "../engine/bodyweight";
 import { impliedE1rm } from "../engine/matrix";
 import { liveEffectiveE1rm } from "../engine/state";
 import {
@@ -36,6 +38,7 @@ const {
   sessionSetsFor,
   activeWorkout,
   exercisesMap,
+  bodyweightKg,
 } = useActiveWorkout();
 
 // ── Exercise selection ────────────────────────────────────────────────────────
@@ -46,6 +49,20 @@ const showForm = ref(false);
 
 const matrix = computed<RpeMatrix>(
   () => selected.value?.rpeMatrix ?? DEFAULT_RPE_MATRIX,
+);
+
+// Session bodyweight when a workout is running, else the latest logged value —
+// the panel is also usable without an active session.
+const fallbackBodyweight = ref<number | null>(null);
+void currentBodyweight().then((bw) => (fallbackBodyweight.value = bw ?? null));
+
+// bodyweightFactor × bodyweight for the selected exercise: user-facing weights
+// stay ADDED; the solvers/e1RM math run on the TOTAL load.
+const offset = computed(() =>
+  bodyweightOffsetKg(
+    selected.value?.bodyweightFactor,
+    bodyweightKg.value ?? fallbackBodyweight.value,
+  ),
 );
 
 // The persisted c1RM is the baseline anchor; the live estimate layers this
@@ -71,8 +88,13 @@ const sessionSets = computed(() =>
 
 // The persisted c1RM wins, unless this session's sets diverge enough to trigger
 // catch-up (then the caught-up value), or there's no c1RM yet (seed from sets).
+// Sets are lifted to total space to match the (total) c1RM anchor.
 const effectiveE1rm = computed(() =>
-  liveEffectiveE1rm(matrix.value, sessionSets.value, dbC1rm.value),
+  liveEffectiveE1rm(
+    matrix.value,
+    liftSets(sessionSets.value, offset.value),
+    dbC1rm.value,
+  ),
 );
 
 // ── Fatigue toggle ────────────────────────────────────────────────────────────
@@ -173,7 +195,8 @@ const repsNum = computed(() => {
 });
 const weightNum = computed(() => {
   const n = parseFloat(weight.value);
-  return Number.isFinite(n) && n > 0 ? n : null;
+  // 0 and negatives are valid added weights (bodyweight / assisted sets).
+  return Number.isFinite(n) ? n : null;
 });
 
 function onRepsKeydown(e: KeyboardEvent) {
@@ -225,14 +248,15 @@ const calc = computed<CalcResult | null>(() => {
   let rp = rpe.value;
   let weightKg: number;
 
+  // weightKg stays the ADDED weight; the solvers get the TOTAL (added + offset).
   if (missing.value === "weight") {
-    weightKg = solveWeight(m, e1rm, r!, rp!);
+    weightKg = solveWeight(m, e1rm, r!, rp!, offset.value);
   } else if (missing.value === "reps") {
     weightKg = toKg(weightNum.value!);
-    r = solveReps(m, e1rm, weightKg, rp!);
+    r = solveReps(m, e1rm, weightKg + offset.value, rp!);
   } else {
     weightKg = toKg(weightNum.value!);
-    rp = solveRpe(m, e1rm, weightKg, r!);
+    rp = solveRpe(m, e1rm, weightKg + offset.value, r!);
   }
 
   return { reps: r!, rpe: rp!, weightKg, e1rm };
@@ -255,7 +279,7 @@ const manualE1rm = computed(() => {
   }
   return impliedE1rm(
     matrix.value,
-    toKg(weightNum.value),
+    toKg(weightNum.value) + offset.value,
     repsNum.value,
     rpe.value,
   );

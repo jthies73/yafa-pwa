@@ -336,6 +336,19 @@ const intensityArrow = computed<ArrowConfig | null>(() => {
                 </template>
               </span>
             </div>
+            <!-- Total-load anchor: the bodyweight share folded into the c1RM;
+                 prescribed weights show only the added weight on top of it. -->
+            <div
+              v-if="e.bodyweightOffsetKg"
+              class="flex items-center justify-between gap-3"
+            >
+              <span class="text-text-light dark:text-text-dark opacity-60">
+                Bodyweight share
+              </span>
+              <span class="font-mono text-text-h-light dark:text-text-h-dark">
+                {{ fmtWeight(e.bodyweightOffsetKg) }}
+              </span>
+            </div>
             <div
               v-if="
                 e.config.progressionModel !== 'none' && e.failureStreak >= 1
@@ -366,6 +379,15 @@ const intensityArrow = computed<ArrowConfig | null>(() => {
               </span>
             </div>
           </div>
+
+          <!-- No bodyweight logged yet: this exercise's bodyweight share is 0 -->
+          <p
+            v-if="e.bodyweightMissing"
+            class="text-xs text-text-light dark:text-text-dark opacity-50"
+          >
+            Log your bodyweight in Measurements to include it in this exercise's
+            calculations.
+          </p>
         </div>
       </template>
       <!-- Bottom padding -->

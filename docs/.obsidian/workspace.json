@@ -1,0 +1,203 @@
+{
+  "main": {
+    "id": "3e18960eadf2b872",
+    "type": "split",
+    "children": [
+      {
+        "id": "1b5ddf958eb8943a",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "e8450396918425c0",
+            "type": "leaf",
+            "state": {
+              "type": "empty",
+              "state": {},
+              "icon": "lucide-file",
+              "title": "New tab"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "fe788877734fd9ba",
+    "type": "split",
+    "children": [
+      {
+        "id": "d17cdbcda654dd9d",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "5e08bb61a4a03776",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical",
+                "autoReveal": false
+              },
+              "icon": "lucide-folder-closed",
+              "title": "Files"
+            }
+          },
+          {
+            "id": "d3048b726aa89e1a",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-search",
+              "title": "Search"
+            }
+          },
+          {
+            "id": "8accbbc222021d96",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {},
+              "icon": "lucide-bookmark",
+              "title": "Bookmarks"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300
+  },
+  "right": {
+    "id": "6e975d72a848e5a3",
+    "type": "split",
+    "children": [
+      {
+        "id": "e5b66f9a118925d9",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "d036ea213fc771d9",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "file": "data/backup-restore.md",
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "Backlinks for backup-restore"
+            }
+          },
+          {
+            "id": "fbc9e0e3d750a370",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "file": "data/backup-restore.md",
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "Outgoing links from backup-restore"
+            }
+          },
+          {
+            "id": "831095f5c7c10a7f",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-tags",
+              "title": "Tags"
+            }
+          },
+          {
+            "id": "1fcfd8a9f4d8e451",
+            "type": "leaf",
+            "state": {
+              "type": "all-properties",
+              "state": {
+                "sortOrder": "frequency",
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-archive",
+              "title": "All properties"
+            }
+          },
+          {
+            "id": "21d1050d72642bb4",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "file": "data/backup-restore.md",
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "Outline of backup-restore"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:Open quick switcher": false,
+      "graph:Open graph view": false,
+      "canvas:Create new canvas": false,
+      "daily-notes:Open today's daily note": false,
+      "templates:Insert template": false,
+      "command-palette:Open command palette": false,
+      "bases:Create new base": false
+    }
+  },
+  "active": "e8450396918425c0",
+  "lastOpenFiles": [
+    "evaluation/applying-results.md.tmp.485145.45868e4a2873",
+    "evaluation/applying-results.md.tmp.485145.0448f74308af",
+    "evaluation/applying-results.md.tmp.485145.9def5e5bf8a5",
+    "evaluation/analytics.md.tmp.485145.f6b4ebceefca",
+    "planning/mesocycles.md.tmp.485145.5eda18eeb9e1",
+    "data/backup-restore.md",
+    "evaluation/analytics.md",
+    "evaluation/analytics.md.tmp.485145.d5f64ee616db",
+    "execution/fatigue-and-slots.md",
+    "evaluation/applying-results.md",
+    "evaluation/applying-results.md.tmp.485145.75cefb0701b6",
+    "evaluation",
+    "concepts.md",
+    "execution/workout-tracking.md",
+    "execution/workout-tracking.md.tmp.485145.06c4b561bb5b",
+    "execution/fatigue-and-slots.md.tmp.485145.dcbd9ec62cbe",
+    "index.md",
+    "execution/prescription-pipeline.md",
+    "execution/prescription-pipeline.md.tmp.485145.3a15902767bd"
+  ]
+}

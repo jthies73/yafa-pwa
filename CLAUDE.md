@@ -21,6 +21,8 @@ Persistence: all data is offline via IndexedDB. The app always starts on the das
 
 **Data Schema Changes & Migrations**: Whenever you add, remove, or modify fields in the data layer (`src/db/types.ts`, `src/db/repository.ts`) that affect stored records, implement a **database migration** via Dexie's schema versioning in `src/db/db.ts`. Migrations run once on app boot and ensure all clients apply schema changes consistently. Do not rely on read-time backfill (like `normalizeProgressionParams`) as the primary mechanism for schema evolution — backfill is a convenience for truly optional new fields with safe defaults, but required/structural changes must be migrated. Document each migration with a comment explaining the change and its reason.
 
+**Keeping `docs/` current**: `docs/` (data model, planning, execution, evaluation) anchors its claims to code — function names, file paths, and line numbers pinned to a `source-commit` in each doc's frontmatter (see `docs/index.md`). Whenever a change alters something a doc describes (engine logic, data model/schema, prescription/progression rules, mesocycle behavior, analytics), update the affected doc(s) in the same change: fix the described behavior, refresh line-number references, and bump `source-commit`/`updated` in the frontmatter. Don't leave docs describing stale behavior for a future pass.
+
 ## Stack
 
 - Vue 3 Composition API (`<script setup lang="ts">`), Vite, strict TypeScript

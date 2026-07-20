@@ -1,6 +1,10 @@
 {
-  "latest": "0.16.2",
+  "latest": "0.16.3",
   "releases": [
+    {
+      "version": "0.16.3",
+      "notes": "- Present days ago on workout cards."
+    },
     {
       "version": "0.16.2",
       "notes": "- Fixes for RPE/Load adherence calculations"

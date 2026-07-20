@@ -75,19 +75,14 @@ describe("formatLastPerformed", () => {
     );
   });
 
-  it("returns Nd ago within the last week", () => {
+  it("returns Nd ago format as n days ago", () => {
     expect(formatLastPerformed(new Date(2026, 0, 5, 12).getTime(), NOW)).toBe(
-      "3d ago",
+      "3 days ago",
     );
   });
 
-  it("returns a short date for older sessions", () => {
+  it("returns n days ago for older sessions", () => {
     const old = new Date(2025, 11, 25, 12).getTime();
-    expect(formatLastPerformed(old, NOW)).toBe(
-      new Date(old).toLocaleDateString(undefined, {
-        month: "short",
-        day: "numeric",
-      }),
-    );
+    expect(formatLastPerformed(old, NOW)).toBe("14 days ago");
   });
 });

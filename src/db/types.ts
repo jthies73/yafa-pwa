@@ -141,6 +141,11 @@ export interface Plan {
   active: boolean;
   created_at: number;
   mesocycle?: MesocycleWeek[]; // absent ⇒ no periodization configured
+  mesocycleWeekOverride?: {
+    weekIndex: number; // absolute (unwrapped) week index the user selected, 0-based
+    setAt: number; // epoch ms when the override was saved
+    alignToMonday: boolean; // true: future week boundaries fall on Monday 00:00 local; false: exactly WEEK_MS after setAt
+  };
 }
 
 // ----------------------------------------------

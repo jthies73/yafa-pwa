@@ -1,6 +1,14 @@
 {
-  "latest": "0.17.0",
+  "latest": "0.18.1",
   "releases": [
+    {
+      "version": "0.18.1",
+      "notes": "- Improve active week indicator styling in MesocycleChart and fix overlay positioning over week tick strip."
+    },
+    {
+      "version": "0.18.0",
+      "notes": "- Add support for manually setting the current mesocycle week with optional Monday boundary alignment."
+    },
     {
       "version": "0.17.0",
       "notes": "- Add proper support for bodyweight exercises."

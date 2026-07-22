@@ -123,9 +123,27 @@ async function resolveOwningPlan(routineId: string): Promise<Plan | undefined> {
   );
 }
 
+/** The most recent Monday 00:00 local time on or before the given timestamp. */
+export function mostRecentMonday(ts: number): number {
+  const date = new Date(ts);
+  const dayOfWeek = date.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+  const daysBack = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // days to subtract to reach Monday
+  const monday = new Date(date);
+  monday.setDate(monday.getDate() - daysBack);
+  monday.setHours(0, 0, 0, 0); // 00:00:00.000
+  return monday.getTime();
+}
+
 /** The 0-based week within the plan's repeating mesocycle at time `at`. */
-function absoluteWeekIndex(plan: Plan | undefined, at: number): number {
+export function absoluteWeekIndex(plan: Plan | undefined, at: number): number {
   if (!plan) return 0;
+  const override = plan.mesocycleWeekOverride;
+  if (override && at >= override.setAt) {
+    const anchor = override.alignToMonday
+      ? mostRecentMonday(override.setAt)
+      : override.setAt;
+    return override.weekIndex + Math.floor((at - anchor) / WEEK_MS);
+  }
   return Math.max(0, Math.floor((at - plan.created_at) / WEEK_MS));
 }
 
@@ -136,7 +154,7 @@ function mesoModifiers(plan: Plan | undefined, at: number): MesoModifiers {
 }
 
 /** The display-only mesocycle position for the preview, or null. */
-async function mesocyclePosition(
+export async function mesocyclePosition(
   plan: Plan | undefined,
   at: number,
 ): Promise<MesocyclePosition | null> {

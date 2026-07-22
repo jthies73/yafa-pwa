@@ -30,8 +30,9 @@ const props = withDefaults(
     weeks: MesocycleWeek[];
     showLegend?: boolean;
     caption?: string;
+    currentWeekIndex?: number;
   }>(),
-  { showLegend: true, caption: "" },
+  { showLegend: true, caption: "", currentWeekIndex: undefined },
 );
 
 const count = computed(() => props.weeks.length);
@@ -98,10 +99,12 @@ const chartOptions = computed<ChartOptions<"line">>(() => {
   };
 });
 
-// Show every Nth week number once the block gets long, but always the last one.
+// Show every Nth week number once the block gets long, but always the last one and current week.
 const labelStep = computed(() => Math.ceil(count.value / 8) || 1);
 const showLabel = (i: number) =>
-  i % labelStep.value === 0 || i === count.value - 1;
+  i % labelStep.value === 0 ||
+  i === count.value - 1 ||
+  i === props.currentWeekIndex;
 
 // Distinct focuses actually used, in their canonical order, for the legend.
 const legendFocuses = computed<PeriodizationFocus[]>(() => {
@@ -111,28 +114,53 @@ const legendFocuses = computed<PeriodizationFocus[]>(() => {
     seen.has(f),
   );
 });
+
+// Current week marker position (percent of container width, centered on the week).
+const currentWeekLeft = computed(() => {
+  const idx = props.currentWeekIndex;
+  if (idx === undefined || idx < 0 || idx >= count.value) return null;
+  return ((idx + 0.5) / count.value) * 100;
+});
 </script>
 
 <template>
   <div v-if="count" class="flex flex-col gap-4">
-    <!-- Volume + intensity trend lines -->
+    <!-- Volume + intensity trend lines + current week marker -->
     <div class="relative w-full h-36">
       <Line :data="chartData" :options="chartOptions" />
+      <div
+        v-if="currentWeekLeft !== null"
+        class="absolute top-0 bottom-0 pointer-events-none z-10 flex flex-col items-center"
+        :style="{ left: `${currentWeekLeft}%`, transform: 'translateX(-50%)' }"
+      >
+        <span
+          class="w-2.5 h-2.5 rounded-full bg-accent border-2 border-bg-light dark:border-bg-dark shadow-sm shrink-0 -mt-1"
+        />
+        <span class="w-0 flex-1 border-r-2 border-dashed border-accent/70" />
+        <span class="w-1.5 h-1.5 rounded-full bg-accent/80 shrink-0 -mb-0.5" />
+      </div>
     </div>
 
     <!-- Focus-colored week tick strip (shared categorical axis) -->
     <div class="flex flex-col gap-1.5">
-      <div
-        class="grid gap-1"
-        :style="{ gridTemplateColumns: `repeat(${count}, minmax(0, 1fr))` }"
-      >
-        <span
-          v-for="(week, i) in weeks"
-          :key="i"
-          class="h-1.5 rounded-full"
-          :style="{ backgroundColor: FOCUS_META[week.focus].colorVar }"
-          :title="`Week ${i + 1} — ${FOCUS_META[week.focus].label}`"
-        />
+      <div class="relative">
+        <div
+          class="grid gap-1 items-center"
+          :style="{ gridTemplateColumns: `repeat(${count}, minmax(0, 1fr))` }"
+        >
+          <span
+            v-for="(week, i) in weeks"
+            :key="i"
+            class="rounded-full transition-all duration-150"
+            :class="[
+              i === currentWeekIndex
+                ? 'h-2.5 ring-2 ring-accent ring-offset-1 ring-offset-bg-light dark:ring-offset-bg-dark z-10'
+                : 'h-1.5 opacity-80 hover:opacity-100',
+            ]"
+            :style="{ backgroundColor: FOCUS_META[week.focus].colorVar }"
+            :title="`Week ${i + 1} — ${FOCUS_META[week.focus].label}`"
+          />
+        </div>
       </div>
       <div
         class="grid text-center"
@@ -141,7 +169,12 @@ const legendFocuses = computed<PeriodizationFocus[]>(() => {
         <span
           v-for="(_, i) in weeks"
           :key="i"
-          class="text-[10px] font-mono text-text-light dark:text-text-dark opacity-50"
+          class="text-[10px] font-mono transition-colors"
+          :class="[
+            i === currentWeekIndex
+              ? 'font-bold text-accent opacity-100 text-xs'
+              : 'text-text-light dark:text-text-dark opacity-50',
+          ]"
         >
           {{ showLabel(i) ? i + 1 : "" }}
         </span>

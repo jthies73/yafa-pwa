@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from "vue";
+import { ref, computed, watch, onMounted, onUnmounted } from "vue";
 import { useRouter } from "vue-router";
 import { liveQuery } from "dexie";
 import { db } from "../db/db";
@@ -19,10 +19,12 @@ import {
   deletePlan,
   createRoutine,
   setPlanMesocycle,
+  setPlanWeekOverride,
   type PlanInput,
   type RoutineInput,
 } from "../db/repository";
 import { FOCUS_META, FOCUS_ORDER } from "../config/periodization";
+import { mesocyclePosition } from "../engine/service";
 import AppFab from "./AppFab.vue";
 import PlanFormSheet from "./PlanFormSheet.vue";
 import RoutineFormSheet from "./RoutineFormSheet.vue";
@@ -153,12 +155,47 @@ const showMesocycleSheet = ref(false);
 
 const mesocycleInitial = computed(() => plan.value?.mesocycle ?? []);
 
+const currentMesocycleWeekIndex = ref<number | null>(null);
+
+let refreshInterval: ReturnType<typeof setInterval> | undefined;
+
+watch(
+  () => plan.value?.id,
+  async () => {
+    // Clear existing interval.
+    if (refreshInterval) clearInterval(refreshInterval);
+
+    // Recompute the current week index whenever the plan changes.
+    const checkCurrentWeek = async () => {
+      if (plan.value?.mesocycle?.length) {
+        const pos = await mesocyclePosition(plan.value, Date.now());
+        currentMesocycleWeekIndex.value = pos?.weekIndex ?? null;
+      } else {
+        currentMesocycleWeekIndex.value = null;
+      }
+    };
+    await checkCurrentWeek();
+    // Recheck every minute to keep it in sync.
+    refreshInterval = setInterval(checkCurrentWeek, 60_000);
+  },
+);
+
+onUnmounted(() => {
+  if (refreshInterval) clearInterval(refreshInterval);
+});
+
 const openEditMesocycle = () => {
   showMesocycleSheet.value = true;
 };
 
-const handleSaveMesocycle = async (weeks: MesocycleWeek[]) => {
+const handleSaveMesocycle = async (
+  weeks: MesocycleWeek[],
+  override?: Plan["mesocycleWeekOverride"],
+) => {
   await setPlanMesocycle(props.id, weeks);
+  if (override !== undefined) {
+    await setPlanWeekOverride(props.id, override);
+  }
   showMesocycleSheet.value = false;
 };
 
@@ -379,7 +416,10 @@ const requestDeletePlan = () => {
           class="group bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-xl shadow-sm p-5 flex flex-col gap-4 cursor-pointer transition-colors duration-150 hover:bg-surface-light-hover dark:hover:bg-surface-dark-hover"
           @click="openEditMesocycle"
         >
-          <MesocycleChart :weeks="plan.mesocycle" />
+          <MesocycleChart
+            :weeks="plan.mesocycle"
+            :current-week-index="currentMesocycleWeekIndex ?? undefined"
+          />
           <div
             class="border-t border-border-light dark:border-border-dark pt-3 flex items-end justify-between gap-3"
           >
@@ -567,6 +607,7 @@ const requestDeletePlan = () => {
       v-model:open="showMesocycleSheet"
       :is-editing="!!plan?.mesocycle?.length"
       :initial="mesocycleInitial"
+      :plan="plan"
       @save="handleSaveMesocycle"
     />
 

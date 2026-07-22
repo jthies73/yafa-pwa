@@ -566,7 +566,7 @@ const recordCoffeeClick = () => {
 
         <!-- Feedback & Requests (action styled as a nav item) -->
         <button
-          v-if="['development', 'staging'].includes(features.environment)"
+          v-if="features.showFeedbackSheet"
           type="button"
           class="flex items-center gap-3 font-medium text-lg text-text-light dark:text-text-dark hover:text-accent transition-colors cursor-pointer group text-left"
           @click="openFeedbackSheet"

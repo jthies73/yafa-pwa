@@ -1,6 +1,10 @@
 {
-  "latest": "0.18.1",
+  "latest": "0.18.2",
   "releases": [
+    {
+      "version": "0.18.2",
+      "notes": "- Add Feedback Sheet feature flag."
+    },
     {
       "version": "0.18.1",
       "notes": "- Improve active week indicator styling in MesocycleChart and fix overlay positioning over week tick strip."

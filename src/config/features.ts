@@ -10,6 +10,7 @@ export interface FeatureFlags {
   fastStartAnimation: boolean;
   showBuyMeACoffee: boolean;
   useCustomNumpadOnDesktop: boolean;
+  showFeedbackSheet: boolean;
 }
 
 function parseEnvBoolean(
@@ -21,9 +22,10 @@ function parseEnvBoolean(
 }
 
 export function getFeatureFlags(): FeatureFlags {
+  const environment = import.meta.env.MODE as
+    "development" | "staging" | "production";
   return {
-    environment: import.meta.env.MODE as
-      "development" | "staging" | "production",
+    environment,
     seedDatabase: parseEnvBoolean(import.meta.env.VITE_SEED_DATABASE, true),
     fastStartAnimation: parseEnvBoolean(
       import.meta.env.VITE_FAST_START_ANIMATION,
@@ -33,6 +35,11 @@ export function getFeatureFlags(): FeatureFlags {
     useCustomNumpadOnDesktop: parseEnvBoolean(
       import.meta.env.VITE_USE_CUSTOM_NUMPAD_ON_DESKTOP,
       false,
+    ),
+    // Feedback sheet: shown when explicitly enabled via environment variable
+    showFeedbackSheet: parseEnvBoolean(
+      import.meta.env.VITE_SHOW_FEEDBACK_SHEET,
+      true,
     ),
   };
 }

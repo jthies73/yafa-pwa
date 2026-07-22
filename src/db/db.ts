@@ -156,6 +156,12 @@ export class YafaDatabase extends Dexie {
         });
       }
     });
+
+    // v12: manual mesocycle week override. Users can now manually set which week
+    // they're currently in (with optional Monday alignment), re-anchoring the
+    // periodic cycle. The mesocycleWeekOverride field is optional on all plans,
+    // so existing plans are unaffected (absent = no override, use created_at math).
+    this.version(12);
   }
 }
 

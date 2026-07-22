@@ -1,34 +1,59 @@
 <script setup lang="ts">
-import { ref, watch } from "vue";
-import type { MesocycleWeek, PeriodizationFocus } from "../db/types";
+import { ref, watch, computed } from "vue";
+import type { MesocycleWeek, Plan, PeriodizationFocus } from "../db/types";
 import {
   FOCUS_ORDER,
   FOCUS_META,
   MESOCYCLE_PRESETS,
 } from "../config/periodization";
 import { useSortableList } from "../composables/useSortableList";
+import { mesocyclePosition } from "../engine/service";
 import AppBottomSheet from "./AppBottomSheet.vue";
 import MesocycleChart from "./MesocycleChart.vue";
 
 const props = defineProps<{
   isEditing: boolean;
   initial?: MesocycleWeek[];
+  plan?: Plan | null;
 }>();
 
 const open = defineModel<boolean>("open", { required: true });
 
 const emit = defineEmits<{
-  (e: "save", weeks: MesocycleWeek[]): void;
+  (
+    e: "save",
+    weeks: MesocycleWeek[],
+    override?: Plan["mesocycleWeekOverride"],
+  ): void;
 }>();
 
 const weeks = ref<MesocycleWeek[]>([]);
+const weekOverride = ref<{
+  weekIndex: number;
+  alignToMonday: boolean;
+} | null>(null);
 
 // Reset on open, deep-cloning to plain objects so we never mutate the live plan.
 watch(
   open,
-  (isOpen) => {
+  async (isOpen) => {
     if (!isOpen) return;
     weeks.value = (props.initial ?? []).map((w) => ({ focus: w.focus }));
+    // Initialize the week override state from the plan's current position.
+    if (props.plan?.mesocycle?.length) {
+      const pos = await mesocyclePosition(props.plan, Date.now());
+      const currentLap = Math.floor(
+        (pos?.weekIndex ?? 0) / props.plan.mesocycle.length,
+      );
+      const absoluteIndex =
+        currentLap * props.plan.mesocycle.length + (pos?.weekIndex ?? 0);
+      weekOverride.value = {
+        weekIndex: absoluteIndex,
+        alignToMonday: props.plan.mesocycleWeekOverride?.alignToMonday ?? false,
+      };
+    } else {
+      weekOverride.value = null;
+    }
   },
   { immediate: true },
 );
@@ -46,6 +71,11 @@ useSortableList(weekListEl, {
   },
 });
 
+const currentWrappedWeekIndex = computed(() => {
+  if (!weekOverride.value || !weeks.value.length) return -1;
+  return weekOverride.value.weekIndex % weeks.value.length;
+});
+
 const addWeek = () => {
   const last = weeks.value[weeks.value.length - 1];
   weeks.value.push({ focus: last?.focus ?? "hypertrophy" });
@@ -59,6 +89,13 @@ const setFocus = (idx: number, focus: PeriodizationFocus) => {
   weeks.value[idx].focus = focus;
 };
 
+const selectWeek = (idx: number) => {
+  if (!weekOverride.value) return;
+  // Preserve the current lap (how many complete cycles have passed).
+  const lap = Math.floor(weekOverride.value.weekIndex / weeks.value.length);
+  weekOverride.value.weekIndex = lap * weeks.value.length + idx;
+};
+
 const applyPreset = (preset: (typeof MESOCYCLE_PRESETS)[number]) => {
   weeks.value = preset.weeks.map((w) => ({ focus: w.focus }));
 };
@@ -68,9 +105,17 @@ const close = () => {
 };
 
 const save = () => {
+  const override = weekOverride.value
+    ? {
+        weekIndex: weekOverride.value.weekIndex,
+        setAt: Date.now(),
+        alignToMonday: weekOverride.value.alignToMonday,
+      }
+    : undefined;
   emit(
     "save",
     weeks.value.map((w) => ({ focus: w.focus })),
+    override,
   );
 };
 </script>
@@ -86,7 +131,12 @@ const save = () => {
         v-if="weeks.length"
         class="rounded-xl border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark p-4"
       >
-        <MesocycleChart :weeks="weeks" />
+        <MesocycleChart
+          :weeks="weeks"
+          :current-week-index="
+            currentWrappedWeekIndex >= 0 ? currentWrappedWeekIndex : undefined
+          "
+        />
       </div>
       <p
         v-else
@@ -115,13 +165,55 @@ const save = () => {
         </div>
       </div>
 
-      <!-- Weeks editor -->
-      <div class="flex flex-col gap-1.5">
+      <!-- Monday alignment toggle -->
+      <div v-if="weekOverride && weeks.length" class="flex flex-col gap-1.5">
         <span
           class="text-xs font-bold uppercase tracking-wider text-text-light dark:text-text-dark opacity-60"
         >
-          Weeks
+          Week Boundary
         </span>
+        <button
+          type="button"
+          role="switch"
+          :aria-checked="weekOverride.alignToMonday"
+          class="flex gap-1 rounded-lg border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark p-1"
+          @click="weekOverride.alignToMonday = !weekOverride.alignToMonday"
+        >
+          <span
+            class="flex-1 rounded-md py-1.5 text-xs font-bold transition-colors duration-150"
+            :class="
+              !weekOverride.alignToMonday
+                ? 'bg-accent text-bg-dark'
+                : 'text-text-light dark:text-text-dark opacity-60'
+            "
+          >
+            Rolling
+          </span>
+          <span
+            class="flex-1 rounded-md py-1.5 text-xs font-bold transition-colors duration-150"
+            :class="
+              weekOverride.alignToMonday
+                ? 'bg-accent text-bg-dark'
+                : 'text-text-light dark:text-text-dark opacity-60'
+            "
+          >
+            Monday
+          </span>
+        </button>
+      </div>
+
+      <!-- Weeks editor -->
+      <div class="flex flex-col gap-1.5">
+        <div class="flex items-center justify-between">
+          <span
+            class="text-xs font-bold uppercase tracking-wider text-text-light dark:text-text-dark opacity-60"
+          >
+            Weeks
+          </span>
+          <span class="text-xs text-text-light dark:text-text-dark opacity-50">
+            Tap a week number to set it as your current week
+          </span>
+        </div>
 
         <div ref="weekListEl" class="flex flex-col gap-2">
           <div
@@ -149,11 +241,18 @@ const save = () => {
               </svg>
             </span>
 
-            <span
-              class="w-7 shrink-0 text-xs font-bold font-mono text-text-light dark:text-text-dark opacity-50"
+            <button
+              type="button"
+              class="shrink-0 w-7 rounded-md py-1 px-1.5 text-xs font-bold font-mono transition-colors duration-150 cursor-pointer"
+              :class="
+                currentWrappedWeekIndex === idx
+                  ? 'bg-accent text-bg-dark'
+                  : 'border border-border-light dark:border-border-dark text-text-light dark:text-text-dark opacity-50 hover:opacity-100'
+              "
+              @click="selectWeek(idx)"
             >
               W{{ idx + 1 }}
-            </span>
+            </button>
 
             <!-- Focus selector -->
             <div class="grid flex-1 grid-cols-4 gap-1">

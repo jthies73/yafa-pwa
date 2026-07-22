@@ -96,6 +96,19 @@ export async function setPlanMesocycle(
   });
 }
 
+/**
+ * Persists a plan's mesocycle week override (manual "current week" adjustment).
+ * Passing `undefined` clears any existing override, reverting to calendar-based math.
+ */
+export async function setPlanWeekOverride(
+  id: string,
+  override: Plan["mesocycleWeekOverride"] | undefined,
+): Promise<void> {
+  await db.plans.update(id, {
+    mesocycleWeekOverride: override,
+  });
+}
+
 export async function setPlanActive(
   id: string,
   active: boolean,

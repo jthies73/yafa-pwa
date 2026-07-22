@@ -23,6 +23,8 @@ Persistence: all data is offline via IndexedDB. The app always starts on the das
 
 **Keeping `docs/` current**: `docs/` (data model, planning, execution, evaluation) anchors its claims to code — function names, file paths, and line numbers pinned to a `source-commit` in each doc's frontmatter (see `docs/index.md`). Whenever a change alters something a doc describes (engine logic, data model/schema, prescription/progression rules, mesocycle behavior, analytics), update the affected doc(s) in the same change: fix the described behavior, refresh line-number references, and bump `source-commit`/`updated` in the frontmatter. Don't leave docs describing stale behavior for a future pass.
 
+**Updating `releases.json`**: Always update `public/releases.json` with a short description of what changed for any release or update (applies to major, minor, and patch changes).
+
 ## Stack
 
 - Vue 3 Composition API (`<script setup lang="ts">`), Vite, strict TypeScript

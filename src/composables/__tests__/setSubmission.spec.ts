@@ -186,7 +186,13 @@ describe("addSet", () => {
       expect(c.sets.length).toBe(3);
       // Set 3 (index 2) has target cloned from Set 2.
       // If Set 2 is also finished with RPE 9.5, Set 3 receives a re-prescription proposal.
-      c.sets[1] = doneSet({ id: "s2", reps: "5", weight: "100", rpe: "9.5", target });
+      c.sets[1] = doneSet({
+        id: "s2",
+        reps: "5",
+        weight: "100",
+        rpe: "9.5",
+        target,
+      });
       expect(t.proposalFor(c, 2)).not.toBeNull();
     });
   });

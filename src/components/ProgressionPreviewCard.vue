@@ -76,11 +76,7 @@ const forecast = computed<SimulatedSession[]>(() => {
   const matrix = DEFAULT_RPE_MATRIX;
   const baseAnchor = previewC1rm.value;
 
-  const calculateLoad = (
-    anchor: number,
-    reps: number,
-    rpe: number,
-  ): number => {
+  const calculateLoad = (anchor: number, reps: number, rpe: number): number => {
     return roundToLoadable(weightFromE1rm(matrix, anchor, reps, rpe));
   };
 
@@ -282,14 +278,24 @@ const chartOptions = computed<ChartOptions<"line">>(() => ({
       position: "left",
       grid: { color: "rgba(148, 163, 184, 0.1)" },
       ticks: { color: "#1fc7b9", font: { size: 10 } },
-      title: { display: true, text: "kg", color: "#1fc7b9", font: { size: 10 } },
+      title: {
+        display: true,
+        text: "kg",
+        color: "#1fc7b9",
+        font: { size: 10 },
+      },
     },
     y1: {
       type: "linear",
       position: "right",
       grid: { display: false },
       ticks: { color: "#a855f7", font: { size: 10 }, stepSize: 1 },
-      title: { display: true, text: "reps", color: "#a855f7", font: { size: 10 } },
+      title: {
+        display: true,
+        text: "reps",
+        color: "#a855f7",
+        font: { size: 10 },
+      },
     },
   },
 }));
@@ -336,7 +342,9 @@ const chartOptions = computed<ChartOptions<"line">>(() => ({
               : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
           "
         >
-          {{ isBenchmark ? 'Sample Benchmark (100kg)' : `c1RM: ${roundedC1rm}kg` }}
+          {{
+            isBenchmark ? "Sample Benchmark (100kg)" : `c1RM: ${roundedC1rm}kg`
+          }}
         </span>
         <svg
           xmlns="http://www.w3.org/2000/svg"
@@ -361,12 +369,16 @@ const chartOptions = computed<ChartOptions<"line">>(() => ({
       v-if="isOpen"
       class="px-4 pb-4 pt-2 flex flex-col gap-4 border-t border-border-light/60 dark:border-border-dark/60"
     >
-      <p class="text-xs text-text-light dark:text-text-dark opacity-75 leading-relaxed">
+      <p
+        class="text-xs text-text-light dark:text-text-dark opacity-75 leading-relaxed"
+      >
         Multi-session forecast simulating load & rep evolution:
       </p>
 
       <!-- Chart Component -->
-      <div class="h-44 w-full bg-surface-light dark:bg-surface-dark p-2 rounded-lg border border-border-light/40 dark:border-border-dark/40">
+      <div
+        class="h-44 w-full bg-surface-light dark:bg-surface-dark p-2 rounded-lg border border-border-light/40 dark:border-border-dark/40"
+      >
         <Line :data="chartData" :options="chartOptions" />
       </div>
 
@@ -381,14 +393,18 @@ const chartOptions = computed<ChartOptions<"line">>(() => ({
             <span class="text-xs font-bold text-accent">
               Session {{ s.sessionNum }}
             </span>
-            <span class="text-xs font-mono font-semibold text-text-h-light dark:text-text-h-dark">
+            <span
+              class="text-xs font-mono font-semibold text-text-h-light dark:text-text-h-dark"
+            >
               {{ s.loadText }}
             </span>
           </div>
           <p class="text-xs font-mono text-text-h-light dark:text-text-h-dark">
             {{ s.setsDescription }}
           </p>
-          <p class="text-[11px] text-text-light dark:text-text-dark opacity-70 italic">
+          <p
+            class="text-[11px] text-text-light dark:text-text-dark opacity-70 italic"
+          >
             {{ s.triggerText }}
           </p>
         </div>

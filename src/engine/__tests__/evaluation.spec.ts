@@ -199,8 +199,12 @@ describe("evaluate — double", () => {
     ];
 
     expect(isDoubleCursorAdvancementEligible(DOUBLE, p7, valid)).toBe(true);
-    expect(isDoubleCursorAdvancementEligible(DOUBLE, p7, rpeTooHigh)).toBe(false);
-    expect(isDoubleCursorAdvancementEligible(DOUBLE, p7, repsMissed)).toBe(false);
+    expect(isDoubleCursorAdvancementEligible(DOUBLE, p7, rpeTooHigh)).toBe(
+      false,
+    );
+    expect(isDoubleCursorAdvancementEligible(DOUBLE, p7, repsMissed)).toBe(
+      false,
+    );
   });
 
   it("cold start (no prescribed weight) → never a regression", () => {

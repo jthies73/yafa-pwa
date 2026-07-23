@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from "vue";
 import { useBottomSheetGestures } from "../composables/useBottomSheetGestures";
-import { useAndroidBackDismiss } from "../composables/useAndroidBackDismiss";
 
 const props = defineProps<{
   title?: string;
@@ -31,15 +30,6 @@ const { isDragging, onDragStart, getSheetHeight, getDockTranslateY } =
     open,
     minimizable: () => props.minimizable ?? false,
   });
-
-const isBlocking = computed(() => open.value && !minimized.value);
-useAndroidBackDismiss(isBlocking, () => {
-  if (props.minimizable) {
-    minimized.value = true;
-  } else {
-    open.value = false;
-  }
-});
 
 const duration = computed(() => props.duration ?? 300);
 const transition = computed(() => `${duration.value}ms ease`);
@@ -110,14 +100,14 @@ watch(
 
 watch(
   () => minimized.value,
-  async (isMini) => {
-    document.body.style.overflow = open.value && !isMini ? "hidden" : "";
+  async (isMinimized) => {
+    document.body.style.overflow = open.value && !isMinimized ? "hidden" : "";
     // Minimizing keeps the sheet mounted, so any focused field would otherwise
-    // hold the native keyboard / custom keypad open — blur it to close them.
-    if (isMini) (document.activeElement as HTMLElement | null)?.blur();
+    // hold the native keyboard / custom keypad open – blur it to close them.
+    if (isMinimized) (document.activeElement as HTMLElement | null)?.blur();
     await nextTick();
     if (open.value) {
-      translateY.value = isMini ? getDockTranslateY() : 0;
+      translateY.value = isMinimized ? getDockTranslateY() : 0;
     }
   },
 );

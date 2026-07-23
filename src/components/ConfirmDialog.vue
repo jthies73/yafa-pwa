@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { watch, onMounted, onUnmounted } from "vue";
-import { useAndroidBackDismiss } from "../composables/useAndroidBackDismiss";
 
 withDefaults(
   defineProps<{
@@ -20,10 +19,6 @@ withDefaults(
 );
 
 const open = defineModel<boolean>("open", { required: true });
-
-useAndroidBackDismiss(open, () => {
-  open.value = false;
-});
 
 const emit = defineEmits<{
   (e: "confirm"): void;

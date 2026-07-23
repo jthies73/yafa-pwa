@@ -281,7 +281,50 @@ export function useWorkoutTracker() {
     exercisesMap.value[id]?.name || addedNames.value[id] || "Exercise";
 
   const addSet = (card: ExerciseCard) => {
-    card.sets.push(newSet());
+    const last = card.sets[card.sets.length - 1];
+    if (last) {
+      const parsedReps = parseInt(last.reps, 10);
+      const parsedWeight = parseFloat(last.weight);
+      const parsedRpe = last.rpe ? parseFloat(last.rpe) : null;
+
+      let target: PrescribedSet | undefined;
+      if (last.target) {
+        target = {
+          ...last.target,
+          reps:
+            Number.isFinite(parsedReps) && parsedReps >= 1
+              ? parsedReps
+              : last.target.reps,
+          weight: Number.isFinite(parsedWeight)
+            ? parsedWeight
+            : last.target.weight,
+          rpe: parsedRpe ?? last.target.rpe,
+        };
+      } else if (
+        Number.isFinite(parsedReps) &&
+        parsedReps >= 1 &&
+        Number.isFinite(parsedWeight)
+      ) {
+        target = {
+          reps: parsedReps,
+          weight: parsedWeight,
+          rpe: parsedRpe,
+          role: "straight",
+        };
+      }
+
+      card.sets.push({
+        id: crypto.randomUUID(),
+        reps: last.reps,
+        weight: last.weight,
+        rpe: last.rpe,
+        done: false,
+        completedAt: null,
+        target,
+      });
+    } else {
+      card.sets.push(newSet());
+    }
   };
 
   const deleteSet = (card: ExerciseCard, i: number) => {

@@ -158,3 +158,36 @@ describe("proposalFor", () => {
     });
   });
 });
+
+describe("addSet", () => {
+  it("prefills values and target from the latest set of that exercise", () => {
+    withTracker((t) => {
+      const c = card("a", [
+        setEntry({ id: "s1", reps: "5", weight: "100", rpe: "8", target }),
+      ]);
+      t.addSet(c);
+      expect(c.sets.length).toBe(2);
+      const added = c.sets[1];
+      expect(added.reps).toBe("5");
+      expect(added.weight).toBe("100");
+      expect(added.rpe).toBe("8");
+      expect(added.done).toBe(false);
+      expect(added.target).toEqual(target);
+    });
+  });
+
+  it("allows mid-session re-prescriptions on added sets when predecessor diverges", () => {
+    withTracker((t) => {
+      const c = card("a", [
+        doneSet({ id: "s1", reps: "5", weight: "100", rpe: "9.5", target }),
+        setEntry({ id: "s2", reps: "5", weight: "100", rpe: "8", target }),
+      ]);
+      t.addSet(c);
+      expect(c.sets.length).toBe(3);
+      // Set 3 (index 2) has target cloned from Set 2.
+      // If Set 2 is also finished with RPE 9.5, Set 3 receives a re-prescription proposal.
+      c.sets[1] = doneSet({ id: "s2", reps: "5", weight: "100", rpe: "9.5", target });
+      expect(t.proposalFor(c, 2)).not.toBeNull();
+    });
+  });
+});

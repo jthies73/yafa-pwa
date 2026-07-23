@@ -1,6 +1,14 @@
 {
-  "latest": "0.18.2",
+  "latest": "0.19.1",
   "releases": [
+    {
+      "version": "0.19.1",
+      "notes": "- Fix Android Back navigation."
+    },
+    {
+      "version": "0.19.0",
+      "notes": "- Progression Preview."
+    },
     {
       "version": "0.18.2",
       "notes": "- Add Feedback Sheet feature flag."

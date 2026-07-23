@@ -197,7 +197,7 @@ watch(open, (isOpen) => {
         <textarea
           v-model="workoutDraft"
           rows="4"
-          placeholder="Knee hurt on 2nd set or last rep felt heavy"
+          placeholder="e.g. notes about how you felt during today's exercise..."
           class="resize-none rounded-lg border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-3 py-2.5 text-sm text-text-h-light dark:text-text-h-dark placeholder-text-light/40 dark:placeholder-text-dark/40 focus:border-accent/50 focus:outline-none focus:ring-2 focus:ring-accent/40"
           @blur="commitWorkout"
         ></textarea>

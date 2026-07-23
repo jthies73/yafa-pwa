@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onUnmounted } from "vue";
 import { useBottomSheetGestures } from "../composables/useBottomSheetGestures";
+import { useAndroidBackDismiss } from "../composables/useAndroidBackDismiss";
 
 const props = defineProps<{
   title?: string;
@@ -30,6 +31,15 @@ const { isDragging, onDragStart, getSheetHeight, getDockTranslateY } =
     open,
     minimizable: () => props.minimizable ?? false,
   });
+
+const isBlocking = computed(() => open.value && !minimized.value);
+useAndroidBackDismiss(isBlocking, () => {
+  if (props.minimizable) {
+    minimized.value = true;
+  } else {
+    open.value = false;
+  }
+});
 
 const duration = computed(() => props.duration ?? 300);
 const transition = computed(() => `${duration.value}ms ease`);

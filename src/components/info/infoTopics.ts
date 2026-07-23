@@ -139,6 +139,16 @@ The fatigue reduction is subtracted from the anchor before calculating each set,
 
 The calculator always uses a fixed 10% reduction at full overlap, scaled down for weaker overlap — the per-exercise Fatigue Reduction setting only shapes routine prescriptions, not this calculation.`,
   },
+  plansRoutines: {
+    title: "Plans & Routines",
+    body: `Saving this session as a routine turns a one-off workout into something you can repeat and improve.
+
+• Routine — a reusable list of exercises for one training day. Start it any time and the app prescribes your sets from your training max.
+• Plan — a collection of routines that make up your week or training block. One plan is active at a time and drives your dashboard.
+• Progression — each saved exercise can move off "None" to Linear, Double, or Top Set + Back-off so the app adds weight for you as you get stronger.
+
+Reusing routines is what unlocks the engine: consistent exercises let it track your training max, spot PRs, and adjust load session to session.`,
+  },
   calculator: {
     title: "RPE Calculator",
     body: `Enter any two of reps, weight, and RPE — the third is calculated using your training max (c1RM) and the exercise's RPE matrix.

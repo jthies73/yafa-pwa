@@ -1,6 +1,10 @@
 {
-  "latest": "0.19.1",
+  "latest": "0.20.0",
   "releases": [
+    {
+      "version": "0.20.0",
+      "notes": "- Save an empty workout as a reusable routine, into an existing or new plan."
+    },
     {
       "version": "0.19.1",
       "notes": "- Fix Android Back navigation."

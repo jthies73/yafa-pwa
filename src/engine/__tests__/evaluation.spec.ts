@@ -7,7 +7,7 @@ import type {
   TopSetProgressionParams,
 } from "../../db/types";
 import type { ExercisePrescription, PrescribedSet } from "../prescription";
-import { evaluate } from "../evaluation";
+import { evaluate, isDoubleCursorAdvancementEligible } from "../evaluation";
 
 let nextId = 0;
 const set = (overrides: Partial<LoggedSet> = {}): LoggedSet => ({
@@ -178,6 +178,29 @@ describe("evaluate — double", () => {
     expect(evaluate("double", DOUBLE, presc, grindAt(78))).toBe("regression");
     // 4 kg off → not "at prescribed" → says nothing about the load → hold.
     expect(evaluate("double", DOUBLE, presc, grindAt(76))).toBe("hold");
+  });
+
+  it("isDoubleCursorAdvancementEligible: requires meeting reps and target RPE", () => {
+    const p7 = prescription("double", straight(3, 80, 7));
+    const valid = [
+      set({ actualWeight: 80, actualReps: 7, actualRpe: 8 }),
+      set({ actualWeight: 80, actualReps: 7, actualRpe: 7.5 }),
+      set({ actualWeight: 80, actualReps: 7, actualRpe: 8 }),
+    ];
+    const rpeTooHigh = [
+      set({ actualWeight: 80, actualReps: 7, actualRpe: 8 }),
+      set({ actualWeight: 80, actualReps: 7, actualRpe: 9 }),
+      set({ actualWeight: 80, actualReps: 7, actualRpe: 8 }),
+    ];
+    const repsMissed = [
+      set({ actualWeight: 80, actualReps: 7, actualRpe: 8 }),
+      set({ actualWeight: 80, actualReps: 6, actualRpe: 8 }),
+      set({ actualWeight: 80, actualReps: 7, actualRpe: 8 }),
+    ];
+
+    expect(isDoubleCursorAdvancementEligible(DOUBLE, p7, valid)).toBe(true);
+    expect(isDoubleCursorAdvancementEligible(DOUBLE, p7, rpeTooHigh)).toBe(false);
+    expect(isDoubleCursorAdvancementEligible(DOUBLE, p7, repsMissed)).toBe(false);
   });
 
   it("cold start (no prescribed weight) → never a regression", () => {

@@ -14,6 +14,8 @@ import LockToggle from "./LockToggle.vue";
 import ExerciseRpeMatrixEditor from "./ExerciseRpeMatrixEditor.vue";
 import WeightIncrementField from "./WeightIncrementField.vue";
 import InfoIcon from "./InfoIcon.vue";
+import ProgressionPreviewCard from "./ProgressionPreviewCard.vue";
+import { getProgressionState } from "../db/repository";
 
 const showConfirm = ref(false);
 const matrixEditor = ref<InstanceType<typeof ExerciseRpeMatrixEditor> | null>(
@@ -28,6 +30,7 @@ const incrementField = ref<InstanceType<typeof WeightIncrementField> | null>(
 const fatigueField = ref<InstanceType<typeof WeightIncrementField> | null>(
   null,
 );
+const dbC1rm = ref<number | null>(null);
 
 const props = defineProps<{
   exerciseName: string;
@@ -38,6 +41,7 @@ const props = defineProps<{
   // exercise, not the routine slot, so it's shared everywhere the exercise is used.
   initialNotes?: string;
   periodizationEnabled?: boolean;
+  initialC1rm?: number | null;
 }>();
 
 const open = defineModel<boolean>("open", { required: true });
@@ -48,6 +52,25 @@ const emit = defineEmits<{
   (e: "remove"): void;
   (e: "open-detail"): void;
 }>();
+
+watch(
+  [open, () => props.exerciseId],
+  async ([isOpen, id]) => {
+    if (isOpen && id) {
+      try {
+        const state = await getProgressionState(id);
+        dbC1rm.value = state?.c1rm ?? null;
+      } catch {
+        dbC1rm.value = null;
+      }
+    } else if (!isOpen) {
+      dbC1rm.value = null;
+    }
+  },
+  { immediate: true },
+);
+
+const effectiveC1rm = computed(() => props.initialC1rm ?? dbC1rm.value);
 
 const configModel = ref<ProgressionModelType>("linear");
 // Params now hold mixed value types (numbers + the increment-unit string). Each
@@ -94,10 +117,10 @@ const toggleLock = (field: string) => {
 };
 
 const PROGRESSION_MODELS: { value: ProgressionModelType; label: string }[] = [
+  { value: "none", label: "None" },
   { value: "linear", label: "Linear" },
   { value: "double", label: "Double" },
   { value: "topset_backoff", label: "Top Set" },
-  { value: "none", label: "None" },
 ];
 
 // Normalized params as the loose record the form binds to.
@@ -272,11 +295,6 @@ const save = async () => {
               >
                 Sets
               </label>
-              <LockToggle
-                v-if="periodizationEnabled"
-                :locked="isLocked('targetSets')"
-                @toggle="toggleLock('targetSets')"
-              />
             </div>
             <input
               v-model.number="configParams.targetSets"
@@ -314,6 +332,13 @@ const save = async () => {
             />
           </div>
         </div>
+
+        <WeightIncrementField
+          ref="incrementField"
+          v-model:value="incrementValue"
+          v-model:unit="incrementUnit"
+          info-topic="weightIncrement"
+        />
 
         <!-- Advanced -->
         <button
@@ -404,12 +429,6 @@ const save = async () => {
                 </div>
               </div>
               <WeightIncrementField
-                ref="incrementField"
-                v-model:value="incrementValue"
-                v-model:unit="incrementUnit"
-                info-topic="weightIncrement"
-              />
-              <WeightIncrementField
                 ref="fatigueField"
                 v-model:value="fatigueValue"
                 v-model:unit="fatigueUnit"
@@ -432,11 +451,6 @@ const save = async () => {
               >
                 Sets
               </label>
-              <LockToggle
-                v-if="periodizationEnabled"
-                :locked="isLocked('targetSets')"
-                @toggle="toggleLock('targetSets')"
-              />
             </div>
             <input
               v-model.number="configParams.targetSets"
@@ -485,6 +499,13 @@ const save = async () => {
           </div>
         </div>
 
+        <WeightIncrementField
+          ref="incrementField"
+          v-model:value="incrementValue"
+          v-model:unit="incrementUnit"
+          info-topic="weightIncrement"
+        />
+
         <!-- Advanced -->
         <button
           type="button"
@@ -573,12 +594,6 @@ const save = async () => {
                   />
                 </div>
               </div>
-              <WeightIncrementField
-                ref="incrementField"
-                v-model:value="incrementValue"
-                v-model:unit="incrementUnit"
-                info-topic="weightIncrement"
-              />
               <WeightIncrementField
                 ref="fatigueField"
                 v-model:value="fatigueValue"
@@ -684,6 +699,13 @@ const save = async () => {
           </div>
         </div>
 
+        <WeightIncrementField
+          ref="incrementField"
+          v-model:value="incrementValue"
+          v-model:unit="incrementUnit"
+          info-topic="weightIncrement"
+        />
+
         <!-- Advanced -->
         <button
           type="button"
@@ -773,12 +795,6 @@ const save = async () => {
                 </div>
               </div>
               <WeightIncrementField
-                ref="incrementField"
-                v-model:value="incrementValue"
-                v-model:unit="incrementUnit"
-                info-topic="weightIncrement"
-              />
-              <WeightIncrementField
                 ref="fatigueField"
                 v-model:value="fatigueValue"
                 v-model:unit="fatigueUnit"
@@ -800,11 +816,6 @@ const save = async () => {
               >
                 Sets
               </label>
-              <LockToggle
-                v-if="periodizationEnabled"
-                :locked="isLocked('targetSets')"
-                @toggle="toggleLock('targetSets')"
-              />
             </div>
             <input
               v-model.number="configParams.targetSets"
@@ -922,6 +933,13 @@ const save = async () => {
           </div>
         </div>
       </div>
+
+      <!-- Progression Forecast Preview -->
+      <ProgressionPreviewCard
+        :model="configModel"
+        :params="configParams"
+        :c1rm="effectiveC1rm"
+      />
 
       <!-- Notes (global, saved to the exercise) -->
       <div class="flex flex-col gap-1.5">

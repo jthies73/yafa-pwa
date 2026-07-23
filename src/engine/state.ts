@@ -119,10 +119,12 @@ export function step(
   params: ProgressionParams,
   workoutId: string,
   now: number,
+  options?: { advanceDoubleCursor?: boolean },
 ): ProgressionState {
   const base = { ...state, lastWorkoutId: workoutId, updated_at: now };
   const isDouble = model === "double";
   const dbl = params as DoubleProgressionParams;
+  const shouldAdvance = options?.advanceDoubleCursor ?? true;
 
   switch (outcome) {
     case "success":
@@ -138,9 +140,10 @@ export function step(
       return {
         ...base,
         regressionStreak: 0,
-        doubleRepCursor: isDouble
-          ? advanceDoubleCursor(state.doubleRepCursor, dbl)
-          : state.doubleRepCursor,
+        doubleRepCursor:
+          isDouble && shouldAdvance
+            ? advanceDoubleCursor(state.doubleRepCursor, dbl)
+            : state.doubleRepCursor,
       };
     case "regression": {
       const regressionStreak = state.regressionStreak + 1;

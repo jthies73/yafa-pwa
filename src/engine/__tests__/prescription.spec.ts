@@ -99,7 +99,7 @@ describe("prescribeExercise — double", () => {
     fatigueReductionUnit: "kg",
   };
 
-  it("shows the cursor reps but holds weight at maxReps", () => {
+  it("shows the cursor reps and anchors weight at minReps", () => {
     const p = prescribeExercise({
       exerciseId: "ex",
       model: "double",
@@ -111,7 +111,7 @@ describe("prescribeExercise — double", () => {
     });
     expect(p.sets[0].reps).toBe(7); // cursor
     expect(p.sets[0].weight).toBe(
-      roundToLoadable(weightFromE1rm(M, 100, 10, 8)),
+      roundToLoadable(weightFromE1rm(M, 100, DOUBLE.minReps, DOUBLE.targetRpe)),
     );
   });
 

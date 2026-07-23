@@ -131,8 +131,9 @@ function buildSets(
     case "double": {
       const p = params as DoubleProgressionParams;
       const reps = cursor ?? p.minReps;
-      // Weight is fixed at maxReps so it holds across the whole rep cycle.
-      const weight = load(p.maxReps, p.targetRpe);
+      // Weight is anchored at minReps & targetRpe so it holds across the rep cycle
+      // starting at true target RPE.
+      const weight = load(p.minReps, p.targetRpe);
       return Array.from({ length: p.targetSets }, () => ({
         reps,
         rpe: p.targetRpe,

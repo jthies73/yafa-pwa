@@ -1,5 +1,6 @@
 import { db } from "../db/db";
 import type {
+  DoubleProgressionParams,
   Exercise,
   LinearProgressionParams,
   NoneProgressionParams,
@@ -28,7 +29,7 @@ import {
 } from "./mesocycle";
 import { prescribeExercise, type ExercisePrescription } from "./prescription";
 import { computeFatigueAdjustment, type MuscleProfile } from "./fatigue";
-import { evaluate } from "./evaluation";
+import { evaluate, isDoubleCursorAdvancementEligible } from "./evaluation";
 import { catchUpC1rm, consumeReset, corroboratedE1rm, step } from "./state";
 import {
   correctRpeMatrix,
@@ -365,6 +366,14 @@ function foldQualifiedSession(
   // Evaluation compares logged vs prescribed weights, BOTH in added space — the
   // bodyweight offset cancels, so it must never see lifted sets.
   const outcome = evaluate(eff.model, eff.params, prescription, sets);
+  const advanceDoubleCursor =
+    eff.model === "double"
+      ? isDoubleCursorAdvancementEligible(
+          eff.params as DoubleProgressionParams,
+          prescription,
+          sets,
+        )
+      : undefined;
   const next = step(
     state,
     outcome,
@@ -372,6 +381,7 @@ function foldQualifiedSession(
     eff.params,
     workout.id,
     finishedAt,
+    { advanceDoubleCursor },
   );
 
   // c1rm is non-null here: this only runs past the cold-start seed branch.

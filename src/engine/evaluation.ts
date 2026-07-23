@@ -117,6 +117,24 @@ function evaluateLinear(
   return "hold";
 }
 
+/**
+ * For double progression, check if the session met target reps and target RPE to
+ * qualify for rep cursor advancement on a "hold" outcome.
+ */
+export function isDoubleCursorAdvancementEligible(
+  p: DoubleProgressionParams,
+  prescription: ExercisePrescription,
+  loggedSets: LoggedSet[],
+): boolean {
+  const working = orderedWorkingSets(prescription, loggedSets);
+  if (working.length < prescription.sets.length) return false;
+  const targetReps = prescription.sets[0]?.reps ?? p.minReps;
+  const hitsTarget = working.every((s) => s.actualReps >= targetReps);
+  const worst = worstSet(working);
+  const worstRpeOk = worst?.actualRpe != null && worst.actualRpe <= p.targetRpe;
+  return hitsTarget && worstRpeOk;
+}
+
 function evaluateDouble(
   p: DoubleProgressionParams,
   prescription: ExercisePrescription,
@@ -149,7 +167,7 @@ function evaluateDouble(
   ) {
     return "regression";
   }
-  return "hold"; // includes "at least one set below maxReps" → cursor advances in state.step
+  return "hold";
 }
 
 function evaluateTopSet(

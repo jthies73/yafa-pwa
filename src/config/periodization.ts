@@ -68,10 +68,10 @@ export const FOCUS_META: Record<PeriodizationFocus, FocusMeta> = {
 // touches it and there is nothing for the user to lock. The increment value/unit
 // are likewise omitted — they tune progression, not the per-workout targets.
 export const LOCKABLE_FIELDS: Record<ProgressionModelType, string[]> = {
-  linear: ["targetSets", "targetReps", "targetRpe"],
-  double: ["targetSets", "targetRpe"],
+  linear: ["targetReps", "targetRpe"],
+  double: ["targetRpe"],
   topset_backoff: ["topSetTargetReps", "topSetTargetRpe"],
-  none: ["targetSets", "targetReps", "targetRpe"],
+  none: ["targetReps", "targetRpe"],
 };
 
 /** Display/selection order for the focuses. */

@@ -4,7 +4,7 @@ aliases: [Plans, Routines, Exercise Config, RoutineExerciseConfig]
 tags: [yafa/planning]
 area: planning
 order: 1
-updated: 2026-07-24
+updated: 2026-07-09
 ---
 
 # Plans & Routines
@@ -51,17 +51,14 @@ Duplicate slots of the same exercise are allowed and are treated as distinct slo
 - **`RoutineDetailsPage.vue`** — slot list with drag-reorder, add/edit/remove exercises, and the entry point to per-slot config.
 - **`ExerciseConfigSheet.vue`** — the config editor: segmented progression-model picker (switching models resets params to that model's defaults and clears locks), per-model fields, an Advanced section (target RPE, RPE ceiling, increment, fatigue reduction — the latter two via `WeightIncrementField.vue`, which handles the kg-vs-percent duality of `WeightIncrementUnit`), `LockToggle.vue` beside each lockable field (only when `periodizationEnabled`), the exercise's global notes, and the embedded matrix editor. Field semantics live in [[progression-models]]; the matrix editor in [[rpe-matrix#Manual editing|rpe-matrix]].
 - Config saves replace the slot's embedded config; exercise notes save separately (`updateExerciseNotes`) since they belong to the `Exercise`, not the slot.
-- **`SaveAsRoutineSheet.vue`** — reached from `WorkoutSummarySheet.vue` after an ad-hoc **empty** workout (`canSaveAsRoutine` in `useActiveWorkout`). It maps the finished session's exercises to slots via `workoutToRoutineExercises` (`src/utils/progression.ts`) — one ordered slot per exercise, each on the `"none"` progression model with `targetSets`/`targetReps` seeded from what was logged — and persists into an existing plan (`createRoutine`) or a brand-new one (`createRoutineInNewPlan`).
 
 ## Key functions
 
-| Function                                           | File                                    | Note                                                                    |
-| -------------------------------------------------- | --------------------------------------- | ----------------------------------------------------------------------- |
-| `normalizeProgressionParams`                       | `src/config/progression.ts`             | Read-time backfill — see [[progression-models]]                         |
-| `priorsBySlot`                                     | `src/engine/service.ts`                 | Routine order → fatigue priors                                          |
-| `setPlanActive`                                    | `src/db/repository.ts`                  | Single-active invariant                                                 |
-| `setPlanMesocycle`                                 | `src/db/repository.ts`                  | Persists periodization weeks                                            |
-| `createRoutine`                                    | `src/db/repository.ts`                  | Optionally appends to a plan's `routineIds`; accepts embedded exercises |
-| `createRoutineInNewPlan`                           | `src/db/repository.ts`                  | Creates a plan + routine atomically (save-as-routine)                   |
-| `workoutToRoutineExercises`                        | `src/utils/progression.ts`              | Finished workout → `"none"`-model routine slots                         |
-| `handleSaveConfig` / `persistExercises` (internal) | `src/components/RoutineDetailsPage.vue` | Slot insert/replace + ordered persistence                               |
+| Function                                           | File                                    | Note                                            |
+| -------------------------------------------------- | --------------------------------------- | ----------------------------------------------- |
+| `normalizeProgressionParams`                       | `src/config/progression.ts`             | Read-time backfill — see [[progression-models]] |
+| `priorsBySlot`                                     | `src/engine/service.ts`                 | Routine order → fatigue priors                  |
+| `setPlanActive`                                    | `src/db/repository.ts`                  | Single-active invariant                         |
+| `setPlanMesocycle`                                 | `src/db/repository.ts`                  | Persists periodization weeks                    |
+| `createRoutine`                                    | `src/db/repository.ts`                  | Optionally appends to a plan's `routineIds`     |
+| `handleSaveConfig` / `persistExercises` (internal) | `src/components/RoutineDetailsPage.vue` | Slot insert/replace + ordered persistence       |

@@ -5,8 +5,6 @@ import type {
   Exercise,
   Plan,
   Routine,
-  RoutineExercise,
-  RoutineExerciseConfig,
   MesocycleWeek,
   Workout,
   ProgressionState,
@@ -36,7 +34,6 @@ export interface PlanInput {
 export interface RoutineInput {
   name: string;
   weeklyTarget?: number;
-  exercises?: RoutineExercise[];
 }
 
 export interface ExerciseInput {
@@ -156,28 +153,8 @@ export async function deletePlan(id: string): Promise<void> {
 // ---- Routines ----
 
 /**
- * Flattens a routine exercise slot to plain objects before persisting — IndexedDB's
- * structured clone rejects Vue/Dexie proxies. Mirrors toPlainConfig in
- * RoutineDetailsPage: only progressionModel, progressionParams, and lockedFields
- * are stored (the other RoutineExerciseConfig fields are vestigial).
- */
-function toPlainRoutineExercise(ex: RoutineExercise): RoutineExercise {
-  const cfg = ex.config;
-  const plainConfig: RoutineExerciseConfig | undefined = cfg
-    ? {
-        progressionModel: cfg.progressionModel,
-        progressionParams: { ...cfg.progressionParams },
-        ...(cfg.lockedFields?.length
-          ? { lockedFields: [...cfg.lockedFields] }
-          : {}),
-      }
-    : undefined;
-  return { exerciseId: ex.exerciseId, config: plainConfig };
-}
-
-/**
  * Creates a routine and, when a planId is supplied, appends it to that plan's
- * ordered routine list. Exercise slots (if provided) are stripped to plain objects.
+ * ordered routine list.
  */
 export async function createRoutine(
   input: RoutineInput,
@@ -187,7 +164,7 @@ export async function createRoutine(
   const routine: Routine = {
     id,
     name: input.name.trim(),
-    exercises: (input.exercises ?? []).map(toPlainRoutineExercise),
+    exercises: [],
     weeklyTarget: input.weeklyTarget,
     created_at: Date.now(),
   };
@@ -205,49 +182,6 @@ export async function createRoutine(
   });
 
   return id;
-}
-
-/**
- * Creates a brand-new plan and a routine inside it, in a single transaction so a
- * failure never leaves an empty plan. Honors the single-active-plan invariant
- * (same as createPlan) when the new plan is set active.
- */
-export async function createRoutineInNewPlan(
-  routine: RoutineInput,
-  plan: PlanInput,
-): Promise<{ planId: string; routineId: string }> {
-  const planId = uid();
-  const routineId = uid();
-  const now = Date.now();
-
-  const routineDoc: Routine = {
-    id: routineId,
-    name: routine.name.trim(),
-    exercises: (routine.exercises ?? []).map(toPlainRoutineExercise),
-    weeklyTarget: routine.weeklyTarget,
-    created_at: now,
-  };
-  const planDoc: Plan = {
-    id: planId,
-    name: plan.name.trim(),
-    description: plan.description?.trim() || undefined,
-    routineIds: [routineId],
-    active: plan.active ?? false,
-    created_at: now,
-  };
-
-  await db.transaction("rw", [db.plans, db.routines], async () => {
-    if (planDoc.active) {
-      const all = await db.plans.toArray();
-      for (const p of all) {
-        if (p.active) await db.plans.update(p.id, { active: false });
-      }
-    }
-    await db.routines.add(routineDoc);
-    await db.plans.add(planDoc);
-  });
-
-  return { planId, routineId };
 }
 
 export async function updateRoutine(

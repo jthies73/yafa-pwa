@@ -59,12 +59,6 @@ const showSummary = ref(false);
 // shown read-only in the summary. Held alongside `summary` (outliving the
 // session) and cleared by closeSummary, never by reset().
 const calibrations = ref<CalibrationChange[]>([]);
-// The just-finished workout, retained past reset() so the summary can offer
-// "save as routine". Held alongside `summary` (outliving the session) and cleared
-// by closeSummary, never by reset(). `finishedExerciseNames` snapshots the names
-// (reset() wipes exercisesMap) so the save sheet can preview them.
-const finishedWorkout = ref<Workout | null>(null);
-const finishedExerciseNames = ref<Record<string, string>>({});
 const exercisesMap = ref<Record<string, Exercise>>({});
 // Engine prescriptions for the running workout, SLOT-ALIGNED with the routine's
 // exercises (and hence with the tracker's initial cards). Duplicate slots of one
@@ -311,22 +305,12 @@ export function useActiveWorkout() {
     } catch (error) {
       console.error("YAFA: failed to apply workout results", error);
     }
-    // Snapshot exercise names before reset() wipes exercisesMap, so the summary's
-    // save-as-routine sheet can preview them.
-    const names: Record<string, string> = {};
-    for (const e of completed.exercises) {
-      const name = exercisesMap.value[e.exerciseId]?.name;
-      if (name) names[e.exerciseId] = name;
-    }
-
     reset();
 
     // Surface the summary only when the session actually had logged sets.
     if (nextSummary && completed.exercises.length) {
       summary.value = nextSummary;
       calibrations.value = changes;
-      finishedWorkout.value = completed;
-      finishedExerciseNames.value = names;
       showSummary.value = true;
     }
   };
@@ -334,8 +318,6 @@ export function useActiveWorkout() {
   const closeSummary = () => {
     summary.value = null;
     calibrations.value = [];
-    finishedWorkout.value = null;
-    finishedExerciseNames.value = {};
     showSummary.value = false;
   };
 
@@ -361,15 +343,6 @@ export function useActiveWorkout() {
     calculatorSetCount: computed(() => calculatorSets.value.length),
     summary: computed(() => summary.value),
     calibrations: computed(() => calibrations.value),
-    finishedWorkout: computed(() => finishedWorkout.value),
-    finishedExerciseNames: computed(() => finishedExerciseNames.value),
-    // "Save as routine" is offered only for ad-hoc empty workouts (no source
-    // routine) that actually logged something.
-    canSaveAsRoutine: computed(
-      () =>
-        (finishedWorkout.value?.routineId ?? "") === "" &&
-        (finishedWorkout.value?.exercises.length ?? 0) > 0,
-    ),
     showSummary: computed({
       get: () => showSummary.value,
       set: (val) => {

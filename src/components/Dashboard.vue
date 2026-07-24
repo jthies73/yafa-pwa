@@ -115,9 +115,6 @@ const onStartFromPreview = (routineId: string) => {
   startWorkout(routineId);
 };
 
-const startEmptyWorkout = () => {
-  startWorkout();
-};
 
 const timerString = ref("00:00");
 let intervalId: ReturnType<typeof setInterval> | null = null;
@@ -221,7 +218,7 @@ watch(
             <p
               class="text-sm font-bold text-text-h-light dark:text-text-h-dark mt-1"
             >
-              Active Session: {{ activeRoutine?.name || "Empty Workout" }}
+              Active Session: {{ activeRoutine?.name }}
             </p>
             <p
               class="text-xs text-text-light dark:text-text-dark opacity-55 mt-0.5 font-mono"
@@ -392,15 +389,7 @@ watch(
           class="h-10 bg-black/5 dark:bg-white/5 rounded-lg animate-pulse"
         />
 
-        <!-- Divider + empty workout -->
-        <div class="border-t border-border-light dark:border-border-dark pt-3">
-          <button
-            class="w-full py-2.5 text-sm font-semibold text-text-light dark:text-text-dark border border-border-light dark:border-border-dark rounded-lg hover:bg-surface-light dark:hover:bg-surface-dark cursor-pointer transition-colors duration-150"
-            @click="startEmptyWorkout"
-          >
-            + Empty Workout
-          </button>
-        </div>
+
       </div>
     </div>
 

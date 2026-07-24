@@ -96,7 +96,7 @@ watch(
             <h2
               class="text-base font-bold text-text-h-light dark:text-text-h-dark truncate"
             >
-              {{ routine?.name || "Empty Workout" }}
+              {{ routine?.name }}
             </h2>
           </div>
           <div

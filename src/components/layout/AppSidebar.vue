@@ -3,6 +3,7 @@ import { ref, computed, watch, onUnmounted } from "vue";
 import { useRouter, useRoute } from "vue-router";
 import { useFeatureFlags } from "../../config/features";
 import { useAppUpdate } from "../../composables/useAppUpdate";
+import { useIntroSheet } from "../../composables/useIntroSheet";
 import UpdateSheet from "../UpdateSheet.vue";
 import ImportExportSheet from "../ImportExportSheet.vue";
 import FeedbackSheet from "../FeedbackSheet.vue";
@@ -16,6 +17,7 @@ const route = useRoute();
 const features = useFeatureFlags();
 // The persisted data version, advanced as migrations run.
 const { currentVersion } = useAppUpdate();
+const { reopen: reopenIntro } = useIntroSheet();
 
 const sidebarOpen = ref(false);
 const sidebarEl = ref<HTMLElement | null>(null);
@@ -38,6 +40,11 @@ const openUpdateSheet = () => {
 const openImportExportSheet = () => {
   closeSidebar();
   showImportExportSheet.value = true;
+};
+
+const openIntroSheet = () => {
+  closeSidebar();
+  reopenIntro();
 };
 
 const navigateTo = (routeName: string) => {
@@ -588,6 +595,31 @@ const recordCoffeeClick = () => {
             />
           </svg>
           <span>Feedback &amp; Requests</span>
+        </button>
+
+        <!-- About (action styled as a nav item) -->
+        <button
+          type="button"
+          class="flex items-center gap-3 font-medium text-lg text-text-light dark:text-text-dark hover:text-accent transition-colors cursor-pointer group text-left"
+          @click="openIntroSheet"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            class="w-5 h-5 text-text-light dark:text-text-dark group-hover:text-accent transition-colors"
+          >
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="16" x2="12" y2="12" />
+            <line x1="12" y1="8" x2="12.01" y2="8" />
+          </svg>
+          <span>About</span>
         </button>
       </nav>
     </div>

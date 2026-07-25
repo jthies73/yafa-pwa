@@ -1,6 +1,10 @@
 {
-  "latest": "0.19.0",
+  "latest": "0.20.0",
   "releases": [
+    {
+      "version": "0.20.0",
+      "notes": "- Add a first-open intro sheet introducing YAFA's core features."
+    },
     {
       "version": "0.19.0",
       "notes": "- Progression Preview."

@@ -49,7 +49,14 @@ const backdropStyle = computed(() => {
   };
 });
 
+let timeoutId: number | undefined;
+
 async function animateIn() {
+  if (timeoutId) {
+    clearTimeout(timeoutId);
+    timeoutId = undefined;
+  }
+
   if (minimized.value) {
     translateY.value = window.innerHeight;
     visible.value = true;
@@ -75,10 +82,14 @@ async function animateIn() {
 }
 
 function animateOut() {
+  if (timeoutId) {
+    clearTimeout(timeoutId);
+  }
   translateY.value = getSheetHeight();
-  setTimeout(() => {
+  timeoutId = window.setTimeout(() => {
     visible.value = false;
     translateY.value = 0;
+    timeoutId = undefined;
   }, duration.value);
 }
 

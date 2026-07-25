@@ -4,13 +4,19 @@ import AppHeader from "./components/layout/AppHeader.vue";
 import WorkoutBottomSheet from "./components/WorkoutBottomSheet.vue";
 import WorkoutSummarySheet from "./components/summary/WorkoutSummarySheet.vue";
 import NumericKeypad from "./components/NumericKeypad.vue";
+import IntroSheet from "./components/IntroSheet.vue";
 import { useActiveWorkout } from "./composables/useActiveWorkout";
+import { useIntroSheet } from "./composables/useIntroSheet";
 import { detectPlatform, isStandalone } from "./utils/platform";
 import { api } from "./utils/api";
 
 const { activeWorkout } = useActiveWorkout();
+const { showIfFirstOpen } = useIntroSheet();
 
 onMounted(() => {
+  // 0. Show the first-open intro sheet exactly once per device
+  showIfFirstOpen();
+
   // 1. Record page visit
   api.recordPageVisit(window.location.pathname);
 
@@ -55,5 +61,6 @@ onMounted(() => {
     <WorkoutBottomSheet />
     <WorkoutSummarySheet />
     <NumericKeypad />
+    <IntroSheet />
   </div>
 </template>

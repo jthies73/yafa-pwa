@@ -24,6 +24,8 @@ export const MUSCLE_GROUPS = [
   "Hamstrings",
   "Glutes",
   "Calves",
+  "Adductors",
+  "Abductors",
 
   // Core
   "Abs",

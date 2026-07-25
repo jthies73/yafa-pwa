@@ -115,7 +115,6 @@ const onStartFromPreview = (routineId: string) => {
   startWorkout(routineId);
 };
 
-
 const timerString = ref("00:00");
 let intervalId: ReturnType<typeof setInterval> | null = null;
 
@@ -388,8 +387,6 @@ watch(
           v-else
           class="h-10 bg-black/5 dark:bg-white/5 rounded-lg animate-pulse"
         />
-
-
       </div>
     </div>
 

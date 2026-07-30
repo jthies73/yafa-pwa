@@ -11,6 +11,8 @@ const props = defineProps<{
   minimizable?: boolean;
   /** Tailwind z-index class, defaults to "z-50" */
   zIndex?: string;
+  /** When true, the sheet takes up the full screen height (100dvh). */
+  fullHeight?: boolean;
 }>();
 
 const open = defineModel<boolean>("open", { required: true });
@@ -173,12 +175,12 @@ onUnmounted(() => {
       <div
         ref="sheetEl"
         :style="sheetStyle"
-        class="absolute bottom-0 left-0 right-0 flex flex-col w-full rounded-t-2xl bg-bg-light dark:bg-bg-dark shadow-2xl select-none"
+        class="absolute bottom-0 left-0 right-0 flex flex-col w-full rounded-t-2xl bg-bg-light dark:bg-bg-dark shadow-2xl select-none pb-[env(safe-area-inset-bottom)]"
         :class="[
           minimized && minimizable
             ? 'pointer-events-none'
             : 'pointer-events-auto',
-          minimizable ? 'h-[100dvh]' : 'max-h-[92vh]',
+          minimizable || fullHeight ? 'h-[100dvh]' : 'max-h-[92vh]',
         ]"
       >
         <!-- Drag zone: handle bar + header -->

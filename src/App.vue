@@ -54,7 +54,7 @@ onMounted(() => {
     <AppHeader />
     <main
       class="grow flex flex-col w-full relative"
-      :class="{ 'pb-24': activeWorkout }"
+      :class="[activeWorkout ? 'pb-24' : 'pb-[calc(1rem+env(safe-area-inset-bottom))]']"
     >
       <router-view />
     </main>

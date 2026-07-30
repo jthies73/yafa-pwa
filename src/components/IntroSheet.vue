@@ -57,7 +57,7 @@ const goToPlans = () => {
 </script>
 
 <template>
-  <AppBottomSheet v-model:open="open" title="Welcome to YAFA">
+  <AppBottomSheet v-model:open="open" title="Welcome to YAFA" fullHeight>
     <div class="flex flex-col gap-5 px-5 py-5">
       <div>
         <h2 class="text-xl font-bold text-text-h-light dark:text-text-h-dark">

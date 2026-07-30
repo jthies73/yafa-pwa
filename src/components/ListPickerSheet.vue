@@ -54,7 +54,5 @@ const emit = defineEmits<{
       </span>
     </div>
 
-    <!-- Bottom padding for safe area -->
-    <div class="h-6"></div>
   </AppBottomSheet>
 </template>

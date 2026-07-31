@@ -161,7 +161,15 @@ const currentMesocycleWeekProgress = ref<number | undefined>(undefined);
 let refreshInterval: ReturnType<typeof setInterval> | undefined;
 
 watch(
-  () => plan.value?.id,
+  // Also re-run when the mesocycle config/override itself changes (e.g. right
+  // after MesocycleSheet saves) — watching only `id` missed that, since
+  // editing periodization doesn't change which plan is loaded.
+  () =>
+    [
+      plan.value?.id,
+      plan.value?.mesocycle,
+      plan.value?.mesocycleWeekOverride,
+    ] as const,
   async () => {
     // Clear existing interval.
     if (refreshInterval) clearInterval(refreshInterval);

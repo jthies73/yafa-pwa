@@ -1,6 +1,10 @@
 {
-  "latest": "0.21.0",
+  "latest": "0.21.1",
   "releases": [
+    {
+      "version": "0.21.1",
+      "notes": "- Fix mesocycle chart."
+    },
     {
       "version": "0.21.0",
       "notes": "- Change mesocycle chart design."

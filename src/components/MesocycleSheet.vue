@@ -7,7 +7,7 @@ import {
   MESOCYCLE_PRESETS,
 } from "../config/periodization";
 import { useSortableList } from "../composables/useSortableList";
-import { mesocyclePosition } from "../engine/service";
+import { mesocyclePosition, weekProgressAt } from "../engine/service";
 import AppBottomSheet from "./AppBottomSheet.vue";
 import MesocycleChart from "./MesocycleChart.vue";
 
@@ -32,7 +32,6 @@ const weekOverride = ref<{
   weekIndex: number;
   alignToMonday: boolean;
 } | null>(null);
-
 // Reset on open, deep-cloning to plain objects so we never mutate the live plan.
 watch(
   open,
@@ -57,6 +56,17 @@ watch(
   },
   { immediate: true },
 );
+
+// Today's fractional position within the current week, live-recomputed as the
+// user toggles the Monday/Rolling switch below — before anything is saved.
+// The anchor instant itself (when the mesocycle was set up/last re-anchored)
+// doesn't change here, only how it's interpreted (Monday-snapped or not).
+const currentWeekProgress = computed(() => {
+  if (!weekOverride.value || !props.plan) return undefined;
+  const anchor =
+    props.plan.mesocycleWeekOverride?.setAt ?? props.plan.created_at;
+  return weekProgressAt(anchor, weekOverride.value.alignToMonday, Date.now());
+});
 
 const weekListEl = ref<HTMLElement | null>(null);
 
@@ -136,6 +146,7 @@ const save = () => {
           :current-week-index="
             currentWrappedWeekIndex >= 0 ? currentWrappedWeekIndex : undefined
           "
+          :current-week-progress="currentWeekProgress"
         />
       </div>
       <p

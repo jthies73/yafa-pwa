@@ -1,6 +1,10 @@
 {
-  "latest": "0.20.0",
+  "latest": "0.21.0",
   "releases": [
+    {
+      "version": "0.21.0",
+      "notes": "- Change mesocycle chart design."
+    },
     {
       "version": "0.20.0",
       "notes": "- Add a first-open intro sheet introducing YAFA's core features."

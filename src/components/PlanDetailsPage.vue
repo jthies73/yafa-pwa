@@ -156,6 +156,7 @@ const showMesocycleSheet = ref(false);
 const mesocycleInitial = computed(() => plan.value?.mesocycle ?? []);
 
 const currentMesocycleWeekIndex = ref<number | null>(null);
+const currentMesocycleWeekProgress = ref<number | undefined>(undefined);
 
 let refreshInterval: ReturnType<typeof setInterval> | undefined;
 
@@ -170,8 +171,10 @@ watch(
       if (plan.value?.mesocycle?.length) {
         const pos = await mesocyclePosition(plan.value, Date.now());
         currentMesocycleWeekIndex.value = pos?.weekIndex ?? null;
+        currentMesocycleWeekProgress.value = pos?.weekProgress;
       } else {
         currentMesocycleWeekIndex.value = null;
+        currentMesocycleWeekProgress.value = undefined;
       }
     };
     await checkCurrentWeek();
@@ -419,6 +422,7 @@ const requestDeletePlan = () => {
           <MesocycleChart
             :weeks="plan.mesocycle"
             :current-week-index="currentMesocycleWeekIndex ?? undefined"
+            :current-week-progress="currentMesocycleWeekProgress"
           />
           <div
             class="border-t border-border-light dark:border-border-dark pt-3 flex items-end justify-between gap-3"

@@ -90,6 +90,9 @@ export interface MesocyclePosition {
   weekCount: number;
   focus: PeriodizationFocus;
   workoutsThisWeek: number;
+  // Fraction (0..<1) through the current mesocycle week, honoring the plan's
+  // week-boundary convention (Monday-aligned or rolling from a mid-week anchor).
+  weekProgress: number;
 }
 
 export interface WorkoutPreview {
@@ -135,17 +138,63 @@ export function mostRecentMonday(ts: number): number {
   return monday.getTime();
 }
 
+/**
+ * The start-of-current-week timestamp for a repeating 7-day cycle anchored at
+ * `anchor` (Monday-snapped if `alignToMonday`), evaluated at `at`. Pure/sync —
+ * the shared math behind both the persisted week boundary and any live "what
+ * if" preview of an not-yet-saved boundary convention.
+ */
+function currentWeekStart(
+  anchor: number,
+  alignToMonday: boolean,
+  at: number,
+): { weekStartTs: number; elapsedWeeks: number } {
+  const anchorTs = alignToMonday ? mostRecentMonday(anchor) : anchor;
+  const elapsedWeeks = Math.max(0, Math.floor((at - anchorTs) / WEEK_MS));
+  return { weekStartTs: anchorTs + elapsedWeeks * WEEK_MS, elapsedWeeks };
+}
+
+/**
+ * The boundary (timestamp + absolute week index) that mesocycle weeks are
+ * measured from at time `at` — either the plan's creation time, or the
+ * override's anchor (Monday-aligned or the exact rolling setAt) once active.
+ */
+function weekBoundary(
+  plan: Plan,
+  at: number,
+): { absWeek: number; weekStartTs: number } {
+  const override = plan.mesocycleWeekOverride;
+  const active = Boolean(override && at >= override.setAt);
+  const anchor = active ? override!.setAt : plan.created_at;
+  const alignToMonday = active ? override!.alignToMonday : false;
+  const anchorIndex = active ? override!.weekIndex : 0;
+  const { weekStartTs, elapsedWeeks } = currentWeekStart(
+    anchor,
+    alignToMonday,
+    at,
+  );
+  return { absWeek: anchorIndex + elapsedWeeks, weekStartTs };
+}
+
 /** The 0-based week within the plan's repeating mesocycle at time `at`. */
 export function absoluteWeekIndex(plan: Plan | undefined, at: number): number {
   if (!plan) return 0;
-  const override = plan.mesocycleWeekOverride;
-  if (override && at >= override.setAt) {
-    const anchor = override.alignToMonday
-      ? mostRecentMonday(override.setAt)
-      : override.setAt;
-    return override.weekIndex + Math.floor((at - anchor) / WEEK_MS);
-  }
-  return Math.max(0, Math.floor((at - plan.created_at) / WEEK_MS));
+  return weekBoundary(plan, at).absWeek;
+}
+
+/**
+ * Fraction (0..<1) through the mesocycle week that contains `at`, for a
+ * boundary anchored at `anchor` and (optionally) Monday-snapped. Pure/sync and
+ * independent of any persisted `Plan` — lets a UI live-preview how toggling
+ * the Monday/Rolling boundary convention would land *before* it's saved.
+ */
+export function weekProgressAt(
+  anchor: number,
+  alignToMonday: boolean,
+  at: number,
+): number {
+  const { weekStartTs } = currentWeekStart(anchor, alignToMonday, at);
+  return Math.min(1, Math.max(0, (at - weekStartTs) / WEEK_MS));
 }
 
 /** The target shifts for the plan's current week (none when no mesocycle). */
@@ -161,9 +210,8 @@ export async function mesocyclePosition(
 ): Promise<MesocyclePosition | null> {
   if (!plan?.mesocycle?.length) return null;
   const len = plan.mesocycle.length;
-  const absWeek = absoluteWeekIndex(plan, at);
+  const { absWeek, weekStartTs } = weekBoundary(plan, at);
   const focus = plan.mesocycle[absWeek % len].focus;
-  const weekStartTs = plan.created_at + absWeek * WEEK_MS;
   const inWeek = await db.workouts
     .where("startTime")
     .between(weekStartTs, weekStartTs + WEEK_MS)
@@ -175,6 +223,7 @@ export async function mesocyclePosition(
     workoutsThisWeek: inWeek.filter((w) =>
       plan.routineIds.includes(w.routineId),
     ).length,
+    weekProgress: Math.min(1, Math.max(0, (at - weekStartTs) / WEEK_MS)),
   };
 }
 

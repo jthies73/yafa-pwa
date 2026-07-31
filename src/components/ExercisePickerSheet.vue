@@ -162,6 +162,5 @@ const createNew = () => {
         {{ exercise.primaryMuscleGroups?.join(", ") }}
       </span>
     </div>
-
   </AppBottomSheet>
 </template>

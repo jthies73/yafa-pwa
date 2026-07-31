@@ -179,6 +179,5 @@ const pick = (rpe: number) => {
         Clear RPE
       </button> -->
     </div>
-
   </AppBottomSheet>
 </template>

@@ -31,8 +31,17 @@ const props = withDefaults(
     showLegend?: boolean;
     caption?: string;
     currentWeekIndex?: number;
+    // Fraction (0..<1) of the way through the current week — fills that much
+    // of the current week's tick pill with the accent color. Omit to fall
+    // back to a half-filled pill (e.g. a draft with no real dates).
+    currentWeekProgress?: number;
   }>(),
-  { showLegend: true, caption: "", currentWeekIndex: undefined },
+  {
+    showLegend: true,
+    caption: "",
+    currentWeekIndex: undefined,
+    currentWeekProgress: undefined,
+  },
 );
 
 const count = computed(() => props.weeks.length);
@@ -115,33 +124,26 @@ const legendFocuses = computed<PeriodizationFocus[]>(() => {
   );
 });
 
-// Current week marker position (percent of container width, centered on the week).
-const currentWeekLeft = computed(() => {
-  const idx = props.currentWeekIndex;
-  if (idx === undefined || idx < 0 || idx >= count.value) return null;
-  return ((idx + 0.5) / count.value) * 100;
-});
+// How much of the current week's tick pill to fill with the accent color,
+// left-to-right — e.g. Wednesday fills ~3/7 of it — so the pill itself shows
+// today's progress through the week (Monday-aligned or mid-week/rolling)
+// instead of a separate marker. Falls back to half when no day-level
+// progress is known (e.g. an editor draft with no real dates).
+const currentWeekFill = computed(
+  () => `${(props.currentWeekProgress ?? 0.5) * 100}%`,
+);
 </script>
 
 <template>
   <div v-if="count" class="flex flex-col gap-4">
-    <!-- Volume + intensity trend lines + current week marker -->
+    <!-- Volume + intensity trend lines -->
     <div class="relative w-full h-36">
       <Line :data="chartData" :options="chartOptions" />
-      <div
-        v-if="currentWeekLeft !== null"
-        class="absolute top-0 bottom-0 pointer-events-none z-10 flex flex-col items-center"
-        :style="{ left: `${currentWeekLeft}%`, transform: 'translateX(-50%)' }"
-      >
-        <span
-          class="w-2.5 h-2.5 rounded-full bg-accent border-2 border-bg-light dark:border-bg-dark shadow-sm shrink-0 -mt-1"
-        />
-        <span class="w-0 flex-1 border-r-2 border-dashed border-accent/70" />
-        <span class="w-1.5 h-1.5 rounded-full bg-accent/80 shrink-0 -mb-0.5" />
-      </div>
     </div>
 
-    <!-- Focus-colored week tick strip (shared categorical axis) -->
+    <!-- Focus-colored week tick strip (shared categorical axis). The current
+         week's pill fills left-to-right with the accent color to show today's
+         progress through it. -->
     <div class="flex flex-col gap-1.5">
       <div class="relative">
         <div
@@ -151,7 +153,7 @@ const currentWeekLeft = computed(() => {
           <span
             v-for="(week, i) in weeks"
             :key="i"
-            class="rounded-full transition-all duration-150"
+            class="relative overflow-hidden rounded-full transition-all duration-150"
             :class="[
               i === currentWeekIndex
                 ? 'h-2.5 ring-2 ring-accent ring-offset-1 ring-offset-bg-light dark:ring-offset-bg-dark z-10'
@@ -159,7 +161,13 @@ const currentWeekLeft = computed(() => {
             ]"
             :style="{ backgroundColor: FOCUS_META[week.focus].colorVar }"
             :title="`Week ${i + 1} — ${FOCUS_META[week.focus].label}`"
-          />
+          >
+            <span
+              v-if="i === currentWeekIndex"
+              class="absolute inset-y-0 left-0 bg-accent transition-[width] duration-300"
+              :style="{ width: currentWeekFill }"
+            />
+          </span>
         </div>
       </div>
       <div

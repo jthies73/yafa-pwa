@@ -53,6 +53,5 @@ const emit = defineEmits<{
         {{ option.sub }}
       </span>
     </div>
-
   </AppBottomSheet>
 </template>

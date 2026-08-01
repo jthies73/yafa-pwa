@@ -297,15 +297,11 @@ const intensityArrow = computed<ArrowConfig | null>(() => {
                 class="font-mono text-text-h-light dark:text-text-h-dark flex items-center gap-1.5"
               >
                 <!-- Pending reset: struck-out original → the post-reset anchor -->
-                <template
-                  v-if="
-                    e.resetPending && e.originalC1rm != null && e.c1rm != null
-                  "
-                >
+                <template v-if="e.preResetC1rm != null && e.c1rm != null">
                   <span
                     class="text-text-light dark:text-text-dark opacity-50 line-through"
                   >
-                    {{ fmtWeight(e.originalC1rm) }}
+                    {{ fmtWeight(e.preResetC1rm) }}
                   </span>
                   <span class="opacity-40">→</span>
                 </template>
@@ -313,7 +309,7 @@ const intensityArrow = computed<ArrowConfig | null>(() => {
                      staying amber when a reset is what produced it -->
                 <span
                   :class="
-                    e.resetPending && e.originalC1rm != null && e.c1rm != null
+                    e.preResetC1rm != null && e.c1rm != null
                       ? e.prescription?.fatigueReduction
                         ? 'text-amber-500 line-through'
                         : 'font-bold text-amber-500'
@@ -337,9 +333,11 @@ const intensityArrow = computed<ArrowConfig | null>(() => {
               </span>
             </div>
             <!-- Total-load anchor: the bodyweight share folded into the c1RM;
-                 prescribed weights show only the added weight on top of it. -->
+                 prescribed weights show only the added weight on top of it.
+                 Only a positive share is meaningful to show — a corrupt import
+                 can carry a negative bodyweightFactor. -->
             <div
-              v-if="e.bodyweightOffsetKg"
+              v-if="e.bodyweightOffsetKg > 0"
               class="flex items-center justify-between gap-3"
             >
               <span class="text-text-light dark:text-text-dark opacity-60">

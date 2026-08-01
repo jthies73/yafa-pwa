@@ -1,6 +1,10 @@
 import { ref, computed } from "vue";
 import { db } from "../db/db";
-import { updateExerciseNotes } from "../db/repository";
+import {
+  getExercisesByIds,
+  getRoutine,
+  updateExerciseNotes,
+} from "../db/repository";
 import { currentBodyweight } from "../db/measurements";
 import { getConfigSetCount } from "../utils/progression";
 import type {
@@ -149,13 +153,12 @@ export function useActiveWorkout() {
     bodyweightKg.value = (await currentBodyweight()) ?? null;
 
     if (routineId) {
-      r = (await db.routines.get(routineId)) ?? null;
+      r = (await getRoutine(routineId)) ?? null;
       if (r) {
-        const ids = new Set(r.exercises.map((e) => e.exerciseId));
-        const list = await Promise.all(
-          [...ids].map((id) => db.exercises.get(id)),
+        const found = await getExercisesByIds(
+          r.exercises.map((e) => e.exerciseId),
         );
-        for (const e of list) if (e) eMap[e.id] = e;
+        for (const [id, e] of found) eMap[id] = e;
       }
 
       // Resolve prescriptions before the workout becomes active so the

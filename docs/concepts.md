@@ -4,7 +4,7 @@ aliases: [Glossary, Concepts, Terminology]
 tags: [yafa/concepts]
 area: shared
 order: 1
-updated: 2026-07-09
+updated: 2026-08-01
 ---
 
 # Concepts & Glossary
@@ -45,7 +45,7 @@ Mechanics: [[applying-results#Catch-up|applying-results]]
 
 ## Fold
 
-Shorthand for the post-session application of workout results to progression state: evaluate the outcome, step the state, weigh the catch-up, then (last) learn the RPE matrix — **one c1RM move per session**, guarded for idempotency by `lastWorkoutId`. Anchor: `applyWorkoutResults` / `foldQualifiedSession` (internal) in `src/engine/service.ts`.
+Shorthand for the post-session application of workout results to progression state: evaluate the outcome, step the state, weigh the catch-up, then (last) learn the RPE matrix — **one c1RM move per session**, guarded for idempotency by `lastWorkoutId`. Anchor: `applyWorkoutResults` in `src/engine/service.ts`, which delegates the per-session decision to `foldSession` in `src/engine/fold.ts`.
 Mechanics: [[applying-results]]
 
 ## Green dot
@@ -90,7 +90,7 @@ Mechanics: [[rpe-matrix]]
 
 ## RPE matrix correction
 
-The adaptive learning step that reshapes an exercise's RPE curve toward demonstrated performance. Fires only when the session broadly **agrees** with the anchor (deviation ≤ `RPE_MATRIX_CORRECTION_MAX_DEVIATION`, currently 5%) — larger divergence is [[#Catch-up|catch-up]] territory. Cells are nudged with learning rate `RPE_MATRIX_CORRECTION_ALPHA` (0.1) through a triangular kernel over reps-to-failure space, applied **last** in the [[#Fold|fold]] so it only shapes future sessions. Anchor: `correctRpeMatrix` in `src/engine/matrix.ts`, gated by `learnedRpeMatrix` (internal) in `src/engine/service.ts`.
+The adaptive learning step that reshapes an exercise's RPE curve toward demonstrated performance. Fires only when the session broadly **agrees** with the anchor (deviation ≤ `RPE_MATRIX_CORRECTION_MAX_DEVIATION`, currently 5%) — larger divergence is [[#Catch-up|catch-up]] territory. Cells are nudged with learning rate `RPE_MATRIX_CORRECTION_ALPHA` (0.1) through a triangular kernel over reps-to-failure space, applied **last** in the [[#Fold|fold]] so it only shapes future sessions. Anchor: `correctRpeMatrix` in `src/engine/matrix.ts`, gated by `learnedRpeMatrix` in `src/engine/fold.ts`.
 Mechanics: [[rpe-matrix#Adaptive correction|rpe-matrix]], [[applying-results#Ordering invariants|applying-results]]
 
 ## Slot alignment

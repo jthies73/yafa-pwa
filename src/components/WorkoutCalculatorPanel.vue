@@ -23,9 +23,9 @@ import { impliedE1rm } from "../engine/matrix";
 import { liveEffectiveE1rm } from "../engine/state";
 import {
   computeFatigueAdjustment,
+  muscleProfileOf,
   type MuscleProfile,
 } from "../engine/fatigue";
-import { muscleProfileOf } from "../engine/service";
 import ExercisePickerSheet from "./ExercisePickerSheet.vue";
 import ExerciseFormSheet from "./ExerciseFormSheet.vue";
 import InfoIcon from "./InfoIcon.vue";

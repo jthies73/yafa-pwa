@@ -1,6 +1,7 @@
 import { db } from "./db";
 import { currentBodyweight } from "./measurements";
 import { bodyweightShiftKg } from "../engine/bodyweight";
+import { initState } from "../engine/state";
 import type {
   Exercise,
   Plan,
@@ -46,6 +47,11 @@ export interface ExerciseInput {
 }
 
 // ---- Plans ----
+
+/** Every plan. Small table (a handful of rows) — callers filter in memory. */
+export async function getPlans(): Promise<Plan[]> {
+  return db.plans.toArray();
+}
 
 export async function createPlan(input: PlanInput): Promise<string> {
   const id = uid();
@@ -152,6 +158,16 @@ export async function deletePlan(id: string): Promise<void> {
 
 // ---- Routines ----
 
+export async function getRoutine(id: string): Promise<Routine | undefined> {
+  return db.routines.get(id);
+}
+
+/** The named routines in the order given, skipping any that no longer exist. */
+export async function getRoutinesByIds(ids: string[]): Promise<Routine[]> {
+  const found = await db.routines.bulkGet(ids);
+  return found.filter((r): r is Routine => r != null);
+}
+
 /**
  * Creates a routine and, when a planId is supplied, appends it to that plan's
  * ordered routine list.
@@ -212,6 +228,24 @@ export async function deleteRoutine(id: string): Promise<void> {
 }
 
 // ---- Exercises ----
+
+export async function getExercise(id: string): Promise<Exercise | undefined> {
+  return db.exercises.get(id);
+}
+
+/**
+ * The named exercises, indexed by id — one bulk read rather than a round-trip
+ * per id. Missing ids are simply absent from the map, so callers that tolerate a
+ * deleted exercise can just skip a miss.
+ */
+export async function getExercisesByIds(
+  ids: string[],
+): Promise<Map<string, Exercise>> {
+  const found = await db.exercises.bulkGet([...new Set(ids)]);
+  return new Map(
+    found.filter((e): e is Exercise => e != null).map((e) => [e.id, e]),
+  );
+}
 
 export async function createExercise(input: ExerciseInput): Promise<string> {
   const id = uid();
@@ -298,6 +332,21 @@ export async function updateExerciseNotes(
 }
 
 /**
+ * Persist an exercise's RPE-curve override, leaving every other field alone.
+ * The single writer for this field — both the engine's post-session learning and
+ * the manual matrix editor go through here, so the plain-object materialization
+ * (stripping Vue/Dexie proxies) can never be applied by only one of them.
+ */
+export async function setExerciseRpeMatrix(
+  id: string,
+  matrix: RpeMatrix,
+): Promise<void> {
+  await db.exercises.update(id, {
+    rpeMatrix: JSON.parse(JSON.stringify(matrix)) as RpeMatrix,
+  });
+}
+
+/**
  * Counts how many routine slots currently reference this exercise. Used to warn
  * the user before deletion (an exercise may appear multiple times in a routine).
  */
@@ -340,6 +389,14 @@ export async function getWorkouts(): Promise<Workout[]> {
   return db.workouts.orderBy("startTime").reverse().toArray();
 }
 
+/** Workouts whose startTime falls in [from, to) — an index range, not a scan. */
+export async function getWorkoutsBetween(
+  from: number,
+  to: number,
+): Promise<Workout[]> {
+  return db.workouts.where("startTime").between(from, to).toArray();
+}
+
 /** Removes a logged session. Nothing references a workout, so no cascade. */
 export async function deleteWorkout(id: string): Promise<void> {
   await db.workouts.delete(id);
@@ -351,16 +408,13 @@ export async function deleteWorkout(id: string): Promise<void> {
 // engine service reads/writes these; the helpers here keep the default-row shape
 // in one place so reads never have to special-case a never-trained exercise.
 
-/** A blank progression row for an exercise that has never been trained. */
+/**
+ * A blank progression row for an exercise that has never been trained. The
+ * shape itself is the engine's (`initState`) so the row tests build and the row
+ * production persists can never drift apart.
+ */
 export function freshProgressionState(exerciseId: string): ProgressionState {
-  return {
-    exerciseId,
-    c1rm: null,
-    regressionStreak: 0,
-    resetPending: false,
-    lastWorkoutId: null,
-    updated_at: Date.now(),
-  };
+  return initState(exerciseId, Date.now());
 }
 
 /**
@@ -379,6 +433,21 @@ export async function getProgressionState(
 
 export async function getAllProgressionStates(): Promise<ProgressionState[]> {
   return db.progressionStates.toArray();
+}
+
+/**
+ * States for the named exercises, indexed by id, defaulting a never-trained
+ * exercise to a fresh row — the bulk twin of `getProgressionState`. Never
+ * persists the defaults.
+ */
+export async function getProgressionStates(
+  ids: string[],
+): Promise<Map<string, ProgressionState>> {
+  const unique = [...new Set(ids)];
+  const found = await db.progressionStates.bulkGet(unique);
+  return new Map(
+    unique.map((id, i) => [id, found[i] ?? freshProgressionState(id)]),
+  );
 }
 
 /** Persist a progression row, stamping updated_at. */

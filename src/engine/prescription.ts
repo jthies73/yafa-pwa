@@ -121,10 +121,11 @@ function buildSets(
   switch (model) {
     case "linear": {
       const p = params as LinearProgressionParams;
+      const weight = load(p.targetReps, p.targetRpe); // same for every set
       return Array.from({ length: p.targetSets }, () => ({
         reps: p.targetReps,
         rpe: p.targetRpe,
-        weight: load(p.targetReps, p.targetRpe),
+        weight,
         role: "straight" as const,
       }));
     }
@@ -185,10 +186,11 @@ function buildSets(
     case "none": {
       const p = params as NoneProgressionParams;
       // "none" never prescribes above target → load at targetRpe (no ceiling cap).
+      const weight = load(p.targetReps, p.targetRpe); // same for every set
       return Array.from({ length: p.targetSets }, () => ({
         reps: p.targetReps,
         rpe: p.targetRpe,
-        weight: load(p.targetReps, p.targetRpe),
+        weight,
         role: "straight" as const,
       }));
     }

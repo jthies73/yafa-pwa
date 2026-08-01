@@ -1,11 +1,7 @@
 import { describe, it, expect } from "vitest";
 import type { Exercise, Plan } from "../../db/types";
-import {
-  muscleProfileOf,
-  priorsBySlot,
-  absoluteWeekIndex,
-  mostRecentMonday,
-} from "../service";
+import { muscleProfileOf, priorsBySlot } from "../fatigue";
+import { absoluteWeekIndex, mostRecentMonday } from "../mesocycle";
 
 const exercise = (
   id: string,

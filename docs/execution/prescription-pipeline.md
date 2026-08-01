@@ -4,7 +4,7 @@ aliases: [prescribeWorkout, previewWorkout, Prescription, prescribeExercise]
 tags: [yafa/execution, yafa/engine]
 area: execution
 order: 1
-updated: 2026-07-09
+updated: 2026-08-01
 ---
 
 # Prescription Pipeline
@@ -37,8 +37,8 @@ sequenceDiagram
     UI->>SVC: previewWorkout / prescribeWorkout (routineId)
     SVC->>REPO: load routine, exercises, owning plan
     SVC->>PURE: normalizeProgressionParams (config backfill)
-    SVC->>PURE: weekFocus → applyMesoToParams (periodization)
-    SVC->>REPO: getProgressionState (per exercise)
+    SVC->>PURE: modifiersAt → effectiveConfig (normalize + periodize)
+    SVC->>REPO: getProgressionStates (bulk) / getProgressionState (per slot, in tx)
     alt resetPending
         SVC->>PURE: consumeReset (−10% c1RM)
         Note over SVC,REPO: prescribe: persisted via putProgressionState<br/>preview: in-memory only
@@ -48,11 +48,11 @@ sequenceDiagram
     SVC-->>UI: slot-aligned prescriptions / WorkoutPreview
 ```
 
-Stage order matters: config resolution ([[plans-and-routines#Config resolution|plans-and-routines]]) → mesocycle shift ([[mesocycles]]) → reset consumption → session fatigue ([[fatigue-and-slots]]) → set rendering. Both entrypoints also fetch the current bodyweight once and pass each exercise's [[concepts#Bodyweight offset|bodyweight offset]] into rendering ([[bodyweight]]). The preview additionally packages display data — `ExercisePreview` with `originalC1rm`/`resetEffects` for the strike-through pending-reset display, regression streak `n/3`, the `MesocyclePosition`, and the bodyweight share (`bodyweightOffsetKg`, plus a `bodyweightMissing` hint when a factor is set but no bodyweight is logged).
+Stage order matters: config resolution ([[plans-and-routines#Config resolution|plans-and-routines]]) → mesocycle shift ([[mesocycles]]) → reset consumption → session fatigue ([[fatigue-and-slots]]) → set rendering. Both entrypoints also fetch the current bodyweight once and pass each exercise's [[concepts#Bodyweight offset|bodyweight offset]] into rendering ([[bodyweight]]). The preview additionally packages display data — `ExercisePreview` with `preResetC1rm` for the strike-through pending-reset display (present ⇔ a reset was applied, so it doubles as the flag), regression streak `n/3`, the `MesocyclePosition`, and the bodyweight share (`bodyweightOffsetKg`, plus a `bodyweightMissing` hint when a factor is set but no bodyweight is logged).
 
 ## Reset consumption
 
-Mechanics of _consuming_ a [[concepts#Two-phase reset|two-phase reset]] (arming lives in [[applying-results#Two-phase reset|applying-results]]): if `resetPending` is set, `consumeReset` (`src/engine/state.ts`) drops c1RM by `RESET_DROP` (currently 10%) via `applyReset` (`state.ts`), clears the streak and the flag, and is idempotent. `prescribeWorkout` persists this exactly once at workout start — **not** during preview, and never during evaluation. This two-phase timing is why a regression session shows no load change until the following workout, and why the preview shows the upcoming drop as struck-through `originalC1rm` → new anchor.
+Mechanics of _consuming_ a [[concepts#Two-phase reset|two-phase reset]] (arming lives in [[applying-results#Two-phase reset|applying-results]]): if `resetPending` is set, `consumeReset` (`src/engine/state.ts`) drops c1RM by `RESET_DROP` (currently 10%) via `applyReset` (`state.ts`), clears the streak and the flag, and is idempotent. `prescribeWorkout` persists this exactly once at workout start — **not** during preview, and never during evaluation. This two-phase timing is why a regression session shows no load change until the following workout, and why the preview shows the upcoming drop as struck-through `preResetC1rm` → new anchor.
 
 ## Per-exercise prescription
 

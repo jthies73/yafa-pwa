@@ -88,3 +88,21 @@ export function normalizeProgressionParams(
   }
   return merged as unknown as ProgressionParams;
 }
+
+/**
+ * The raw RPE ceiling for a model — "none" never prescribes above its own
+ * target, so it caps there.
+ *
+ * Keyed on `model` rather than sniffing for an `"rpeCeiling" in params` key,
+ * because normalizeProgressionParams merges by key UNION: a config switched to
+ * "none" can still carry a stale rpeCeiling, and the model is the only
+ * trustworthy discriminator.
+ */
+export function rpeCeilingOf(
+  model: ProgressionModelType,
+  params: ProgressionParams,
+): number {
+  return model === "none"
+    ? (params as NoneProgressionParams).targetRpe
+    : (params as LinearProgressionParams).rpeCeiling;
+}

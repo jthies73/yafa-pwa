@@ -4,7 +4,7 @@ aliases: [Plans, Routines, Exercise Config, RoutineExerciseConfig]
 tags: [yafa/planning]
 area: planning
 order: 1
-updated: 2026-07-09
+updated: 2026-08-01
 ---
 
 # Plans & Routines
@@ -32,7 +32,7 @@ flowchart LR
 
 ## Exercise order is load-bearing
 
-The drag-to-reorder in `RoutineDetailsPage.vue` (via `useSortableList`, persisted by `persistExercises`) doesn't just change display order: **slot order defines the fatigue priors**. `priorsBySlot` (`src/engine/service.ts`) walks the routine in order so each slot sees the muscle profiles of every earlier slot — moving an exercise up or down changes the loads of exercises after it. See [[fatigue-and-slots#Slot priors|fatigue-and-slots]].
+The drag-to-reorder in `RoutineDetailsPage.vue` (via `useSortableList`, persisted by `persistExercises`) doesn't just change display order: **slot order defines the fatigue priors**. `priorsBySlot` (`src/engine/fatigue.ts`) walks the routine in order so each slot sees the muscle profiles of every earlier slot — moving an exercise up or down changes the loads of exercises after it. See [[fatigue-and-slots#Slot priors|fatigue-and-slots]].
 
 Duplicate slots of the same exercise are allowed and are treated as distinct slots throughout ([[concepts#Slot alignment|slot alignment]]) — a repeated exercise even counts as its own fatigue prior.
 
@@ -57,7 +57,7 @@ Duplicate slots of the same exercise are allowed and are treated as distinct slo
 | Function                                           | File                                    | Note                                            |
 | -------------------------------------------------- | --------------------------------------- | ----------------------------------------------- |
 | `normalizeProgressionParams`                       | `src/config/progression.ts`             | Read-time backfill — see [[progression-models]] |
-| `priorsBySlot`                                     | `src/engine/service.ts`                 | Routine order → fatigue priors                  |
+| `priorsBySlot`                                     | `src/engine/fatigue.ts`                 | Routine order → fatigue priors                  |
 | `setPlanActive`                                    | `src/db/repository.ts`                  | Single-active invariant                         |
 | `setPlanMesocycle`                                 | `src/db/repository.ts`                  | Persists periodization weeks                    |
 | `createRoutine`                                    | `src/db/repository.ts`                  | Optionally appends to a plan's `routineIds`     |

@@ -15,6 +15,7 @@ import {
   updateRoutine,
   deleteRoutine,
   createExercise,
+  getExercisesByIds,
   updateExerciseNotes,
   type RoutineInput,
   type ExerciseInput,
@@ -42,13 +43,9 @@ onMounted(() => {
   subscription = liveQuery(async () => {
     const r = await db.routines.get(props.id);
     if (!r) return null;
-    const exerciseIds = new Set<string>();
-    for (const e of r.exercises) exerciseIds.add(e.exerciseId);
-    const eList = await Promise.all(
-      Array.from(exerciseIds).map((id) => db.exercises.get(id)),
+    const eMap: Record<string, Exercise> = Object.fromEntries(
+      await getExercisesByIds(r.exercises.map((e) => e.exerciseId)),
     );
-    const eMap: Record<string, Exercise> = {};
-    for (const e of eList) if (e) eMap[e.id] = e;
 
     const plans = await db.plans.toArray();
     const periodized = plans.some(

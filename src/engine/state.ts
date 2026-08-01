@@ -13,7 +13,7 @@ import {
   REGRESSION_RESET_TRIGGER,
   RESET_DROP,
 } from "./constants";
-import { impliedE1rm, isQualifyingSet, peakImpliedE1rm } from "./matrix";
+import { impliedE1rm, isQualifyingSet, seedE1rm } from "./matrix";
 
 // ----------------------------------------------
 // Progression state transitions. These pure functions are what actually MOVE the
@@ -182,12 +182,31 @@ export function corroboratedE1rm(
   sessionE1rms: number[],
   anchor: number,
 ): number | null {
-  const valid = sessionE1rms.filter((e) => e > 0);
-  if (valid.length === 0) return null;
-  const byDistance = [...valid].sort(
-    (a, b) => Math.abs(b - anchor) - Math.abs(a - anchor),
+  return representativeByDistance(
+    sessionE1rms.filter((e) => e > 0),
+    (e) => e,
+    anchor,
   );
-  return byDistance[Math.min(1, byDistance.length - 1)]; // when 1 set return it, when >=2 sets return the 2nd-furthest
+}
+
+/**
+ * The anti-fluke pick: of these items, the one whose value is 2nd-furthest from
+ * `anchor` — or the only item when there is just one. Dropping the single most
+ * extreme observation is what stops one mistyped set from moving the anchor, in
+ * either direction. Generic because the same rule governs both the catch-up
+ * estimate (over e1RM numbers) and the RPE-curve correction (over sets), and
+ * those two must never disagree about which set counted.
+ */
+export function representativeByDistance<T>(
+  items: T[],
+  valueOf: (item: T) => number,
+  anchor: number,
+): T | null {
+  if (items.length === 0) return null;
+  const byDistance = [...items].sort(
+    (a, b) => Math.abs(valueOf(b) - anchor) - Math.abs(valueOf(a) - anchor),
+  );
+  return byDistance[Math.min(1, byDistance.length - 1)];
 }
 
 /**
@@ -219,13 +238,7 @@ export function liveEffectiveE1rm(
   sessionSets: LoggedSet[],
   currentC1rm: number | null,
 ): number | null {
-  if (currentC1rm == null) {
-    return (
-      peakImpliedE1rm(matrix, sessionSets)?.e1rm ??
-      peakImpliedE1rm(matrix, sessionSets, true)?.e1rm ??
-      null
-    );
-  }
+  if (currentC1rm == null) return seedE1rm(matrix, sessionSets);
   const sessionE1rms = sessionSets
     .filter(isQualifyingSet)
     .map((s) =>

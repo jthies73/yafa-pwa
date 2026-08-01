@@ -4,7 +4,7 @@ aliases: [RPE Matrix, Matrix Correction, e1RM, matrixPct]
 tags: [yafa/planning, yafa/engine]
 area: planning
 order: 4
-updated: 2026-07-09
+updated: 2026-08-01
 ---
 
 # RPE Matrix & e1RM Math
@@ -70,7 +70,7 @@ flowchart TD
 
 `correctRpeMatrix(matrix, completedSet, anchorE1rm, …)` (`src/engine/matrix.ts`) implements the learning: the demonstrated fraction `pDemo = min(1, weight / anchor)` pulls each cell by `alpha × kernelWeight × (pDemo − pOld)`, where the triangular kernel fades linearly within `RPE_MATRIX_CORRECTION_RADIUS` (1.5) in n-space — cells representing the same effort learn together. The anchor is the stable rules-driven c1RM (pre-catch-up).
 
-**When** it runs — last in the [[concepts#Fold|fold]], so it only shapes future sessions — and its gating by `learnedRpeMatrix` (internal) are owned by [[applying-results#Ordering invariants|applying-results]].
+**When** it runs — last in the [[concepts#Fold|fold]], so it only shapes future sessions — and its gating by `learnedRpeMatrix` (`src/engine/fold.ts`) are owned by [[applying-results#Ordering invariants|applying-results]].
 
 ## Consumers
 

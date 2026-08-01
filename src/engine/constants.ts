@@ -10,6 +10,12 @@ import type { PeriodizationFocus } from "../db/types";
 // mesocycle) reads from here.
 // ----------------------------------------------
 
+// --- Time ---
+
+export const DAY_MS = 24 * 60 * 60 * 1000;
+/** A mesocycle week. Every week boundary is exactly this from its anchor. */
+export const WEEK_MS = 7 * DAY_MS;
+
 // --- Locked domain rules (decided by the user; do NOT tune casually) ---
 
 /** Default RPE the prescribed load aims for AND the rules judge against. */

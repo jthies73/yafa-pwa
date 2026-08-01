@@ -4,7 +4,7 @@ import { useRouter } from "vue-router";
 import { liveQuery } from "dexie";
 import { db } from "../db/db";
 import type { Plan, Routine } from "../db/types";
-import { getWorkouts } from "../db/repository";
+import { getRoutinesByIds, getWorkouts } from "../db/repository";
 import {
   computeRoutineStats,
   formatLastPerformed,
@@ -66,12 +66,12 @@ onMounted(() => {
     // Reading workouts here makes Dexie re-run this query (and the counts
     // update) the moment a session is logged.
     const [routines, workouts] = await Promise.all([
-      Promise.all(plan.routineIds.map((id) => db.routines.get(id))),
+      getRoutinesByIds(plan.routineIds),
       getWorkouts(),
     ]);
     return {
       plan,
-      routines: routines.filter((r): r is Routine => !!r),
+      routines,
       stats: computeRoutineStats(workouts, Date.now()),
     };
   }).subscribe({

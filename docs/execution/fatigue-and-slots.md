@@ -4,7 +4,7 @@ aliases: [Fatigue, Slot Alignment, Muscle Overlap, Session Fatigue]
 tags: [yafa/execution, yafa/engine]
 area: execution
 order: 2
-updated: 2026-07-09
+updated: 2026-08-01
 ---
 
 # Session Fatigue & Slot Alignment
@@ -47,7 +47,7 @@ The reduction subtracts from the **anchor**, not from individual set weights, so
 
 ## Slot priors
 
-`priorsBySlot(exerciseIds, exerciseOf)` (`src/engine/service.ts`) accumulates, for each slot, the muscle profiles of every earlier slot — which is why routine order is load-bearing ([[plans-and-routines#Exercise order is load-bearing|plans-and-routines]]) and why the preview already shows the reduced loads: priors are known at prescription time, not discovered mid-session. A repeated exercise counts as its own prior.
+`priorsBySlot(exerciseIds, exerciseOf)` (`src/engine/fatigue.ts`) accumulates, for each slot, the muscle profiles of every earlier slot — which is why routine order is load-bearing ([[plans-and-routines#Exercise order is load-bearing|plans-and-routines]]) and why the preview already shows the reduced loads: priors are known at prescription time, not discovered mid-session. A repeated exercise counts as its own prior.
 
 Two symmetry guarantees downstream:
 
@@ -67,6 +67,6 @@ Analytics attributes volume to muscles with its own constants — `DIRECT_MULTIP
 | `muscleOverlapTier`              | `src/engine/fatigue.ts` | The 100/75/50/25 ladder           |
 | `computeFatigueAdjustment`       | `src/engine/fatigue.ts` | Max-not-sum, capped at c1RM       |
 | `muscleProfileOf`                | `src/engine/service.ts` | Exercise → `MuscleProfile`        |
-| `priorsBySlot`                   | `src/engine/service.ts` | Positional prior accumulation     |
+| `priorsBySlot`                   | `src/engine/fatigue.ts` | Positional prior accumulation     |
 | `fatigueReductionFor` (internal) | `src/engine/service.ts` | Wires params + priors per slot    |
 | `fatigueScaleOf` (internal)      | `src/engine/service.ts` | Un-fatiguing scale for evaluation |

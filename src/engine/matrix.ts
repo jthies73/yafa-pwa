@@ -45,7 +45,7 @@ export function clampLookupReps(reps: number): number {
 }
 
 /** Sorted numeric keys of an object whose keys are numbers-as-strings. */
-function numericKeys(obj: Record<number, number>): number[] {
+function numericKeys(obj: Record<number, unknown>): number[] {
   return Object.keys(obj)
     .map(Number)
     .sort((a, b) => a - b);
@@ -207,6 +207,20 @@ export function peakImpliedE1rm(
 }
 
 /**
+ * The e1RM to anchor a never-trained exercise on: the peak qualifying set, else
+ * the peak merely-usable one. The single definition of the cold-start seeding
+ * gate — the post-session fold, the history rebuild, and the live mid-session
+ * calculator all seed through here, so relaxing or tightening the fallback can
+ * never move one of them without the others.
+ */
+export function seedE1rm(matrix: RpeMatrix, sets: LoggedSet[]): number | null {
+  return (
+    (peakImpliedE1rm(matrix, sets) ?? peakImpliedE1rm(matrix, sets, true))
+      ?.e1rm ?? null
+  );
+}
+
+/**
  * Applies a 1-D smoothing kernel across the matrix in n-space (reps + (10 - RPE)).
  * Returns a new matrix.
  */
@@ -214,22 +228,21 @@ function applySmoothingKernel(
   matrix: RpeMatrix,
   targetN: number,
   smoothingRadius: number,
-  applyDelta: (r: number, c: number, pOld: number, weight: number) => number,
+  applyDelta: (reps: number, pOld: number, weight: number) => number,
 ): RpeMatrix {
   const next: RpeMatrix = {};
-  for (const r of Object.keys(matrix).map(Number)) {
+  for (const r of numericKeys(matrix)) {
     next[r] = { ...matrix[r] };
   }
 
-  for (const r of Object.keys(next).map(Number)) {
+  for (const r of numericKeys(next)) {
     const row = next[r];
-    const cols = Object.keys(row).map(Number);
-    for (const c of cols) {
+    for (const c of numericKeys(row)) {
       const n = r + (10 - c);
       const w = Math.max(0, 1 - Math.abs(n - targetN) / smoothingRadius);
       if (w > 0) {
         const pOld = row[c];
-        const delta = applyDelta(r, c, pOld, w);
+        const delta = applyDelta(r, pOld, w);
         const newVal = Math.max(0, Math.min(1.0, pOld + delta));
         // Round to 4 decimal places to prevent floating point dust
         row[c] = Number(newVal.toFixed(4));
@@ -262,9 +275,7 @@ export function setMatrixCell(
     matrix,
     targetN,
     radius,
-    (_r, _c, _pOld, w) => {
-      return w * delta;
-    },
+    (_reps, _pOld, w) => w * delta,
   );
 
   // Smoothing additive deltas can temporarily break the invariant that percentages must rise
@@ -280,9 +291,7 @@ export function enforceMatrixMonotonicity(
   fixedCell?: { reps: number; rpe: number; value: number },
 ): RpeMatrix {
   const next: RpeMatrix = {};
-  const repsList = Object.keys(matrix)
-    .map(Number)
-    .sort((a, b) => a - b);
+  const repsList = numericKeys(matrix);
   if (repsList.length === 0) return matrix;
 
   for (const r of repsList) {
@@ -300,43 +309,33 @@ export function enforceMatrixMonotonicity(
     changed = false;
     for (const r of repsList) {
       const row = next[r];
-      const cols = Object.keys(row)
-        .map(Number)
-        .sort((a, b) => a - b);
+      const cols = numericKeys(row);
+      // The values in column `c` on the rep rows the predicate keeps.
+      const column = (c: number, keep: (reps: number) => boolean) =>
+        repsList
+          .filter(keep)
+          .map((otherR) => next[otherR][c])
+          .filter((v) => v !== undefined);
+
       for (const c of cols) {
         if (fixedCell && r === fixedCell.reps && c === fixedCell.rpe) {
           continue; // Keep the user's manual edit exact
         }
 
         const val = row[c];
-
-        let lowerBound = 0;
-        // Same row, lower RPEs
-        for (const otherC of cols) {
-          if (otherC < c) {
-            lowerBound = Math.max(lowerBound, row[otherC]);
-          }
-        }
-        // Same column, higher reps
-        for (const otherR of repsList) {
-          if (otherR > r && next[otherR][c] !== undefined) {
-            lowerBound = Math.max(lowerBound, next[otherR][c]);
-          }
-        }
-
-        let upperBound = 1.0;
-        // Same row, higher RPEs
-        for (const otherC of cols) {
-          if (otherC > c) {
-            upperBound = Math.min(upperBound, row[otherC]);
-          }
-        }
-        // Same column, lower reps
-        for (const otherR of repsList) {
-          if (otherR < r && next[otherR][c] !== undefined) {
-            upperBound = Math.min(upperBound, next[otherR][c]);
-          }
-        }
+        // The invariant is "pct rises with RPE, falls with reps", so a cell is
+        // pushed UP by lower RPEs in its row and higher reps in its column, and
+        // pulled DOWN by higher RPEs and lower reps.
+        const lowerBound = Math.max(
+          0,
+          ...cols.filter((o) => o < c).map((o) => row[o]),
+          ...column(c, (otherR) => otherR > r),
+        );
+        const upperBound = Math.min(
+          1,
+          ...cols.filter((o) => o > c).map((o) => row[o]),
+          ...column(c, (otherR) => otherR < r),
+        );
 
         const clamped = Math.max(lowerBound, Math.min(upperBound, val));
         if (Math.abs(clamped - val) > 1e-9) {
@@ -369,15 +368,10 @@ export function correctRpeMatrix(
     matrix,
     nSet,
     smoothingRadius,
-    (r, _c, pOld, w) => {
-      let delta = learningRate * w * (pDemo - pOld);
-
+    (reps, pOld, w) => {
+      const delta = learningRate * w * (pDemo - pOld);
       // Safety constraint: only allow upward adjustments for reps <= actual reps completed.
-      if (delta > 0 && r > completedSet.actualReps) {
-        delta = 0;
-      }
-
-      return delta;
+      return delta > 0 && reps > completedSet.actualReps ? 0 : delta;
     },
   );
 

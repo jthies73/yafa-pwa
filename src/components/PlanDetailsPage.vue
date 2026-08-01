@@ -18,6 +18,8 @@ import {
   updatePlan,
   deletePlan,
   createRoutine,
+  getExercisesByIds,
+  getRoutinesByIds,
   setPlanMesocycle,
   setPlanWeekOverride,
   type PlanInput,
@@ -51,24 +53,12 @@ onMounted(() => {
     const p = await db.plans.get(props.id);
     if (!p) return null;
 
-    const rList = await Promise.all(
-      p.routineIds.map((rId) => db.routines.get(rId)),
+    const validRoutines = await getRoutinesByIds(p.routineIds);
+    const eMap: Record<string, Exercise> = Object.fromEntries(
+      await getExercisesByIds(
+        validRoutines.flatMap((r) => r.exercises.map((e) => e.exerciseId)),
+      ),
     );
-    const validRoutines = rList.filter((r): r is Routine => !!r);
-
-    const exerciseIds = new Set<string>();
-    for (const r of validRoutines) {
-      for (const e of r.exercises) {
-        exerciseIds.add(e.exerciseId);
-      }
-    }
-    const eList = await Promise.all(
-      Array.from(exerciseIds).map((eId) => db.exercises.get(eId)),
-    );
-    const eMap: Record<string, Exercise> = {};
-    for (const e of eList) {
-      if (e) eMap[e.id] = e;
-    }
 
     return { plan: p, routines: validRoutines, exercisesMap: eMap };
   }).subscribe({

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, watch } from "vue";
 import type { RpeMatrix } from "../db/types";
-import { db } from "../db/db";
+import { getExercise, setExerciseRpeMatrix } from "../db/repository";
 import { DEFAULT_RPE_MATRIX } from "../db/rpeMatrix";
 import { setMatrixCell } from "../engine/matrix";
 import ConfirmDialog from "./ConfirmDialog.vue";
@@ -29,7 +29,7 @@ watch(
     matrix.value = null;
     dirty.value = false;
     if (!isOpen || !props.exerciseId) return;
-    const exercise = await db.exercises.get(props.exerciseId);
+    const exercise = await getExercise(props.exerciseId);
     // Plain deep copy: edits must not mutate the live record, and Dexie's
     // structured clone rejects reactive proxies on save.
     matrix.value = JSON.parse(
@@ -54,12 +54,11 @@ const reset = () => {
 };
 
 // Called by the host sheet's save handler. Persists the per-exercise override
-// (same materialization as engine learning), independent of the routine config.
+// through the same writer the engine's post-session learning uses, independent
+// of the routine config.
 const persist = async () => {
   if (!props.exerciseId || !matrix.value || !dirty.value) return;
-  await db.exercises.update(props.exerciseId, {
-    rpeMatrix: JSON.parse(JSON.stringify(matrix.value)),
-  });
+  await setExerciseRpeMatrix(props.exerciseId, matrix.value);
   dirty.value = false;
 };
 

@@ -6,6 +6,8 @@ import {
   pickBodyweightAt,
 } from "../engine/bodyweight";
 import { impliedE1rm, isQualifyingSet } from "../engine/matrix";
+import { mostRecentMonday } from "../engine/mesocycle";
+import { WEEK_MS } from "../engine/constants";
 
 // ----------------------------------------------
 // Analytics data layer: fractional muscle coefficients, time bucketing and
@@ -80,9 +82,6 @@ export interface BucketPoint {
 
 // ---- Time bucketing ----
 
-const DAY_MS = 24 * 60 * 60 * 1000;
-const WEEK_MS = 7 * DAY_MS;
-
 const dayLabel = (ts: number): string =>
   new Date(ts).toLocaleDateString(undefined, {
     month: "short",
@@ -95,13 +94,12 @@ const monthLabel = (ts: number): string =>
     year: "numeric",
   });
 
-/** Start of the local calendar week (Monday 00:00) containing ts. */
-export function weekStart(ts: number): number {
-  const d = new Date(ts);
-  d.setHours(0, 0, 0, 0);
-  d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
-  return d.getTime();
-}
+/**
+ * Start of the local calendar week (Monday 00:00) containing ts. Shares the
+ * engine's boundary so chart buckets and mesocycle weeks can never disagree
+ * about where a week starts.
+ */
+export const weekStart = mostRecentMonday;
 
 /** Start of the local calendar month containing ts. */
 export function monthStart(ts: number): number {

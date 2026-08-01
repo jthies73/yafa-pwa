@@ -4,7 +4,7 @@ aliases: [Periodization, Mesocycle Planning, MesocycleSheet]
 tags: [yafa/planning, yafa/engine]
 area: planning
 order: 3
-updated: 2026-07-09
+updated: 2026-08-01
 ---
 
 # Mesocycles & Periodization
@@ -46,7 +46,7 @@ flowchart LR
     SKIP --> EFF
 ```
 
-- `weekFocus(mesocycle, weekIndex)` (`src/engine/mesocycle.ts`) wraps modulo the cycle length (negative-safe), so a 6-week mesocycle repeats indefinitely. The week index is absolute: `floor((now − plan.created_at) / WEEK_MS)` (`absoluteWeekIndex` (internal), `src/engine/service.ts`).
+- `weekFocus(mesocycle, weekIndex)` (`src/engine/mesocycle.ts`) wraps modulo the cycle length (negative-safe), so a 6-week mesocycle repeats indefinitely. The week index is absolute: `floor((now − plan.created_at) / WEEK_MS)` (`absoluteWeekIndex`, `src/engine/mesocycle.ts`).
 - `focusModifiers(focus)` (`src/engine/mesocycle.ts`) reads the delta tables into a `MesoModifiers {rpeDelta, repDelta}`.
 - `applyMesoToParams(model, params, mods, lockedFields)` (`src/engine/mesocycle.ts`) returns a **new** params object. Per model: linear/none shift `targetReps` + `targetRpe`; double shifts only `targetRpe`; topset shifts `topSetTargetReps` + `topSetTargetRpe` (`backOffRpe` stays put, but derived back-off reps still move because the top set's %-of-1RM moves). Every shifted field is gated by [[concepts#lockedFields|lockedFields]] — see [[progression-models#Lockable fields|progression-models]] for the per-model lockable sets.
 - The shifted `targetRpe` becomes the _effective_ target used both for the load and for the ceiling comparison downstream ([[prescription-pipeline#Target judges, Ceiling caps|prescription-pipeline]]).

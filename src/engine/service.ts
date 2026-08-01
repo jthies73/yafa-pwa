@@ -1,43 +1,46 @@
 import { db } from "../db/db";
 import type {
-  DoubleProgressionParams,
   Exercise,
-  LinearProgressionParams,
-  NoneProgressionParams,
   PeriodizationFocus,
   Plan,
-  ProgressionModelType,
-  ProgressionParams,
   ProgressionState,
   Routine,
   RoutineExerciseConfig,
-  RpeMatrix,
   Set as LoggedSet,
   Workout,
 } from "../db/types";
-import { normalizeProgressionParams } from "../config/progression";
 import { DEFAULT_RPE_MATRIX } from "../db/rpeMatrix";
-import { getProgressionState, putProgressionState } from "../db/repository";
+import {
+  getExercisesByIds,
+  getPlans,
+  getProgressionState,
+  getProgressionStates,
+  getRoutine,
+  getWorkoutsBetween,
+  putProgressionState,
+  setExerciseRpeMatrix,
+} from "../db/repository";
 import { bodyweightAt, currentBodyweight } from "../db/measurements";
 import { bodyweightOffsetKg, liftSets } from "./bodyweight";
-import { RESET_DROP, RPE_MATRIX_CORRECTION_MAX_DEVIATION } from "./constants";
+import { WEEK_MS } from "./constants";
 import {
-  applyMesoToParams,
-  focusModifiers,
-  weekFocus,
+  effectiveConfig,
+  modifiersAt,
+  weekBoundary,
+  weekProgressFrom,
+  type EffectiveConfig,
   type MesoModifiers,
 } from "./mesocycle";
 import { prescribeExercise, type ExercisePrescription } from "./prescription";
-import { computeFatigueAdjustment, type MuscleProfile } from "./fatigue";
-import { evaluate, isDoubleCursorAdvancementEligible } from "./evaluation";
-import { catchUpC1rm, consumeReset, corroboratedE1rm, step } from "./state";
 import {
-  correctRpeMatrix,
-  impliedE1rm,
-  isQualifyingSet,
-  peakImpliedE1rm,
-} from "./matrix";
-import { groupSessionsFor } from "./sessions";
+  computeFatigueAdjustment,
+  muscleProfileOf,
+  priorsBySlot,
+  type MuscleProfile,
+} from "./fatigue";
+import { demonstratedSets, foldSession, learnedRpeMatrix } from "./fold";
+import { consumeReset } from "./state";
+import { seedE1rm } from "./matrix";
 
 // ----------------------------------------------
 // Engine service — the ONLY impure (Dexie) layer. It orchestrates the pure
@@ -51,19 +54,14 @@ import { groupSessionsFor } from "./sessions";
 //                         (persisting the −10% c1RM drop exactly once).
 //   • applyWorkoutResults — post-session fold; advances/seeds c1RM. Idempotent.
 //
+// All three share `routineContext` so they can never disagree about the week's
+// modifiers or the fatigue priors — a preview that showed different loads than
+// the session then prescribes is the bug class this file exists to prevent.
+//
 // Reset timing: a pending reset is consumed at PRESCRIPTION (start), not at
 // evaluation and not when merely previewing — so peeking at a workout never
 // mutates state, and the drop lands exactly when the session begins.
 // ----------------------------------------------
-
-const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
-
-/** An active reset as it shapes the upcoming session (retained fraction ≤ 1). */
-export interface ResetEffect {
-  kind: "intensity" | "volume";
-  multiplier: number;
-  sessionsRemaining: number;
-}
 
 /** Everything that goes into one exercise's upcoming prescription. */
 export interface ExercisePreview {
@@ -71,18 +69,17 @@ export interface ExercisePreview {
   name: string;
   config?: RoutineExerciseConfig;
   c1rm: number | null;
-  originalC1rm?: number | null;
-  resetPending?: boolean;
+  // The anchor before a pending reset was applied. Present ⇔ this preview
+  // applied one, so it doubles as the "reset pending" flag.
+  preResetC1rm?: number;
   failureStreak: number;
-  currentTargetReps?: number;
-  resetEffects: ResetEffect[];
   prescription: ExercisePrescription | null;
-  // kg of bodyweight folded into the (total-space) c1rm; set when the exercise
+  // kg of bodyweight folded into the (total-space) c1rm; 0 unless the exercise
   // has a bodyweightFactor and a bodyweight is known. Display context only.
-  bodyweightOffsetKg?: number;
+  bodyweightOffsetKg: number;
   // The exercise has a bodyweightFactor but no bodyweight was ever logged, so
   // the engine runs without the bodyweight share — worth a UI hint.
-  bodyweightMissing?: boolean;
+  bodyweightMissing: boolean;
 }
 
 export interface MesocyclePosition {
@@ -90,7 +87,7 @@ export interface MesocyclePosition {
   weekCount: number;
   focus: PeriodizationFocus;
   workoutsThisWeek: number;
-  // Fraction (0..<1) through the current mesocycle week, honoring the plan's
+  // Fraction (0..1) through the current mesocycle week, honoring the plan's
   // week-boundary convention (Monday-aligned or rolling from a mid-week anchor).
   weekProgress: number;
 }
@@ -116,150 +113,55 @@ export interface CalibrationChange {
   resetArmed?: boolean; // 3rd consecutive regression — next prescription deloads −10%
 }
 
-// ---- shared helpers ----
+// ---- shared context ----
 
 /** The plan that owns a routine (active plan wins), for mesocycle context. */
 async function resolveOwningPlan(routineId: string): Promise<Plan | undefined> {
-  const plans = await db.plans.toArray();
+  const plans = await getPlans();
   return (
     plans.find((p) => p.active && p.routineIds.includes(routineId)) ??
     plans.find((p) => p.routineIds.includes(routineId))
   );
 }
 
-/** The most recent Monday 00:00 local time on or before the given timestamp. */
-export function mostRecentMonday(ts: number): number {
-  const date = new Date(ts);
-  const dayOfWeek = date.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
-  const daysBack = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // days to subtract to reach Monday
-  const monday = new Date(date);
-  monday.setDate(monday.getDate() - daysBack);
-  monday.setHours(0, 0, 0, 0); // 00:00:00.000
-  return monday.getTime();
+interface RoutineContext {
+  plan: Plan | undefined;
+  mods: MesoModifiers;
+  exercises: Map<string, Exercise>;
+  bodyweight: number | undefined;
+  /** Fatigue priors per routine SLOT, index-aligned with routine.exercises. */
+  slotPriors: MuscleProfile[][];
 }
 
 /**
- * The start-of-current-week timestamp for a repeating 7-day cycle anchored at
- * `anchor` (Monday-snapped if `alignToMonday`), evaluated at `at`. Pure/sync —
- * the shared math behind both the persisted week boundary and any live "what
- * if" preview of an not-yet-saved boundary convention.
+ * Everything the prescribing paths need about a routine at time `at`. The four
+ * reads are mutually independent, so they run concurrently.
+ *
+ * `bodyweight` is passed in as an unawaited promise rather than fetched here
+ * because WHICH bodyweight differs by caller: prescribing uses the current one,
+ * while re-rendering a finished session must use the one in effect AT the
+ * session, or the fold stops reproducing itself. `extraExerciseIds` covers
+ * exercises that were logged off-script (not in the routine).
  */
-function currentWeekStart(
-  anchor: number,
-  alignToMonday: boolean,
+async function routineContext(
+  routine: Routine | undefined,
   at: number,
-): { weekStartTs: number; elapsedWeeks: number } {
-  const anchorTs = alignToMonday ? mostRecentMonday(anchor) : anchor;
-  const elapsedWeeks = Math.max(0, Math.floor((at - anchorTs) / WEEK_MS));
-  return { weekStartTs: anchorTs + elapsedWeeks * WEEK_MS, elapsedWeeks };
-}
-
-/**
- * The boundary (timestamp + absolute week index) that mesocycle weeks are
- * measured from at time `at` — either the plan's creation time, or the
- * override's anchor (Monday-aligned or the exact rolling setAt) once active.
- */
-function weekBoundary(
-  plan: Plan,
-  at: number,
-): { absWeek: number; weekStartTs: number } {
-  const override = plan.mesocycleWeekOverride;
-  const active = Boolean(override && at >= override.setAt);
-  const anchor = active ? override!.setAt : plan.created_at;
-  const alignToMonday = active ? override!.alignToMonday : false;
-  const anchorIndex = active ? override!.weekIndex : 0;
-  const { weekStartTs, elapsedWeeks } = currentWeekStart(
-    anchor,
-    alignToMonday,
-    at,
-  );
-  return { absWeek: anchorIndex + elapsedWeeks, weekStartTs };
-}
-
-/** The 0-based week within the plan's repeating mesocycle at time `at`. */
-export function absoluteWeekIndex(plan: Plan | undefined, at: number): number {
-  if (!plan) return 0;
-  return weekBoundary(plan, at).absWeek;
-}
-
-/**
- * Fraction (0..<1) through the mesocycle week that contains `at`, for a
- * boundary anchored at `anchor` and (optionally) Monday-snapped. Pure/sync and
- * independent of any persisted `Plan` — lets a UI live-preview how toggling
- * the Monday/Rolling boundary convention would land *before* it's saved.
- */
-export function weekProgressAt(
-  anchor: number,
-  alignToMonday: boolean,
-  at: number,
-): number {
-  const { weekStartTs } = currentWeekStart(anchor, alignToMonday, at);
-  return Math.min(1, Math.max(0, (at - weekStartTs) / WEEK_MS));
-}
-
-/** The target shifts for the plan's current week (none when no mesocycle). */
-function mesoModifiers(plan: Plan | undefined, at: number): MesoModifiers {
-  const focus = weekFocus(plan?.mesocycle, absoluteWeekIndex(plan, at));
-  return focus ? focusModifiers(focus) : { rpeDelta: 0, repDelta: 0 };
-}
-
-/** The display-only mesocycle position for the preview, or null. */
-export async function mesocyclePosition(
-  plan: Plan | undefined,
-  at: number,
-): Promise<MesocyclePosition | null> {
-  if (!plan?.mesocycle?.length) return null;
-  const len = plan.mesocycle.length;
-  const { absWeek, weekStartTs } = weekBoundary(plan, at);
-  const focus = plan.mesocycle[absWeek % len].focus;
-  const inWeek = await db.workouts
-    .where("startTime")
-    .between(weekStartTs, weekStartTs + WEEK_MS)
-    .toArray();
+  bodyweight: Promise<number | undefined>,
+  extraExerciseIds: string[] = [],
+): Promise<RoutineContext> {
+  const slotIds = routine?.exercises.map((re) => re.exerciseId) ?? [];
+  const [plan, exercises, resolvedBodyweight] = await Promise.all([
+    routine ? resolveOwningPlan(routine.id) : undefined,
+    getExercisesByIds([...slotIds, ...extraExerciseIds]),
+    bodyweight,
+  ]);
   return {
-    weekIndex: absWeek % len,
-    weekCount: len,
-    focus,
-    workoutsThisWeek: inWeek.filter((w) =>
-      plan.routineIds.includes(w.routineId),
-    ).length,
-    weekProgress: Math.min(1, Math.max(0, (at - weekStartTs) / WEEK_MS)),
+    plan,
+    mods: modifiersAt(plan, at),
+    exercises,
+    bodyweight: resolvedBodyweight,
+    slotPriors: priorsBySlot(slotIds, (id) => exercises.get(id)),
   };
-}
-
-/** The raw RPE ceiling (not periodized); "none" caps at its own target. */
-function rpeCeilingOf(
-  model: ProgressionModelType,
-  params: ProgressionParams,
-): number {
-  return model === "none"
-    ? (params as NoneProgressionParams).targetRpe
-    : (params as LinearProgressionParams).rpeCeiling;
-}
-
-interface EffectiveConfig {
-  model: ProgressionModelType;
-  params: ProgressionParams; // normalized + mesocycle-shifted
-  ceiling: number;
-}
-
-/** Normalize a config and apply the week's modifiers (honoring locks). */
-function effectiveConfig(
-  config: RoutineExerciseConfig | undefined,
-  mods: MesoModifiers,
-): EffectiveConfig {
-  const model = config?.progressionModel ?? "none";
-  const normalized = normalizeProgressionParams(
-    model,
-    config?.progressionParams,
-  );
-  const params = applyMesoToParams(
-    model,
-    normalized,
-    mods,
-    config?.lockedFields ?? [],
-  );
-  return { model, params, ceiling: rpeCeilingOf(model, params) };
 }
 
 /** Render a prescription from an already-effective state (reset already applied). */
@@ -267,8 +169,8 @@ function prescribeFrom(
   exercise: Exercise,
   eff: EffectiveConfig,
   state: ProgressionState,
-  priors: MuscleProfile[] = [],
-  bodyweightKg?: number,
+  priors: MuscleProfile[],
+  bodyweightKg: number | undefined,
 ): ExercisePrescription {
   return prescribeExercise({
     exerciseId: exercise.id,
@@ -286,13 +188,6 @@ function prescribeFrom(
   });
 }
 
-// ---- session fatigue baseline (muscle-overlap based; see engine/fatigue.ts) ----
-
-export const muscleProfileOf = (exercise: Exercise): MuscleProfile => ({
-  primary: exercise.primaryMuscleGroups,
-  secondary: exercise.secondaryMuscleGroups ?? [],
-});
-
 /** The kg to shave off the anchor given the session's prior exercises so far. */
 function fatigueReductionFor(
   exercise: Exercise,
@@ -301,228 +196,37 @@ function fatigueReductionFor(
   priors: MuscleProfile[],
 ): number {
   if (state.c1rm == null || !priors.length) return 0;
-  const adj = computeFatigueAdjustment({
-    reduction: eff.params.fatigueReduction,
-    unit: eff.params.fatigueReductionUnit,
-    c1rm: state.c1rm,
-    current: muscleProfileOf(exercise),
-    priors,
-  });
-  return adj?.reductionKg ?? 0;
-}
-
-/**
- * Per-slot fatigue priors for a routine, in routine order — the same
- * accumulation prescribeWorkout and applyWorkoutResults each need
- * (previewWorkout mirrors this inline, since it fetches exercises one at a
- * time rather than from a prefetched map). Positional (one entry per slot,
- * not keyed by exerciseId) so duplicate slots of one exercise still get their
- * own distinct priors; a caller that instead wants the LAST slot's priors per
- * exerciseId can fold this array down itself. A repeated exercise counts as
- * its OWN prior too — coming back to the same lift after fatiguing it earlier
- * counts the same as any other overlapping exercise would.
- */
-export function priorsBySlot(
-  exerciseIds: string[],
-  exerciseOf: (id: string) => Exercise | undefined,
-): MuscleProfile[][] {
-  const seen = new Map<string, MuscleProfile>();
-  return exerciseIds.map((id) => {
-    const priors = [...seen.values()];
-    const exercise = exerciseOf(id);
-    if (exercise) seen.set(id, muscleProfileOf(exercise));
-    return priors;
-  });
-}
-
-/**
- * The scale the session's loads were rendered under (logged weights are divided
- * by it to "un-fatigue" them). 1 when no reduction applied — or when the
- * reduction consumed the whole anchor (scale 0), where un-fatiguing would
- * divide by zero and the logged weights carry no usable signal anyway.
- */
-function fatigueScaleOf(prescription?: ExercisePrescription): number {
-  if (!prescription?.c1rm) return 1;
-  const scale =
-    (prescription.c1rm - (prescription.fatigueReduction ?? 0)) /
-    prescription.c1rm;
-  return scale > 0 ? scale : 1;
-}
-
-/** Merge duplicate exercise slots from a workout into one sorted set list per exercise. */
-function groupSetsByExercise(workout: Workout): Map<string, LoggedSet[]> {
-  const map = new Map<string, LoggedSet[]>();
-  for (const we of workout.exercises) {
-    if (!we.sets.length) continue;
-    map.set(we.exerciseId, [...(map.get(we.exerciseId) ?? []), ...we.sets]);
-  }
-  return map;
-}
-
-/** Index a routine's exercise configs by exercise id (first entry wins). */
-function buildConfigMap(
-  routine: Routine | undefined,
-): Map<string, RoutineExerciseConfig | undefined> {
-  const map = new Map<string, RoutineExerciseConfig | undefined>();
-  for (const re of routine?.exercises ?? []) {
-    if (!map.has(re.exerciseId)) map.set(re.exerciseId, re.config);
-  }
-  return map;
-}
-
-// ---- post-session folding (pure) ----
-
-/**
- * Cold-start anchor: the best qualifying set, falling back to the best USABLE
- * set (any real RPE) so a first session that never reached RPE 8 still anchors
- * a c1RM from its limited data.
- */
-function seedC1rm(matrix: RpeMatrix, sets: LoggedSet[]): number | null {
   return (
-    (peakImpliedE1rm(matrix, sets) ?? peakImpliedE1rm(matrix, sets, true))
-      ?.e1rm ?? null
+    computeFatigueAdjustment({
+      reduction: eff.params.fatigueReduction,
+      unit: eff.params.fatigueReductionUnit,
+      c1rm: state.c1rm,
+      current: muscleProfileOf(exercise),
+      priors,
+    })?.reductionKg ?? 0
   );
 }
 
-interface SessionFold {
-  persisted: ProgressionState;
-  reason: CalibrationChange["reason"];
-}
+// ---- mesocycle position (display only) ----
 
-/**
- * One c1RM move per session. Catch-up is evaluated on EVERY outcome (incl.
- * regression — a grind over the ceiling still yields qualifying observations).
- * When it fires (this session's demonstrated capacity strongly diverged from the
- * anchor) it takes FULL PRECEDENCE over the deterministic rules: the c1RM jumps
- * toward the estimate, the regression streak clears, and no reset is armed this
- * session. The 3-strike −10% reset is the fallback only for sustained SMALL
- * regressions that stay within the catch-up threshold. When catch-up does not
- * fire, `step` stands unchanged (streak/reset/cursor). The estimate is
- * session-local: it requires ≥2 qualifying sets in THIS session (corroboratedE1rm),
- * so a lone set never moves the anchor.
- */
-function foldQualifiedSession(
-  state: ProgressionState,
-  eff: EffectiveConfig,
-  matrix: RpeMatrix,
-  exerciseId: string,
-  prescription: ExercisePrescription,
-  sets: LoggedSet[],
-  workout: Workout,
-  finishedAt: number,
-  offsetKg: number,
-): SessionFold {
-  // Evaluation compares logged vs prescribed weights, BOTH in added space — the
-  // bodyweight offset cancels, so it must never see lifted sets.
-  const outcome = evaluate(eff.model, eff.params, prescription, sets);
-  const advanceDoubleCursor =
-    eff.model === "double"
-      ? isDoubleCursorAdvancementEligible(
-          eff.params as DoubleProgressionParams,
-          prescription,
-          sets,
-        )
-      : undefined;
-  const next = step(
-    state,
-    outcome,
-    eff.model,
-    eff.params,
-    workout.id,
-    finishedAt,
-    { advanceDoubleCursor },
-  );
-
-  // c1rm is non-null here: this only runs past the cold-start seed branch.
-  const anchor = state.c1rm!;
-
-  // Un-fatigue logged weights before catch-up: if the session applied a fatigue
-  // reduction, the logged weight is lower than it would have been at the full
-  // anchor, so the implied e1RM would be artificially low and might false-trigger
-  // catch-up. Normalize back to "what would the unreduced anchor imply?" so we
-  // compare like with like (unreduced anchor vs unreduced implied e1RM).
-  // Lift into total space FIRST — fatigue scaled the total load, so
-  // total = (added + offset) / scale; the transforms don't commute.
-  const fatigueScale = fatigueScaleOf(prescription);
-  const sessionE1rms = liftSets(
-    groupSessionsFor([workout], exerciseId).flatMap((s) => s.sets),
-    offsetKg,
-  )
-    .filter(isQualifyingSet)
-    .map((s) => {
-      const unreducedWeight = s.actualWeight / fatigueScale;
-      return impliedE1rm(matrix, unreducedWeight, s.actualReps, s.actualRpe!);
-    });
-
-  const estimate = corroboratedE1rm(sessionE1rms, anchor);
-  const caught = catchUpC1rm(anchor, estimate);
-  const fired = caught !== anchor;
-  const persisted = fired
-    ? { ...next, c1rm: caught, regressionStreak: 0, resetPending: false }
-    : next;
-
+/** The display-only mesocycle position for the preview, or null. */
+export async function mesocyclePosition(
+  plan: Plan | undefined,
+  at: number,
+): Promise<MesocyclePosition | null> {
+  if (!plan?.mesocycle?.length) return null;
+  const len = plan.mesocycle.length;
+  const { absWeek, weekStartTs } = weekBoundary(plan, at);
+  const inWeek = await getWorkoutsBetween(weekStartTs, weekStartTs + WEEK_MS);
   return {
-    persisted,
-    reason: fired
-      ? "recalibrate"
-      : outcome === "success"
-        ? "increment"
-        : outcome,
+    weekIndex: absWeek % len,
+    weekCount: len,
+    focus: plan.mesocycle[absWeek % len].focus,
+    workoutsThisWeek: inWeek.filter((w) =>
+      plan.routineIds.includes(w.routineId),
+    ).length,
+    weekProgress: weekProgressFrom(weekStartTs, at),
   };
-}
-
-/**
- * Refine the exercise's RPE curve from this session's qualifying sets, or null
- * if nothing should change. The representative set is picked exactly like the
- * catch-up's corroboratedE1rm: a lone qualifying set (top-set programs) moves
- * the curve directly; with ≥2 sets the single furthest-from-anchor (a
- * mistype/fluke) is dropped and the 2nd-furthest is used. The ≤10% gate keeps
- * corrections to honest sets that already agree with the anchor, so this only
- * refines curve shape (the >10% divergence case is catch-up's job).
- *
- * If fatigue reduction was applied, un-fatigue logged weights before computing
- * their e1RMs so the correction works with the unreduced anchor.
- */
-function learnedRpeMatrix(
-  matrix: RpeMatrix,
-  sets: LoggedSet[],
-  anchor: number,
-  prescription?: ExercisePrescription,
-  offsetKg = 0,
-): RpeMatrix | null {
-  // Lift into total space first — the anchor is total, and un-fatiguing (below)
-  // must divide the total load (see foldQualifiedSession).
-  const qualifying = liftSets(sets, offsetKg).filter(isQualifyingSet);
-  if (qualifying.length === 0) return null;
-
-  const fatigueScale = fatigueScaleOf(prescription);
-
-  const ranked = qualifying
-    .map((s) => ({
-      set: s,
-      e1rm: impliedE1rm(
-        matrix,
-        s.actualWeight / fatigueScale,
-        s.actualReps,
-        s.actualRpe!,
-      ),
-    }))
-    .sort((a, b) => Math.abs(b.e1rm - anchor) - Math.abs(a.e1rm - anchor));
-  const rep = ranked[Math.min(1, ranked.length - 1)];
-  const deviation = Math.abs(rep.e1rm - anchor) / anchor;
-  if (deviation > RPE_MATRIX_CORRECTION_MAX_DEVIATION) return null;
-
-  // Un-fatigue the representative set's weight for the correction.
-  const unreducedRepWeight = rep.set.actualWeight / fatigueScale;
-  return correctRpeMatrix(
-    matrix,
-    {
-      actualWeight: unreducedRepWeight,
-      actualReps: rep.set.actualReps,
-      actualRpe: rep.set.actualRpe!,
-    },
-    anchor,
-  );
 }
 
 // ---- entrypoints ----
@@ -536,60 +240,50 @@ export async function previewWorkout(
   routineId: string,
   at: number = Date.now(),
 ): Promise<WorkoutPreview | null> {
-  const routine = await db.routines.get(routineId);
+  const routine = await getRoutine(routineId);
   if (!routine) return null;
-  const plan = await resolveOwningPlan(routineId);
-  const mods = mesoModifiers(plan, at);
-  const position = await mesocyclePosition(plan, at);
-  const bodyweight = await currentBodyweight();
+
+  const ctx = await routineContext(routine, at, currentBodyweight());
+  const [position, states] = await Promise.all([
+    mesocyclePosition(ctx.plan, at),
+    getProgressionStates(routine.exercises.map((re) => re.exerciseId)),
+  ]);
 
   const exercises: ExercisePreview[] = [];
-  const priors = new Map<string, MuscleProfile>();
-  for (const re of routine.exercises) {
-    const exercise = await db.exercises.get(re.exerciseId);
+  for (const [i, re] of routine.exercises.entries()) {
+    const exercise = ctx.exercises.get(re.exerciseId);
     if (!exercise) continue;
 
-    let state = await getProgressionState(re.exerciseId);
-    const originalC1rm = state.c1rm;
-    const resetPending = state.resetPending;
-    const failureStreak = state.regressionStreak;
-    if (resetPending) state = consumeReset(state, at); // in memory only — preview never writes
+    // Non-null: getProgressionStates populates every id it was asked for.
+    const stored = states.get(re.exerciseId)!;
+    // In memory only — previewing never writes.
+    const state = consumeReset(stored, at);
 
-    const eff = effectiveConfig(re.config, mods);
-    const prescription = prescribeFrom(
-      exercise,
-      eff,
-      state,
-      [...priors.values()],
-      bodyweight,
-    );
-    priors.set(re.exerciseId, muscleProfileOf(exercise));
-    const offsetKg = bodyweightOffsetKg(exercise.bodyweightFactor, bodyweight);
     exercises.push({
       exerciseId: re.exerciseId,
       name: exercise.name,
       config: re.config,
       c1rm: state.c1rm,
-      originalC1rm: resetPending ? originalC1rm : undefined,
-      resetPending,
-      failureStreak,
-      currentTargetReps: state.doubleRepCursor,
-      resetEffects: resetPending
-        ? [
-            {
-              kind: "intensity",
-              multiplier: 1 - RESET_DROP,
-              sessionsRemaining: 1,
-            },
-          ]
-        : [],
-      prescription,
-      ...(offsetKg > 0 ? { bodyweightOffsetKg: offsetKg } : {}),
-      ...((exercise.bodyweightFactor ?? 0) > 0 && bodyweight == null
-        ? { bodyweightMissing: true }
+      ...(stored.resetPending && stored.c1rm != null
+        ? { preResetC1rm: stored.c1rm }
         : {}),
+      failureStreak: stored.regressionStreak,
+      prescription: prescribeFrom(
+        exercise,
+        effectiveConfig(re.config, ctx.mods),
+        state,
+        ctx.slotPriors[i],
+        ctx.bodyweight,
+      ),
+      bodyweightOffsetKg: bodyweightOffsetKg(
+        exercise.bodyweightFactor,
+        ctx.bodyweight,
+      ),
+      bodyweightMissing:
+        (exercise.bodyweightFactor ?? 0) > 0 && ctx.bodyweight == null,
     });
   }
+
   return {
     routineId,
     routineName: routine.name,
@@ -612,23 +306,16 @@ export async function prescribeWorkout(
   routineId: string,
   at: number = Date.now(),
 ): Promise<(ExercisePrescription | null)[]> {
-  const routine = await db.routines.get(routineId);
+  const routine = await getRoutine(routineId);
   if (!routine) return [];
-  const plan = await resolveOwningPlan(routineId);
-  const mods = mesoModifiers(plan, at);
 
-  // Pre-fetch exercises + bodyweight so the transaction only spans progressionStates.
-  const exMap = await loadExercises(routine);
-  const bodyweight = await currentBodyweight();
+  // Everything is prefetched so the transaction only spans progressionStates.
+  const ctx = await routineContext(routine, at, currentBodyweight());
 
   const prescriptions: (ExercisePrescription | null)[] = [];
-  const slotPriors = priorsBySlot(
-    routine.exercises.map((re) => re.exerciseId),
-    (id) => exMap.get(id),
-  );
   await db.transaction("rw", db.progressionStates, async () => {
     for (const [i, re] of routine.exercises.entries()) {
-      const exercise = exMap.get(re.exerciseId);
+      const exercise = ctx.exercises.get(re.exerciseId);
       if (!exercise) {
         prescriptions.push(null);
         continue;
@@ -640,17 +327,138 @@ export async function prescribeWorkout(
         state = consumeReset(state, at);
         await putProgressionState(state);
       }
-      const prescription = prescribeFrom(
-        exercise,
-        effectiveConfig(re.config, mods),
-        state,
-        slotPriors[i],
-        bodyweight,
+      prescriptions.push(
+        prescribeFrom(
+          exercise,
+          effectiveConfig(re.config, ctx.mods),
+          state,
+          ctx.slotPriors[i],
+          ctx.bodyweight,
+        ),
       );
-      prescriptions.push(prescription);
     }
   });
   return prescriptions;
+}
+
+/** Merge duplicate exercise slots into one timestamp-sorted set list per exercise. */
+function groupSetsByExercise(workout: Workout): Map<string, LoggedSet[]> {
+  const map = new Map<string, LoggedSet[]>();
+  for (const we of workout.exercises) {
+    // An exercise that logged nothing must not reach the fold at all — it would
+    // be stamped as processed and its cold start silently consumed.
+    if (!we.sets.length) continue;
+    map.set(we.exerciseId, [...(map.get(we.exerciseId) ?? []), ...we.sets]);
+  }
+  for (const sets of map.values())
+    sets.sort((a, b) => a.timestamp - b.timestamp);
+  return map;
+}
+
+/** Index a routine's exercise configs by exercise id (first slot wins). */
+function buildConfigMap(
+  routine: Routine | undefined,
+): Map<string, RoutineExerciseConfig | undefined> {
+  const map = new Map<string, RoutineExerciseConfig | undefined>();
+  for (const re of routine?.exercises ?? []) {
+    if (!map.has(re.exerciseId)) map.set(re.exerciseId, re.config);
+  }
+  return map;
+}
+
+/** The context one exercise's fold reads, shared across the session's loop. */
+interface FoldContext {
+  workout: Workout;
+  finishedAt: number;
+  mods: MesoModifiers;
+  bodyweight: number | undefined;
+  exercises: Map<string, Exercise>;
+  configs: Map<string, RoutineExerciseConfig | undefined>;
+  priors: Map<string, MuscleProfile[]>;
+}
+
+/**
+ * Fold one exercise's logged sets into its progression state, returning the
+ * change to report (or null when there is nothing to report). Every exit
+ * persists exactly once, including the guard-only paths — the lastWorkoutId
+ * stamp is what makes re-running this session a no-op.
+ */
+async function foldExercise(
+  exerciseId: string,
+  sets: LoggedSet[],
+  ctx: FoldContext,
+): Promise<CalibrationChange | null> {
+  const exercise = ctx.exercises.get(exerciseId);
+  if (!exercise) return null;
+
+  const state = await getProgressionState(exerciseId);
+  if (state.lastWorkoutId === ctx.workout.id) return null; // idempotency
+
+  const matrix = exercise.rpeMatrix ?? DEFAULT_RPE_MATRIX;
+  const offsetKg = bodyweightOffsetKg(
+    exercise.bodyweightFactor,
+    ctx.bodyweight,
+  );
+
+  // Cold start: seed the anchor and stop — no progression on the first session.
+  // Lifted sets so the seed lands in total space.
+  if (state.c1rm == null) {
+    const seeded = seedE1rm(matrix, liftSets(sets, offsetKg));
+    await putProgressionState({
+      ...state,
+      c1rm: seeded,
+      lastWorkoutId: ctx.workout.id,
+    });
+    return {
+      exerciseId,
+      exerciseName: exercise.name,
+      reason: "seed",
+      before: null,
+      after: seeded,
+    };
+  }
+
+  const config = ctx.configs.get(exerciseId);
+  if (!config) {
+    // Logged off-script (not in the routine) — can't evaluate; just guard.
+    await putProgressionState({ ...state, lastWorkoutId: ctx.workout.id });
+    return null;
+  }
+
+  const eff = effectiveConfig(config, ctx.mods);
+  const prescription = prescribeFrom(
+    exercise,
+    eff,
+    state,
+    ctx.priors.get(exerciseId) ?? [],
+    ctx.bodyweight,
+  );
+  const demonstrated = demonstratedSets(matrix, sets, offsetKg, prescription);
+  const { persisted, reason } = foldSession({
+    state,
+    eff,
+    prescription,
+    sets,
+    demonstrated,
+    workoutId: ctx.workout.id,
+    finishedAt: ctx.finishedAt,
+  });
+  await putProgressionState(persisted);
+
+  // Learn the exercise's RPE curve LAST, so it never feeds this session's own
+  // prescription, evaluation, or catch-up (those all read the prior matrix).
+  // The anchor is the stable rules-driven c1RM, not the post-catch-up value.
+  const corrected = learnedRpeMatrix(matrix, demonstrated, state.c1rm);
+  if (corrected) await setExerciseRpeMatrix(exerciseId, corrected);
+
+  return {
+    exerciseId,
+    exerciseName: exercise.name,
+    reason,
+    before: state.c1rm,
+    after: persisted.c1rm,
+    resetArmed: persisted.resetPending,
+  };
 }
 
 /**
@@ -661,143 +469,42 @@ export async function prescribeWorkout(
 export async function applyWorkoutResults(
   workout: Workout,
 ): Promise<CalibrationChange[]> {
-  const routine = await db.routines.get(workout.routineId);
-  const plan = await resolveOwningPlan(workout.routineId);
-  // Re-render with the modifiers AS AT the session, so N/targets match what was
-  // prescribed that day (not "what week is it now").
-  const mods = mesoModifiers(plan, workout.startTime);
-  // Session-time bodyweight (not current) so re-running this fold reproduces it.
-  const sessionBodyweight = await bodyweightAt(workout.startTime);
-
   const byExercise = groupSetsByExercise(workout);
-  // Unlogged routine exercises still matter here: they were assumed as fatigue
-  // priors when the session was prescribed, so they shape the re-render below.
-  const exMap = await loadExercisesById([
-    ...new Set([
-      ...(routine?.exercises.map((e) => e.exerciseId) ?? []),
-      ...byExercise.keys(),
-    ]),
-  ]);
-  const configByExercise = buildConfigMap(routine);
+  const routine = await getRoutine(workout.routineId);
 
-  // Rebuild the session's baseline fatigue context exactly as prescribeWorkout
-  // did (routine order, muscle profiles), so the re-rendered "original
-  // prescription" carries the same reduction the tracker displayed. Duplicate
-  // exercises fold to their LAST routine slot's priors — later slots overwrite
-  // earlier ones as the map is built.
-  const routineExerciseIds = routine?.exercises.map((e) => e.exerciseId) ?? [];
-  const slotPriors = priorsBySlot(routineExerciseIds, (id) => exMap.get(id));
-  const baselinePriors = new Map<string, MuscleProfile[]>(
-    routineExerciseIds.map((id, i) => [id, slotPriors[i]] as const),
+  // Re-render with the modifiers AS AT the session, so N/targets match what was
+  // prescribed that day (not "what week is it now"), on the bodyweight in effect
+  // then. Unlogged routine exercises still matter: they were assumed as fatigue
+  // priors when the session was prescribed, so they shape that re-render.
+  const ctx = await routineContext(
+    routine,
+    workout.startTime,
+    bodyweightAt(workout.startTime),
+    [...byExercise.keys()],
   );
 
+  const foldCtx: FoldContext = {
+    workout,
+    finishedAt: workout.endTime ?? workout.startTime,
+    mods: ctx.mods,
+    bodyweight: ctx.bodyweight,
+    exercises: ctx.exercises,
+    configs: buildConfigMap(routine),
+    // Duplicate exercises fold to their LAST routine slot's priors — later slots
+    // overwrite earlier ones as the map is built.
+    priors: new Map(
+      (routine?.exercises ?? []).map(
+        (re, i) => [re.exerciseId, ctx.slotPriors[i]] as const,
+      ),
+    ),
+  };
+
   const changes: CalibrationChange[] = [];
-  const finishedAt = workout.endTime ?? workout.startTime;
-
   await db.transaction("rw", [db.progressionStates, db.exercises], async () => {
-    for (const [exerciseId, rawSets] of byExercise) {
-      const exercise = exMap.get(exerciseId);
-      if (!exercise) continue;
-
-      const state = await getProgressionState(exerciseId);
-      if (state.lastWorkoutId === workout.id) continue; // idempotency
-
-      const sets = [...rawSets].sort((a, b) => a.timestamp - b.timestamp);
-      const matrix = exercise.rpeMatrix ?? DEFAULT_RPE_MATRIX;
-      const offsetKg = bodyweightOffsetKg(
-        exercise.bodyweightFactor,
-        sessionBodyweight,
-      );
-
-      // Cold start: seed the anchor and stop — no progression on the first
-      // session. Lifted sets so the seed lands in total space.
-      if (state.c1rm == null) {
-        const seeded = seedC1rm(matrix, liftSets(sets, offsetKg));
-        await putProgressionState({
-          ...state,
-          c1rm: seeded,
-          lastWorkoutId: workout.id,
-        });
-        changes.push({
-          exerciseId,
-          exerciseName: exercise.name,
-          reason: "seed",
-          before: null,
-          after: seeded,
-        });
-        continue;
-      }
-
-      const config = configByExercise.get(exerciseId);
-      if (!config) {
-        // Logged off-script (not in the routine) — can't evaluate; just guard.
-        await putProgressionState({ ...state, lastWorkoutId: workout.id });
-        continue;
-      }
-
-      const eff = effectiveConfig(config, mods);
-      const prescription = prescribeFrom(
-        exercise,
-        eff,
-        state,
-        baselinePriors.get(exerciseId) ?? [],
-        sessionBodyweight,
-      );
-      const { persisted, reason } = foldQualifiedSession(
-        state,
-        eff,
-        matrix,
-        exerciseId,
-        prescription,
-        sets,
-        workout,
-        finishedAt,
-        offsetKg,
-      );
-
-      changes.push({
-        exerciseId,
-        exerciseName: exercise.name,
-        reason,
-        before: state.c1rm,
-        after: persisted.c1rm,
-        resetArmed: persisted.resetPending,
-      });
-      await putProgressionState(persisted);
-
-      // Learn the exercise's RPE curve LAST, so it never feeds this session's own
-      // prescription, evaluation, or catch-up (those all read the prior matrix).
-      // The anchor is the stable rules-driven c1RM (state.c1rm), not the
-      // post-catch-up value. Pass the prescription so fatigue adjustments can
-      // un-fatigue logged weights before curve correction.
-      const corrected = learnedRpeMatrix(
-        matrix,
-        sets,
-        state.c1rm,
-        prescription,
-        offsetKg,
-      );
-      if (corrected) {
-        await db.exercises.update(exerciseId, { rpeMatrix: corrected });
-      }
+    for (const [exerciseId, sets] of byExercise) {
+      const change = await foldExercise(exerciseId, sets, foldCtx);
+      if (change) changes.push(change);
     }
   });
   return changes;
-}
-
-// ---- exercise loading (outside any transaction) ----
-
-async function loadExercises(routine: Routine): Promise<Map<string, Exercise>> {
-  return loadExercisesById([
-    ...new Set(routine.exercises.map((e) => e.exerciseId)),
-  ]);
-}
-
-async function loadExercisesById(
-  ids: string[],
-): Promise<Map<string, Exercise>> {
-  const list = await Promise.all(ids.map((id) => db.exercises.get(id)));
-  const map = new Map<string, Exercise>();
-  for (const e of list) if (e) map.set(e.id, e);
-  return map;
 }

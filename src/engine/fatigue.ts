@@ -1,4 +1,4 @@
-import type { WeightIncrementUnit } from "../db/types";
+import type { Exercise, WeightIncrementUnit } from "../db/types";
 
 // ----------------------------------------------
 // Fatigue. Computes the transient c1RM reduction for an exercise whose muscles
@@ -40,6 +40,33 @@ export interface FatigueAdjustment {
   reductionKg: number; // effective reduction in c1RM-space, ≤ c1rm
   scale: number; // (c1rm − reductionKg) / c1rm, clamped to [0, 1]
   tierFactor: number; // winning prior's overlap tier
+}
+
+export const muscleProfileOf = (exercise: Exercise): MuscleProfile => ({
+  primary: exercise.primaryMuscleGroups,
+  secondary: exercise.secondaryMuscleGroups ?? [],
+});
+
+/**
+ * Per-slot priors for a routine, in routine order — one entry per SLOT, not per
+ * exerciseId, so duplicate slots of one exercise each get their own priors. A
+ * repeated exercise counts as its OWN prior: coming back to a lift after
+ * fatiguing it earlier counts the same as any other overlapping exercise would.
+ *
+ * Every prescribing path (preview, workout start, post-session re-render) reads
+ * priors from here, so the loads shown at preview and at start can never drift.
+ */
+export function priorsBySlot(
+  exerciseIds: string[],
+  exerciseOf: (id: string) => Exercise | undefined,
+): MuscleProfile[][] {
+  const seen = new Map<string, MuscleProfile>();
+  return exerciseIds.map((id) => {
+    const priors = [...seen.values()];
+    const exercise = exerciseOf(id);
+    if (exercise) seen.set(id, muscleProfileOf(exercise));
+    return priors;
+  });
 }
 
 const overlaps = (a: string[], b: string[]): boolean =>

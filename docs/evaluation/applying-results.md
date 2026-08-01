@@ -12,7 +12,7 @@ aliases:
 tags: [yafa/evaluation, yafa/engine]
 area: evaluation
 order: 1
-updated: 2026-07-09
+updated: 2026-08-01
 ---
 
 # Applying Workout Results
@@ -29,12 +29,12 @@ flowchart TD
     GROUP --> GUARD{"state.lastWorkoutId == workout.id?"}
     GUARD -->|yes| SKIP["skip — idempotent"]
     GUARD -->|no| COLD{"c1rm == null?"}
-    COLD -->|yes| SEED["seedC1rm from best qualifying set<br/>reason: seed — no progression first session"]
+    COLD -->|yes| SEED["seedE1rm from best qualifying set<br/>reason: seed — no progression first session"]
     COLD -->|no| RERENDER["re-render the ORIGINAL prescription<br/>(same params, meso week, fatigue)"]
     RERENDER --> EVAL["evaluate → success | hold | regression"]
     EVAL --> STEP["step: increment / cursor / streak / arm reset"]
     STEP --> UNFAT["lift to total load (session bodyweight),<br/>then un-fatigue logged weights"]
-    UNFAT --> CORR["corroboratedE1rm<br/>(drop furthest-from-anchor outlier)"]
+    UNFAT --> CORR["demonstratedSets → corroboratedE1rm<br/>(drop furthest-from-anchor outlier)"]
     CORR --> CATCH{"catchUpC1rm fired?<br/>(divergence > ±10%)"}
     CATCH -->|yes| RECAL["c1rm = caught value<br/>streak 0, reset disarmed<br/>reason: recalibrate — FULL PRECEDENCE"]
     CATCH -->|no| KEEP["step result stands<br/>reason: increment / hold / regression"]
@@ -99,10 +99,10 @@ A regression never changes load on the spot — one bad day can't derail progres
 
 Mechanics home for [[concepts#Catch-up|catch-up]] and [[concepts#Demonstrated e1RM|demonstrated e1RM]]. Because c1RM normally nudges one increment per success, it can fall far behind (or ahead of) true capacity — after a layoff, a peak, or a mis-seeded anchor. Correction happens in two pure steps:
 
-1. **Corroborate** — `corroboratedE1rm(sessionE1rms, anchor)` (`src/engine/state.ts`): from this session's qualifying implied e1RMs, drop the single furthest-from-anchor value as a possible fluke and use the next-furthest; a lone qualifying set (top-set programs) is used directly.
+1. **Corroborate** — `corroboratedE1rm(sessionE1rms, anchor)` (`src/engine/state.ts`): from this session's qualifying implied e1RMs, drop the single furthest-from-anchor value as a possible fluke and use the next-furthest; a lone qualifying set (top-set programs) is used directly. The pick itself is `representativeByDistance` (`state.ts`), shared with the matrix correction so the two can never weigh a different set.
 2. **Close the gap** — `catchUpC1rm(c1rm, estimate)` (`state.ts`): inside ±`CATCHUP_THRESHOLD` (10%) the anchor is returned unchanged (the caller's signal that nothing fired); outside it, c1RM jumps `CATCHUP_CLOSE_FRACTION` (70%) of the gap in one move — fast convergence, not a per-session nibble, in either direction.
 
-When it fires, `foldQualifiedSession` (internal, `src/engine/service.ts`) gives it **full precedence**: the caught value replaces whatever `step` computed, the streak clears, the pending reset disarms, and the calibration reason becomes `recalibrate`.
+When it fires, `foldSession` (`src/engine/fold.ts`) gives it **full precedence**: the caught value replaces whatever `step` computed, the streak clears, the pending reset disarms, and the calibration reason becomes `recalibrate`.
 
 How the three correction mechanisms divide the space:
 
@@ -116,29 +116,29 @@ How the three correction mechanisms divide the space:
 
 1. **Summary before fold** — `finishWorkout` builds the summary before persisting/folding so PR history excludes the session and adherence sees pre-learning matrices ([[workout-tracking#Finish ordering|workout-tracking]]).
 2. **One c1RM move per session** — seed, increment, or recalibrate; never a combination. Idempotency guard: `lastWorkoutId`.
-3. **Matrix correction last** — `learnedRpeMatrix` (internal, `src/engine/service.ts`) runs after prescription, evaluation, and catch-up, so learning only shapes _future_ sessions. It gates on deviation ≤ `RPE_MATRIX_CORRECTION_MAX_DEVIATION` (5%) and anchors on the stable pre-catch-up c1RM; the math lives in [[rpe-matrix#Adaptive correction|rpe-matrix]].
+3. **Matrix correction last** — `learnedRpeMatrix` (`src/engine/fold.ts`) runs after prescription, evaluation, and catch-up, so learning only shapes _future_ sessions. It gates on deviation ≤ `RPE_MATRIX_CORRECTION_MAX_DEVIATION` (5%) and anchors on the stable pre-catch-up c1RM; the math lives in [[rpe-matrix#Adaptive correction|rpe-matrix]].
 4. **c1RM stays unrounded** — only rendered weights snap ([[concepts#Loadable increment|loadable increment]]).
 5. **Adherence never feeds progression** — the analytics firewall ([[analytics]]).
 6. **Slot-aligned grouping** — duplicate slots fold with the correct fatigue baselines ([[concepts#Slot alignment|slot alignment]]).
 
 ## History seeding and cold start
 
-The first session for an exercise seeds rather than progresses: `seedC1rm` (internal, `src/engine/service.ts`) takes the best [[concepts#Qualifying set|qualifying]] set (fallback: best usable set), and the fold stops there — reason `seed`, no evaluation. Separately, `seedC1rmFromHistory` (`src/engine/sessions.ts`) can derive an anchor from full workout history (peak honest e1RM across all sessions) — relevant after an import without progression states ([[backup-restore#What restore does NOT do|backup-restore]]). `groupSessionsFor` (`sessions.ts`) is the shared history-flattening helper the fold uses to gather a session's sets.
+The first session for an exercise seeds rather than progresses: `seedE1rm` (`src/engine/matrix.ts`) takes the best [[concepts#Qualifying set|qualifying]] set (fallback: best usable set), and the fold stops there — reason `seed`, no evaluation. That one helper is the whole seeding policy: the cold-start fold, the live mid-session anchor (`liveEffectiveE1rm`, `state.ts`), and `seedC1rmFromHistory` (`src/engine/sessions.ts`) all seed through it, so relaxing the fallback can never move one without the others. `seedC1rmFromHistory` derives an anchor from full workout history (peak honest e1RM across all sessions) — relevant after an import without progression states ([[backup-restore#What restore does NOT do|backup-restore]]).
 
 ## Key functions
 
-| Function                                      | File                                               | Note                                           |
-| --------------------------------------------- | -------------------------------------------------- | ---------------------------------------------- |
-| `applyWorkoutResults`                         | `src/engine/service.ts`                            | The fold entrypoint; transactional, idempotent |
-| `foldQualifiedSession` (internal)             | `src/engine/service.ts`                            | One-move-per-session logic                     |
-| `evaluate`                                    | `src/engine/evaluation.ts`                         | Outcome dispatch (`:86/:120/:155`)             |
-| `step`                                        | `src/engine/state.ts`                              | Outcome → state transition                     |
-| `applyIncrement`                              | `src/engine/state.ts`                              | kg flat / percent compounding                  |
-| `corroboratedE1rm`                            | `src/engine/state.ts`                              | Drop-furthest corroboration                    |
-| `catchUpC1rm`                                 | `src/engine/state.ts`                              | ±10% gate, 70% close                           |
-| `weightMatches`                               | `src/engine/comparison.ts`                         | ±2.5 kg single source of truth                 |
-| `learnedRpeMatrix` (internal)                 | `src/engine/service.ts`                            | ≤5% gate before matrix learning                |
-| `seedC1rm` (internal) / `seedC1rmFromHistory` | `src/engine/service.ts` / `src/engine/sessions.ts` | Cold-start vs. history seeding                 |
-| `groupSessionsFor`                            | `src/engine/sessions.ts`                           | History → per-exercise sessions                |
+| Function                           | File                                              | Note                                                            |
+| ---------------------------------- | ------------------------------------------------- | --------------------------------------------------------------- |
+| `applyWorkoutResults`              | `src/engine/service.ts`                           | The fold entrypoint; transactional, idempotent                  |
+| `foldSession`                      | `src/engine/fold.ts`                              | One-move-per-session logic                                      |
+| `evaluate`                         | `src/engine/evaluation.ts`                        | Outcome dispatch; `regressedAt` is the shared regression clause |
+| `step`                             | `src/engine/state.ts`                             | Outcome → state transition                                      |
+| `applyIncrement`                   | `src/engine/state.ts`                             | kg flat / percent compounding                                   |
+| `corroboratedE1rm`                 | `src/engine/state.ts`                             | Drop-furthest corroboration                                     |
+| `catchUpC1rm`                      | `src/engine/state.ts`                             | ±10% gate, 70% close                                            |
+| `weightMatches`                    | `src/engine/comparison.ts`                        | ±2.5 kg single source of truth                                  |
+| `learnedRpeMatrix`                 | `src/engine/fold.ts`                              | ≤5% gate before matrix learning                                 |
+| `seedE1rm` / `seedC1rmFromHistory` | `src/engine/matrix.ts` / `src/engine/sessions.ts` | Shared seeding gate; history seeding wraps it                   |
+| `demonstratedSets`                 | `src/engine/fold.ts`                              | Qualifying sets lifted + un-fatigued, once                      |
 
 The integration test `src/engine/__tests__/loop.spec.ts` exercises this entire chain (prescribe → evaluate → step → catch-up → matrix correction) without Dexie and is the best executable specification of the rules above.

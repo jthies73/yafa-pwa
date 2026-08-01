@@ -40,6 +40,29 @@ function orderedWorkingSets(
   return [...loggedSets].sort((a, b) => a.timestamp - b.timestamp).slice(0, n);
 }
 
+/**
+ * The shared regression shape, identical across all three models: the deciding
+ * set bottomed out on reps AND ground past the RPE threshold, WHILE loaded at
+ * the prescribed weight. The weight clause is what makes a grind at a
+ * self-selected load a "hold" — it says nothing about the prescribed one. A
+ * missing actualRpe can never trigger this, so it falls through to hold.
+ */
+function regressedAt(
+  set: LoggedSet | null | undefined,
+  prescribedWeight: number | null | undefined,
+  repFloor: number,
+  rpeThreshold: number,
+): boolean {
+  return (
+    set != null &&
+    prescribedWeight != null &&
+    set.actualReps <= repFloor &&
+    weightMatches(set.actualWeight, prescribedWeight) &&
+    set.actualRpe != null &&
+    set.actualRpe > rpeThreshold
+  );
+}
+
 /** The hardest set: highest RPE, tie-break fewest reps. Null for an empty list. */
 function worstSet(sets: LoggedSet[]): LoggedSet | null {
   if (sets.length === 0) return null;
@@ -103,18 +126,9 @@ function evaluateLinear(
     );
   if (success) return "success";
 
-  const worst = worstSet(working);
-  if (
-    worst &&
-    W != null &&
-    worst.actualReps <= p.targetReps &&
-    weightMatches(worst.actualWeight, W) &&
-    worst.actualRpe != null &&
-    worst.actualRpe > p.targetRpe
-  ) {
-    return "regression";
-  }
-  return "hold";
+  return regressedAt(worstSet(working), W, p.targetReps, p.targetRpe)
+    ? "regression"
+    : "hold";
 }
 
 /**
@@ -151,23 +165,14 @@ function evaluateDouble(
   const worstRpeOk = worst?.actualRpe != null && worst.actualRpe <= p.targetRpe;
   if (allMax && worstRpeOk) return "success";
 
-  // Regression: bottomed out at minReps and grinding (RPE+1 > target), at the
-  // prescribed weight — a grind at a deviated load says nothing about the
-  // prescribed one, so it holds (same weight clause as linear/top-set).
-  // NOTE (locked-but-watch): `RPE + 1 > targetRpe` ⇔ `RPE > targetRpe − 1`, so at
-  // the default target 8 this fires whenever the worst set's RPE exceeds 7 while
-  // reps are at/under minReps. Encoded exactly as specified; revisit with real logs.
-  if (
-    worst &&
-    W != null &&
-    worst.actualReps <= p.minReps &&
-    weightMatches(worst.actualWeight, W) &&
-    worst.actualRpe != null &&
-    worst.actualRpe + 1 > p.targetRpe
-  ) {
-    return "regression";
-  }
-  return "hold";
+  // Regression: bottomed out at minReps and grinding, at the prescribed weight.
+  // NOTE (locked-but-watch): the rule as specified is `RPE + 1 > targetRpe`,
+  // i.e. the threshold below is `targetRpe − 1`. At the default target 8 this
+  // fires whenever the worst set's RPE exceeds 7 while reps are at/under
+  // minReps — aggressive. Encoded exactly as specified; revisit with real logs.
+  return regressedAt(worst, W, p.minReps, p.targetRpe - 1)
+    ? "regression"
+    : "hold";
 }
 
 function evaluateTopSet(
@@ -188,14 +193,7 @@ function evaluateTopSet(
     return "success";
   }
 
-  if (
-    W != null &&
-    top.actualReps <= p.topSetTargetReps &&
-    weightMatches(top.actualWeight, W) &&
-    top.actualRpe != null &&
-    top.actualRpe > p.topSetTargetRpe
-  ) {
-    return "regression";
-  }
-  return "hold";
+  return regressedAt(top, W, p.topSetTargetReps, p.topSetTargetRpe)
+    ? "regression"
+    : "hold";
 }

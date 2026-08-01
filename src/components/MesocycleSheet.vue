@@ -7,7 +7,8 @@ import {
   MESOCYCLE_PRESETS,
 } from "../config/periodization";
 import { useSortableList } from "../composables/useSortableList";
-import { mesocyclePosition, weekProgressAt } from "../engine/service";
+import { mesocyclePosition } from "../engine/service";
+import { weekProgressAt } from "../engine/mesocycle";
 import AppBottomSheet from "./AppBottomSheet.vue";
 import MesocycleChart from "./MesocycleChart.vue";
 

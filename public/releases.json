@@ -1,6 +1,10 @@
 {
-  "latest": "0.21.1",
+  "latest": "0.21.2",
   "releases": [
+    {
+      "version": "0.21.2",
+      "notes": "- Internal engine cleanup: no behaviour change. Week/mesocycle math, fatigue priors and the post-session fold moved out of the Dexie layer into the pure engine modules; the RPE-curve seeding gate and the outlier-drop rule are now defined once and shared, and exercise/routine lookups are batched."
+    },
     {
       "version": "0.21.1",
       "notes": "- Fix mesocycle chart."

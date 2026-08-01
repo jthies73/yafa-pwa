@@ -4,26 +4,108 @@ import type {
   MesocycleWeek,
   NoneProgressionParams,
   PeriodizationFocus,
+  Plan,
   ProgressionModelType,
   ProgressionParams,
+  RoutineExerciseConfig,
   TopSetProgressionParams,
 } from "../db/types";
 import { LOCKABLE_FIELDS } from "../config/periodization";
-import { MESO_REP_DELTA, MESO_RPE_DELTA } from "./constants";
+import {
+  normalizeProgressionParams,
+  rpeCeilingOf,
+} from "../config/progression";
+import { MESO_REP_DELTA, MESO_RPE_DELTA, WEEK_MS } from "./constants";
 import { snapRpe } from "./matrix";
 
 // ----------------------------------------------
-// Mesocycle modifiers. A plan's mesocycle gives each week a focus
-// (hypertrophy/strength/peaking/deload); this module turns the active week's
-// focus into shifts on an exercise's TARGETS — never a direct load multiplier.
-// The load always re-renders downstream from the shifted targets via
-// matrixPct × c1RM, so "more intensity" means a higher targetRpe / fewer reps.
-// Working-set counts are deliberately NOT periodized — volume stays as the user
-// configured it.
+// Mesocycle. Owns both halves of "which week is it, and what does that week
+// mean": the calendar math that locates `at` within the plan's repeating cycle,
+// and the modifiers the resulting focus (hypertrophy/strength/peaking/deload)
+// imposes on an exercise's TARGETS — never a direct load multiplier. The load
+// always re-renders downstream from the shifted targets via matrixPct × c1RM, so
+// "more intensity" means a higher targetRpe / fewer reps. Working-set counts are
+// deliberately NOT periodized — volume stays as the user configured it.
 //
 // Pipeline stage: mesocycle config → feeds prescription. Locks are honoured:
 // a field the user locked, or a field this model never periodizes, is left as-is.
+//
+// Everything here is pure and clock-free (`at` is always injected), so a UI can
+// live-preview an unsaved boundary convention without touching the database.
 // ----------------------------------------------
+
+// ---- Week boundaries ----
+
+/** The most recent Monday 00:00 local time on or before the given timestamp. */
+export function mostRecentMonday(ts: number): number {
+  const monday = new Date(ts);
+  // Sunday (0) is the 7th day of the week here, so it walks back 6 days.
+  monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
+  monday.setHours(0, 0, 0, 0);
+  return monday.getTime();
+}
+
+/** Fraction (0..1) of the way from `weekStartTs` through its 7-day week. */
+const progressThroughWeek = (weekStartTs: number, at: number): number =>
+  Math.min(1, Math.max(0, (at - weekStartTs) / WEEK_MS));
+
+/**
+ * The start of the current week for a repeating 7-day cycle anchored at
+ * `anchor` (Monday-snapped if `alignToMonday`), evaluated at `at`.
+ */
+function currentWeekStart(
+  anchor: number,
+  alignToMonday: boolean,
+  at: number,
+): { weekStartTs: number; elapsedWeeks: number } {
+  const anchorTs = alignToMonday ? mostRecentMonday(anchor) : anchor;
+  const elapsedWeeks = Math.max(0, Math.floor((at - anchorTs) / WEEK_MS));
+  return { weekStartTs: anchorTs + elapsedWeeks * WEEK_MS, elapsedWeeks };
+}
+
+/**
+ * The boundary (timestamp + absolute week index) mesocycle weeks are measured
+ * from at time `at` — the plan's creation time, or the override's anchor
+ * (Monday-aligned or the exact rolling setAt) once it has taken effect.
+ */
+export function weekBoundary(
+  plan: Plan,
+  at: number,
+): { absWeek: number; weekStartTs: number } {
+  const override = plan.mesocycleWeekOverride;
+  const active = override && at >= override.setAt ? override : undefined;
+  const { weekStartTs, elapsedWeeks } = currentWeekStart(
+    active?.setAt ?? plan.created_at,
+    active?.alignToMonday ?? false,
+    at,
+  );
+  return { absWeek: (active?.weekIndex ?? 0) + elapsedWeeks, weekStartTs };
+}
+
+/** The 0-based week within the plan's repeating mesocycle at time `at`. */
+export function absoluteWeekIndex(plan: Plan | undefined, at: number): number {
+  return plan ? weekBoundary(plan, at).absWeek : 0;
+}
+
+/**
+ * Fraction (0..1) through the mesocycle week containing `at`, for a boundary
+ * anchored at `anchor` and optionally Monday-snapped. Takes the raw convention
+ * rather than a `Plan` so a UI can preview how toggling Monday/Rolling would
+ * land *before* it is saved.
+ */
+export function weekProgressAt(
+  anchor: number,
+  alignToMonday: boolean,
+  at: number,
+): number {
+  return progressThroughWeek(
+    currentWeekStart(anchor, alignToMonday, at).weekStartTs,
+    at,
+  );
+}
+
+/** Fraction through the week that a resolved `weekBoundary` already located. */
+export const weekProgressFrom = progressThroughWeek;
 
 export interface MesoModifiers {
   rpeDelta: number; // added to (top-set) targetRpe — intensity
@@ -36,6 +118,14 @@ export function focusModifiers(focus: PeriodizationFocus): MesoModifiers {
     rpeDelta: MESO_RPE_DELTA[focus],
     repDelta: MESO_REP_DELTA[focus],
   };
+}
+
+const NO_MODIFIERS: MesoModifiers = { rpeDelta: 0, repDelta: 0 };
+
+/** The target shifts for the plan's current week; none when no mesocycle. */
+export function modifiersAt(plan: Plan | undefined, at: number): MesoModifiers {
+  const focus = weekFocus(plan?.mesocycle, absoluteWeekIndex(plan, at));
+  return focus ? focusModifiers(focus) : NO_MODIFIERS;
 }
 
 /**
@@ -85,8 +175,13 @@ export function applyMesoToParams(
   const adj = (field: string) => isAdjustable(model, field, lockedFields);
 
   switch (model) {
-    case "linear": {
-      const p = { ...(params as LinearProgressionParams) };
+    // Identical shifts — nothing in the domain makes plain linear progression
+    // and an unprogressed exercise periodize differently.
+    case "linear":
+    case "none": {
+      const p = {
+        ...(params as LinearProgressionParams | NoneProgressionParams),
+      };
       if (adj("targetReps"))
         p.targetReps = clampReps(p.targetReps + mods.repDelta);
       if (adj("targetRpe")) p.targetRpe = clampRpe(p.targetRpe + mods.rpeDelta);
@@ -109,12 +204,27 @@ export function applyMesoToParams(
       // the top set's %-of-1RM, hence the dropped load the reps are solved at.)
       return p;
     }
-    case "none": {
-      const p = { ...(params as NoneProgressionParams) };
-      if (adj("targetReps"))
-        p.targetReps = clampReps(p.targetReps + mods.repDelta);
-      if (adj("targetRpe")) p.targetRpe = clampRpe(p.targetRpe + mods.rpeDelta);
-      return p;
-    }
   }
+}
+
+/** An exercise's config resolved for one particular week. */
+export interface EffectiveConfig {
+  model: ProgressionModelType;
+  params: ProgressionParams; // normalized + mesocycle-shifted
+  ceiling: number; // raw guardrail — never periodized
+}
+
+/** Normalize a stored config and apply the week's modifiers, honoring locks. */
+export function effectiveConfig(
+  config: RoutineExerciseConfig | undefined,
+  mods: MesoModifiers,
+): EffectiveConfig {
+  const model = config?.progressionModel ?? "none";
+  const params = applyMesoToParams(
+    model,
+    normalizeProgressionParams(model, config?.progressionParams),
+    mods,
+    config?.lockedFields ?? [],
+  );
+  return { model, params, ceiling: rpeCeilingOf(model, params) };
 }

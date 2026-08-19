@@ -3,7 +3,6 @@ import type {
   Exercise,
   PeriodizationFocus,
   Plan,
-  ProgressionState,
   Routine,
   RoutineExerciseConfig,
   Set as LoggedSet,
@@ -16,11 +15,16 @@ import {
   getProgressionState,
   getProgressionStates,
   getRoutine,
+  getWorkouts,
   getWorkoutsBetween,
   putProgressionState,
   setExerciseRpeMatrix,
 } from "../db/repository";
-import { bodyweightAt, currentBodyweight } from "../db/measurements";
+import {
+  bodyweightAt,
+  bodyweightEntries,
+  currentBodyweight,
+} from "../db/measurements";
 import { bodyweightOffsetKg, liftSets } from "./bodyweight";
 import { WEEK_MS } from "./constants";
 import {
@@ -28,17 +32,13 @@ import {
   modifiersAt,
   weekBoundary,
   weekProgressFrom,
-  type EffectiveConfig,
   type MesoModifiers,
 } from "./mesocycle";
-import { prescribeExercise, type ExercisePrescription } from "./prescription";
-import {
-  computeFatigueAdjustment,
-  muscleProfileOf,
-  priorsBySlot,
-  type MuscleProfile,
-} from "./fatigue";
+import { prescribeConfigured, type ExercisePrescription } from "./prescription";
+import { priorsBySlot, type MuscleProfile } from "./fatigue";
 import { demonstratedSets, foldSession, learnedRpeMatrix } from "./fold";
+import { replayHistory, type FoldTrace } from "./replay";
+import { buildConfigMap, groupSetsByExercise } from "./sessions";
 import { consumeReset } from "./state";
 import { seedE1rm } from "./matrix";
 
@@ -164,49 +164,6 @@ async function routineContext(
   };
 }
 
-/** Render a prescription from an already-effective state (reset already applied). */
-function prescribeFrom(
-  exercise: Exercise,
-  eff: EffectiveConfig,
-  state: ProgressionState,
-  priors: MuscleProfile[],
-  bodyweightKg: number | undefined,
-): ExercisePrescription {
-  return prescribeExercise({
-    exerciseId: exercise.id,
-    model: eff.model,
-    params: eff.params,
-    rpeCeiling: eff.ceiling,
-    effectiveC1rm: state.c1rm,
-    fatigueReduction: fatigueReductionFor(exercise, eff, state, priors),
-    doubleRepCursor: state.doubleRepCursor,
-    matrix: exercise.rpeMatrix ?? DEFAULT_RPE_MATRIX,
-    bodyweightOffsetKg: bodyweightOffsetKg(
-      exercise.bodyweightFactor,
-      bodyweightKg,
-    ),
-  });
-}
-
-/** The kg to shave off the anchor given the session's prior exercises so far. */
-function fatigueReductionFor(
-  exercise: Exercise,
-  eff: EffectiveConfig,
-  state: ProgressionState,
-  priors: MuscleProfile[],
-): number {
-  if (state.c1rm == null || !priors.length) return 0;
-  return (
-    computeFatigueAdjustment({
-      reduction: eff.params.fatigueReduction,
-      unit: eff.params.fatigueReductionUnit,
-      c1rm: state.c1rm,
-      current: muscleProfileOf(exercise),
-      priors,
-    })?.reductionKg ?? 0
-  );
-}
-
 // ---- mesocycle position (display only) ----
 
 /** The display-only mesocycle position for the preview, or null. */
@@ -268,13 +225,13 @@ export async function previewWorkout(
         ? { preResetC1rm: stored.c1rm }
         : {}),
       failureStreak: stored.regressionStreak,
-      prescription: prescribeFrom(
+      prescription: prescribeConfigured({
         exercise,
-        effectiveConfig(re.config, ctx.mods),
+        eff: effectiveConfig(re.config, ctx.mods),
         state,
-        ctx.slotPriors[i],
-        ctx.bodyweight,
-      ),
+        priors: ctx.slotPriors[i],
+        bodyweightKg: ctx.bodyweight,
+      }),
       bodyweightOffsetKg: bodyweightOffsetKg(
         exercise.bodyweightFactor,
         ctx.bodyweight,
@@ -328,42 +285,17 @@ export async function prescribeWorkout(
         await putProgressionState(state);
       }
       prescriptions.push(
-        prescribeFrom(
+        prescribeConfigured({
           exercise,
-          effectiveConfig(re.config, ctx.mods),
+          eff: effectiveConfig(re.config, ctx.mods),
           state,
-          ctx.slotPriors[i],
-          ctx.bodyweight,
-        ),
+          priors: ctx.slotPriors[i],
+          bodyweightKg: ctx.bodyweight,
+        }),
       );
     }
   });
   return prescriptions;
-}
-
-/** Merge duplicate exercise slots into one timestamp-sorted set list per exercise. */
-function groupSetsByExercise(workout: Workout): Map<string, LoggedSet[]> {
-  const map = new Map<string, LoggedSet[]>();
-  for (const we of workout.exercises) {
-    // An exercise that logged nothing must not reach the fold at all — it would
-    // be stamped as processed and its cold start silently consumed.
-    if (!we.sets.length) continue;
-    map.set(we.exerciseId, [...(map.get(we.exerciseId) ?? []), ...we.sets]);
-  }
-  for (const sets of map.values())
-    sets.sort((a, b) => a.timestamp - b.timestamp);
-  return map;
-}
-
-/** Index a routine's exercise configs by exercise id (first slot wins). */
-function buildConfigMap(
-  routine: Routine | undefined,
-): Map<string, RoutineExerciseConfig | undefined> {
-  const map = new Map<string, RoutineExerciseConfig | undefined>();
-  for (const re of routine?.exercises ?? []) {
-    if (!map.has(re.exerciseId)) map.set(re.exerciseId, re.config);
-  }
-  return map;
 }
 
 /** The context one exercise's fold reads, shared across the session's loop. */
@@ -426,13 +358,13 @@ async function foldExercise(
   }
 
   const eff = effectiveConfig(config, ctx.mods);
-  const prescription = prescribeFrom(
+  const prescription = prescribeConfigured({
     exercise,
     eff,
     state,
-    ctx.priors.get(exerciseId) ?? [],
-    ctx.bodyweight,
-  );
+    priors: ctx.priors.get(exerciseId) ?? [],
+    bodyweightKg: ctx.bodyweight,
+  });
   const demonstrated = demonstratedSets(matrix, sets, offsetKg, prescription);
   const { persisted, reason } = foldSession({
     state,
@@ -507,4 +439,30 @@ export async function applyWorkoutResults(
     }
   });
   return changes;
+}
+
+/**
+ * Load everything the pure replay needs and rebuild the engine's decision trace
+ * across all history — the read model behind History → Engine. READ-ONLY: it
+ * never touches progressionStates or the stored RPE matrices, so inspecting the
+ * engine can never perturb it. Mid-history states are reconstructed by replay
+ * rather than read, because the stored ones only describe "after everything".
+ */
+export async function traceHistory(): Promise<FoldTrace[]> {
+  const [workouts, routines, plans, exercises, bodyweights] = await Promise.all(
+    [
+      getWorkouts(),
+      db.routines.toArray(),
+      getPlans(),
+      db.exercises.toArray(),
+      bodyweightEntries(),
+    ],
+  );
+  return replayHistory({
+    workouts,
+    routines: new Map(routines.map((r: Routine) => [r.id, r])),
+    plans,
+    exercises: new Map(exercises.map((e: Exercise) => [e.id, e])),
+    bodyweightEntries: bodyweights,
+  });
 }

@@ -207,17 +207,23 @@ export function peakImpliedE1rm(
 }
 
 /**
- * The e1RM to anchor a never-trained exercise on: the peak qualifying set, else
- * the peak merely-usable one. The single definition of the cold-start seeding
- * gate — the post-session fold, the history rebuild, and the live mid-session
- * calculator all seed through here, so relaxing or tightening the fallback can
- * never move one of them without the others.
+ * The set a never-trained exercise's anchor comes from, and the e1RM it implies:
+ * the peak qualifying set, else the peak merely-usable one. The single definition
+ * of the cold-start seeding gate — the post-session fold, the history rebuild,
+ * and the live mid-session calculator all seed through here, so relaxing or
+ * tightening the fallback can never move one of them without the others. The
+ * engine trace reports WHICH set seeded, hence the set-carrying return.
  */
+export function seedSource(
+  matrix: RpeMatrix,
+  sets: LoggedSet[],
+): PeakE1rm | null {
+  return peakImpliedE1rm(matrix, sets) ?? peakImpliedE1rm(matrix, sets, true);
+}
+
+/** The cold-start anchor value — `seedSource`'s e1RM. */
 export function seedE1rm(matrix: RpeMatrix, sets: LoggedSet[]): number | null {
-  return (
-    (peakImpliedE1rm(matrix, sets) ?? peakImpliedE1rm(matrix, sets, true))
-      ?.e1rm ?? null
-  );
+  return seedSource(matrix, sets)?.e1rm ?? null;
 }
 
 /**

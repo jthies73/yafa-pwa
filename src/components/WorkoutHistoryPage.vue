@@ -11,8 +11,17 @@ import {
 import { groupByWeek, type HistoryGroup } from "../analytics/history";
 import { useWeightUnit } from "../composables/useWeightUnit";
 import WorkoutDetailSheet from "./WorkoutDetailSheet.vue";
+import EngineTracePanel from "./EngineTracePanel.vue";
 
 const { format: formatWeight } = useWeightUnit();
+
+// "sessions" is what was logged; "engine" is why the engine reacted to it.
+const VIEWS = [
+  { value: "sessions", label: "Sessions" },
+  { value: "engine", label: "Engine" },
+] as const;
+
+const view = ref<"sessions" | "engine">("sessions");
 
 const groups = ref<HistoryGroup[]>([]);
 const summaries = ref<Map<string, WorkoutSummary>>(new Map());
@@ -87,17 +96,37 @@ const openDetail = (w: Workout) => {
 <template>
   <div class="relative flex min-h-full flex-col p-6 pb-24">
     <!-- Header -->
-    <div class="mb-6">
+    <div class="mb-6 flex flex-col gap-4">
       <h1
         class="text-3xl font-bold tracking-tight text-text-h-light dark:text-text-h-dark"
       >
         History
       </h1>
+      <div
+        class="flex gap-1 p-1 bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-xl"
+      >
+        <button
+          v-for="option in VIEWS"
+          :key="option.value"
+          class="flex-1 rounded-lg py-1.5 px-3 text-xs font-bold cursor-pointer transition-colors duration-150"
+          :class="
+            view === option.value
+              ? 'bg-accent text-bg-dark'
+              : 'text-text-light dark:text-text-dark hover:text-text-h-light dark:hover:text-text-h-dark'
+          "
+          @click="view = option.value"
+        >
+          {{ option.label }}
+        </button>
+      </div>
     </div>
+
+    <!-- Engine trace (debugging view) -->
+    <EngineTracePanel v-if="view === 'engine'" />
 
     <!-- Empty state -->
     <div
-      v-if="groups.length === 0"
+      v-else-if="groups.length === 0"
       class="text-sm italic text-text-light dark:text-text-dark opacity-60"
     >
       No workouts logged yet. Completed sessions will show up here.

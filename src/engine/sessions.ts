@@ -1,4 +1,10 @@
-import type { RpeMatrix, Set as LoggedSet, Workout } from "../db/types";
+import type {
+  Routine,
+  RoutineExerciseConfig,
+  RpeMatrix,
+  Set as LoggedSet,
+  Workout,
+} from "../db/types";
 import { seedE1rm } from "./matrix";
 
 // ----------------------------------------------
@@ -50,6 +56,35 @@ export function groupAllSessions(
   for (const w of history) for (const e of w.exercises) ids.add(e.exerciseId);
   const map = new Map<string, ExerciseSession[]>();
   for (const id of ids) map.set(id, groupSessionsFor(history, id));
+  return map;
+}
+
+/**
+ * Merge duplicate exercise slots of ONE workout into a timestamp-sorted set list
+ * per exercise, in the order the exercises were logged. An exercise that logged
+ * nothing is omitted entirely — it must not reach the fold, which would stamp it
+ * as processed and silently consume its cold start.
+ */
+export function groupSetsByExercise(
+  workout: Workout,
+): Map<string, LoggedSet[]> {
+  const map = new Map<string, LoggedSet[]>();
+  for (const we of workout.exercises) {
+    if (!we.sets.length) continue;
+    map.set(we.exerciseId, [...(map.get(we.exerciseId) ?? []), ...we.sets]);
+  }
+  for (const sets of map.values()) sets.sort(byTimestamp);
+  return map;
+}
+
+/** Index a routine's exercise configs by exercise id (first slot wins). */
+export function buildConfigMap(
+  routine: Routine | undefined,
+): Map<string, RoutineExerciseConfig | undefined> {
+  const map = new Map<string, RoutineExerciseConfig | undefined>();
+  for (const re of routine?.exercises ?? []) {
+    if (!map.has(re.exerciseId)) map.set(re.exerciseId, re.config);
+  }
   return map;
 }
 

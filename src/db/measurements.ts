@@ -33,6 +33,14 @@ export async function currentBodyweight(): Promise<number | undefined> {
   return (await latestEntry(BODYWEIGHT_TYPE_ID))?.value;
 }
 
+/** Every logged bodyweight entry, unsorted — for resolving many timestamps at once. */
+export async function bodyweightEntries(): Promise<MeasurementEntry[]> {
+  return db.measurementEntries
+    .where("measurementTypeId")
+    .equals(BODYWEIGHT_TYPE_ID)
+    .toArray();
+}
+
 /**
  * Bodyweight (kg) in effect at `timestamp` (latest entry ≤ it, falling back to
  * the earliest entry), or undefined when none logged. Folds and historical
@@ -41,11 +49,7 @@ export async function currentBodyweight(): Promise<number | undefined> {
 export async function bodyweightAt(
   timestamp: number,
 ): Promise<number | undefined> {
-  const entries = await db.measurementEntries
-    .where("measurementTypeId")
-    .equals(BODYWEIGHT_TYPE_ID)
-    .toArray();
-  return pickBodyweightAt(entries, timestamp);
+  return pickBodyweightAt(await bodyweightEntries(), timestamp);
 }
 
 // ---- Measurement types ----

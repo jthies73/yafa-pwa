@@ -5,7 +5,7 @@ import type {
   Set as LoggedSet,
 } from "../db/types";
 import { RPE_MATRIX_CORRECTION_MAX_DEVIATION } from "./constants";
-import { liftSets } from "./bodyweight";
+import { liftSet } from "./bodyweight";
 import { evaluate, isDoubleCursorAdvancementEligible } from "./evaluation";
 import { correctRpeMatrix, impliedE1rm, isQualifyingSet } from "./matrix";
 import type { EffectiveConfig } from "./mesocycle";
@@ -44,11 +44,13 @@ function fatigueScaleOf(prescription: ExercisePrescription): number {
 }
 
 /** A qualifying set restated in the space the anchor lives in. */
-interface DemonstratedSet {
+export interface DemonstratedSet {
   weight: number; // TOTAL load, un-fatigued
   reps: number;
   rpe: number;
   e1rm: number;
+  /** The logged set this was derived from — lets the trace name it. */
+  source: LoggedSet;
 }
 
 /**
@@ -68,15 +70,17 @@ export function demonstratedSets(
   prescription: ExercisePrescription,
 ): DemonstratedSet[] {
   const scale = fatigueScaleOf(prescription);
-  return liftSets(sets, offsetKg)
-    .filter(isQualifyingSet)
-    .map((s) => {
-      const weight = s.actualWeight / scale;
+  return sets
+    .map((source) => ({ source, lifted: liftSet(source, offsetKg) }))
+    .filter(({ lifted }) => isQualifyingSet(lifted))
+    .map(({ source, lifted }) => {
+      const weight = lifted.actualWeight / scale;
       return {
         weight,
-        reps: s.actualReps,
-        rpe: s.actualRpe!,
-        e1rm: impliedE1rm(matrix, weight, s.actualReps, s.actualRpe!),
+        reps: lifted.actualReps,
+        rpe: lifted.actualRpe!,
+        e1rm: impliedE1rm(matrix, weight, lifted.actualReps, lifted.actualRpe!),
+        source,
       };
     });
 }

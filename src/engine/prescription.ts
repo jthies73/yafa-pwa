@@ -1,14 +1,21 @@
 import type {
   DoubleProgressionParams,
+  Exercise,
   LinearProgressionParams,
   NoneProgressionParams,
   ProgressionModelType,
   ProgressionParams,
+  ProgressionState,
   RpeMatrix,
   TopSetProgressionParams,
 } from "../db/types";
+import { DEFAULT_RPE_MATRIX } from "../db/rpeMatrix";
 import { matrixPct, roundToLoadable, weightFromE1rm } from "./matrix";
 import { solveReps } from "./calculator";
+import { bodyweightOffsetKg } from "./bodyweight";
+import { computeFatigueAdjustment, muscleProfileOf } from "./fatigue";
+import type { MuscleProfile } from "./fatigue";
+import type { EffectiveConfig } from "./mesocycle";
 
 // ----------------------------------------------
 // Prescription. Turns an exercise's EFFECTIVE config (already normalized and
@@ -69,6 +76,56 @@ export interface PrescriptionInput {
   // offset is subtracted before rounding so output weights are the ADDED weight
   // the user loads. May yield negative weights (assistance). 0/absent ⇒ no-op.
   bodyweightOffsetKg?: number;
+}
+
+/**
+ * Render a prescription from an already-effective config and an already-effective
+ * state (any pending reset consumed by the caller). The single assembly point for
+ * "config + state + priors → sets": the service's three prescribing paths and the
+ * history replay all go through it, so a replayed session can never be rendered
+ * from different inputs than the live one was.
+ */
+export function prescribeConfigured(input: {
+  exercise: Exercise;
+  eff: EffectiveConfig;
+  state: ProgressionState;
+  priors: MuscleProfile[];
+  bodyweightKg: number | undefined;
+}): ExercisePrescription {
+  const { exercise, eff, state, priors, bodyweightKg } = input;
+  return prescribeExercise({
+    exerciseId: exercise.id,
+    model: eff.model,
+    params: eff.params,
+    rpeCeiling: eff.ceiling,
+    effectiveC1rm: state.c1rm,
+    fatigueReduction: fatigueReductionFor(exercise, eff, state, priors),
+    doubleRepCursor: state.doubleRepCursor,
+    matrix: exercise.rpeMatrix ?? DEFAULT_RPE_MATRIX,
+    bodyweightOffsetKg: bodyweightOffsetKg(
+      exercise.bodyweightFactor,
+      bodyweightKg,
+    ),
+  });
+}
+
+/** The kg to shave off the anchor given the session's prior exercises so far. */
+function fatigueReductionFor(
+  exercise: Exercise,
+  eff: EffectiveConfig,
+  state: ProgressionState,
+  priors: MuscleProfile[],
+): number {
+  if (state.c1rm == null || !priors.length) return 0;
+  return (
+    computeFatigueAdjustment({
+      reduction: eff.params.fatigueReduction,
+      unit: eff.params.fatigueReductionUnit,
+      c1rm: state.c1rm,
+      current: muscleProfileOf(exercise),
+      priors,
+    })?.reductionKg ?? 0
+  );
 }
 
 export function prescribeExercise(

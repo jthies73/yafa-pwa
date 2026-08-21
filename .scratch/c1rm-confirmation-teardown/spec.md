@@ -192,7 +192,7 @@ and not in another.
 
 When false, the exercise produces no `increment`, no `cut`, and no `recalibrate` proposal.
 It still produces a `seed` proposal — a [[cold start]] exercise with no anchor is prescribed
-`weight: null` forever otherwise, and the toggle means "do not let this lift *move* my
+`weight: null` forever otherwise, and the toggle means "do not let this lift _move_ my
 anchor," not "make this lift unusable." Prescription, [[adherence]], PRs and
 [[session fatigue]] are all unaffected by the flag.
 

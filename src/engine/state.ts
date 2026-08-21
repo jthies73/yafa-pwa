@@ -173,38 +173,20 @@ export function step(
 
 /**
  * Demonstrated capacity from a SINGLE session's qualifying e1RMs (RPE ≥ 8, reps ≤ 10).
- * With ≥2 sets, drops the single most-extreme (a typo/fluke) and trusts the 2nd-furthest
- * from the anchor. With exactly 1 set (top-set programs), uses it directly — there is no
- * outlier to drop and the top set is the main event. Null only when no positive
- * observations exist.
+ * With ≥2 observations, drops the single most-extreme (a typo/fluke) and trusts the
+ * 2nd-furthest from the anchor — that drop is what stops one mistyped set from moving
+ * the anchor, in either direction. With exactly 1 (top-set programs), uses it directly:
+ * there is no outlier to drop and the top set is the main event. Null only when no
+ * positive observations exist.
  */
 export function corroboratedE1rm(
   sessionE1rms: number[],
   anchor: number,
 ): number | null {
-  return representativeByDistance(
-    sessionE1rms.filter((e) => e > 0),
-    (e) => e,
-    anchor,
-  );
-}
-
-/**
- * The anti-fluke pick: of these items, the one whose value is 2nd-furthest from
- * `anchor` — or the only item when there is just one. Dropping the single most
- * extreme observation is what stops one mistyped set from moving the anchor, in
- * either direction. Generic because the same rule governs both the catch-up
- * estimate (over e1RM numbers) and the RPE-curve correction (over sets), and
- * those two must never disagree about which set counted.
- */
-export function representativeByDistance<T>(
-  items: T[],
-  valueOf: (item: T) => number,
-  anchor: number,
-): T | null {
-  if (items.length === 0) return null;
-  const byDistance = [...items].sort(
-    (a, b) => Math.abs(valueOf(b) - anchor) - Math.abs(valueOf(a) - anchor),
+  const positive = sessionE1rms.filter((e) => e > 0);
+  if (positive.length === 0) return null;
+  const byDistance = [...positive].sort(
+    (a, b) => Math.abs(b - anchor) - Math.abs(a - anchor),
   );
   return byDistance[Math.min(1, byDistance.length - 1)];
 }

@@ -4,7 +4,7 @@ aliases: [Architecture Map, MOC, Documentation Index]
 tags: [yafa/moc]
 area: shared
 order: 0
-updated: 2026-07-09
+updated: 2026-08-21
 ---
 
 # YAFA Architecture — Map of Content
@@ -63,8 +63,7 @@ flowchart LR
     PRESC --> EXEC["UI execution<br/>(green-dot proposals)"]
     EXEC --> EVAL["evaluate<br/>(success / hold / regression)"]
     EVAL --> STEP["step + catchUpC1rm"]
-    STEP --> LEARN["correctRpeMatrix<br/>(applied LAST)"]
-    LEARN --> PERSIST["putProgressionState"]
+    STEP --> PERSIST["putProgressionState"]
 ```
 
 | Stage                        | Function                                    | Owning doc                |
@@ -78,10 +77,9 @@ flowchart LR
 | Execution & represcription   | `proposeSetAdjustment`, `useWorkoutTracker` | [[workout-tracking]]      |
 | Outcome judgment             | `evaluate`                                  | [[applying-results]]      |
 | State transition & catch-up  | `step`, `catchUpC1rm`                       | [[applying-results]]      |
-| Matrix learning              | `correctRpeMatrix`                          | [[rpe-matrix]]            |
 | Post-hoc analysis            | `computeWorkoutSummary`, `buildChartSeries` | [[analytics]]             |
 
-The best single code reference for the full wiring is the integration harness `src/engine/__tests__/loop.spec.ts`, which mirrors prescribe → evaluate → step → catch-up → matrix correction without Dexie.
+The best single code reference for the full wiring is the integration harness `src/engine/__tests__/loop.spec.ts`, which mirrors prescribe → evaluate → step → catch-up without Dexie.
 
 ## Reading paths
 

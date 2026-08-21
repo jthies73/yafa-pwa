@@ -79,13 +79,13 @@ export const MATRIX_MAX_RPE = 10;
 /** RPE columns are spaced every 0.5; snapRpe rounds to this grid. */
 export const RPE_STEP = 0.5;
 
-// --- RPE Matrix Auto-Correction (HEURISTIC — explicitly tunable) ---
-/** Learning rate at which the exercise-specific RPE matrix adjusts. */
-export const RPE_MATRIX_CORRECTION_ALPHA = 0.1;
-/** Smoothing radius (in reps-to-failure) to propagate adjustments to neighboring cells. */
-export const RPE_MATRIX_CORRECTION_RADIUS = 1.5;
-/** Maximum relative deviation of the session's implied e1RM from the current c1RM to trigger matrix correction. */
-export const RPE_MATRIX_CORRECTION_MAX_DEVIATION = 0.05;
+// --- RPE Matrix manual editing (HEURISTIC — explicitly tunable) ---
+/**
+ * Smoothing radius (in reps-to-failure) over which a hand-edited cell carries
+ * its change to neighbouring cells — cells representing the same effort move
+ * together rather than leaving a spike behind.
+ */
+export const MATRIX_EDIT_SMOOTHING_RADIUS = 1.5;
 
 // --- Mesocycle modifiers (HEURISTIC — explicitly tunable) ---
 //

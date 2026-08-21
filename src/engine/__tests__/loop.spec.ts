@@ -10,14 +10,14 @@ import type {
 } from "../../db/types";
 import { prescribeExercise, type ExercisePrescription } from "../prescription";
 import { liftSets } from "../bodyweight";
-import { demonstratedSets, foldSession, learnedRpeMatrix } from "../fold";
+import { demonstratedE1rms, foldSession } from "../fold";
 import { effectiveConfig, type MesoModifiers } from "../mesocycle";
 import { consumeReset, initState } from "../state";
 import { impliedE1rm, matrixPct, roundToLoadable, seedE1rm } from "../matrix";
 
 // End-to-end progression loop: prescribe → log → fold → prescribe, driven through
 // the SAME seams the service drives — `effectiveConfig` for the week's config,
-// `demonstratedSets` + `foldSession` for the per-session decision, `seedE1rm` for
+// `demonstratedE1rms` + `foldSession` for the per-session decision, `seedE1rm` for
 // cold start, `consumeReset` at prescription time. Nothing here re-implements the
 // orchestration: `evaluate`, `step` and the catch-up all run inside `foldSession`,
 // so a change to how they compose shows up here instead of being mirrored twice.
@@ -96,7 +96,7 @@ function runSession(
     eff,
     prescription,
     sets,
-    demonstrated: demonstratedSets(M, sets, offsetKg, prescription),
+    demonstrated: demonstratedE1rms(M, sets, offsetKg, prescription),
     workoutId,
     finishedAt: 0,
   });
@@ -281,71 +281,6 @@ describe("loop — cold start seeds then prescribes a real weight", () => {
   });
 });
 
-// The RPE-curve refinement the fold applies LAST, through its real entry point:
-// the representative qualifying set is picked by the same anti-fluke rule the
-// catch-up uses (lone set used directly; with ≥2, the furthest-from-anchor is
-// dropped), then gated on how far that set deviates from the anchor.
-describe("loop — RPE matrix learning gate", () => {
-  const ANCHOR = 100;
-
-  /** A no-fatigue prescription at the anchor, so the demonstrated lens is 1:1. */
-  const lens = () =>
-    prescribeExercise({
-      exerciseId: "ex",
-      model: "linear",
-      params: LINEAR,
-      rpeCeiling: 9,
-      effectiveC1rm: ANCHOR,
-      matrix: M,
-    });
-
-  const mkSet = (
-    actualWeight: number,
-    actualReps: number,
-    actualRpe: number,
-    i = 0,
-  ): LoggedSet => ({
-    id: `s${i}`,
-    timestamp: i + 1,
-    targetReps: actualReps,
-    actualReps,
-    targetWeight: actualWeight,
-    actualWeight,
-    targetRpe: actualRpe,
-    actualRpe,
-    failure: false,
-  });
-
-  const learn = (sets: LoggedSet[]) =>
-    learnedRpeMatrix(M, demonstratedSets(M, sets, 0, lens()), ANCHOR);
-
-  it("a lone in-gate top set nudges its iso-effort cell (top-set program)", () => {
-    // 82 kg @ 5 reps RPE 8 ⇒ implied e1RM ≈ 103.8, ~3.8% over the anchor.
-    // pDemo = 0.82, so the 5@8 cell is pulled a tenth of the way toward it.
-    const out = learn([mkSet(82, 5, 8)]);
-    expect(out![5][8]).toBeCloseTo(M[5][8] + 0.1 * (0.82 - M[5][8]), 5);
-    expect(out![5][8]).toBeGreaterThan(M[5][8]);
-  });
-
-  it("with ≥2 sets the lone outlier is dropped — learning comes from the 2nd-furthest", () => {
-    // setA (82@5@8, e1RM ≈ 103.8) is in-gate; setB (140@1@10, e1RM 140) is a
-    // +40% fluke and the furthest, so it is dropped.
-    const out = learn([mkSet(82, 5, 8, 0), mkSet(140, 1, 10, 1)]);
-    expect(out![5][8]).toBeCloseTo(M[5][8] + 0.1 * (0.82 - M[5][8]), 5);
-    expect(out![1][10]).toBe(M[1][10]); // the fluke never moved its own cell
-  });
-
-  it("a deviation beyond the gate does not learn (catch-up's job)", () => {
-    // Lone set 140 kg @ 1 rep RPE 10 ⇒ e1RM 140, +40% over the anchor.
-    expect(learn([mkSet(140, 1, 10)])).toBeNull();
-  });
-
-  it("no qualifying set ⇒ nothing to learn from", () => {
-    // RPE 6 is below the qualifying threshold (≥ 8).
-    expect(learn([mkSet(80, 5, 6)])).toBeNull();
-  });
-});
-
 // Sets store ADDED weight; the fold lifts them into total space (added + factor ×
 // bodyweight) before any matrix math, and prescription subtracts the offset again
 // on the way out.
@@ -414,8 +349,8 @@ describe("loop — bodyweight factor closes the circle in total space", () => {
     const sets = logSets(prescription);
 
     // The fold's own lens recovers the unreduced total anchor (up to rounding).
-    const demonstrated = demonstratedSets(M, sets, OFFSET, prescription);
-    expect(demonstrated[0].e1rm).toBeCloseTo(anchor, 0);
+    const demonstrated = demonstratedE1rms(M, sets, OFFSET, prescription);
+    expect(demonstrated[0]).toBeCloseTo(anchor, 0);
 
     // Wrong order (un-fatigue the added weight, then lift) overstates the e1RM
     // by offset × (1/scale − 1) — the transforms do not commute.

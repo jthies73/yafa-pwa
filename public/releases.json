@@ -1,6 +1,10 @@
 {
-  "latest": "0.22.0",
+  "latest": "0.23.0",
   "releases": [
+    {
+      "version": "0.23.0",
+      "notes": "- The RPE matrix no longer changes itself. Finishing a workout used to quietly reshape an exercise's RPE curve toward what you demonstrated; that automatic learning is gone, so a hand-edited matrix now stays exactly as you left it. Per-exercise overrides, the cell editor and the global read-only view are unchanged."
+    },
     {
       "version": "0.22.0",
       "notes": "- Adherence is now simply the share of your prescribed sets you performed. Training harder, heavier or for different reps than prescribed no longer costs points, extra sets no longer count as junk volume, and the \"Why not 100%?\" breakdown is gone — the Sets tile shows what you did against what was asked."

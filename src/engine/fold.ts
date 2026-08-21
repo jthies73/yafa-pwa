@@ -4,32 +4,24 @@ import type {
   RpeMatrix,
   Set as LoggedSet,
 } from "../db/types";
-import { RPE_MATRIX_CORRECTION_MAX_DEVIATION } from "./constants";
 import { liftSets } from "./bodyweight";
 import { evaluate, isDoubleCursorAdvancementEligible } from "./evaluation";
-import { correctRpeMatrix, impliedE1rm, isQualifyingSet } from "./matrix";
+import { impliedE1rm, isQualifyingSet } from "./matrix";
 import type { EffectiveConfig } from "./mesocycle";
 import type { ExercisePrescription } from "./prescription";
-import {
-  catchUpC1rm,
-  corroboratedE1rm,
-  representativeByDistance,
-  step,
-} from "./state";
+import { catchUpC1rm, corroboratedE1rm, step } from "./state";
 
 // ----------------------------------------------
 // Post-session fold. Turns one finished session into the single c1RM move it
-// earned, plus any refinement to the exercise's RPE curve. Pure — the service
-// supplies the persisted state and writes the result back.
+// earned. Pure — the service supplies the persisted state and writes the result
+// back.
 //
-// Pipeline stage: finish workout → evaluate → step → catch-up → (last) learn.
+// Pipeline stage: finish workout → evaluate → step → catch-up.
 //
 // Ordering that is load-bearing here:
 //   • Evaluation sees ADDED-space sets against an added-space prescription (the
 //     bodyweight offset cancels), while capacity math sees TOTAL space.
 //   • Lift into total space BEFORE un-fatiguing — the transforms don't commute.
-//   • Matrix learning runs last and anchors on the PRE-catch-up c1RM, so it can
-//     only ever shape future sessions.
 // ----------------------------------------------
 
 /** The multiplicative scale a session's loads were rendered under. */
@@ -43,42 +35,25 @@ function fatigueScaleOf(prescription: ExercisePrescription): number {
   return scale > 0 ? scale : 1;
 }
 
-/** A qualifying set restated in the space the anchor lives in. */
-interface DemonstratedSet {
-  weight: number; // TOTAL load, un-fatigued
-  reps: number;
-  rpe: number;
-  e1rm: number;
-}
-
 /**
- * The session's qualifying sets restated against the UNREDUCED anchor, so the
- * two can be compared like with like: lifted into total space, then divided by
- * the fatigue scale the loads were rendered under (a reduced session logs
- * lighter weights, which would otherwise read as lost capacity and could
- * false-trigger catch-up).
- *
- * Both the catch-up estimate and the RPE-curve correction read the session
- * through this one lens, so they can never disagree on what it demonstrated.
+ * The e1RMs a session's qualifying sets demonstrated, restated against the
+ * UNREDUCED anchor so the two can be compared like with like: lifted into total
+ * space, then divided by the fatigue scale the loads were rendered under (a
+ * reduced session logs lighter weights, which would otherwise read as lost
+ * capacity and could false-trigger catch-up).
  */
-export function demonstratedSets(
+export function demonstratedE1rms(
   matrix: RpeMatrix,
   sets: LoggedSet[],
   offsetKg: number,
   prescription: ExercisePrescription,
-): DemonstratedSet[] {
+): number[] {
   const scale = fatigueScaleOf(prescription);
   return liftSets(sets, offsetKg)
     .filter(isQualifyingSet)
-    .map((s) => {
-      const weight = s.actualWeight / scale;
-      return {
-        weight,
-        reps: s.actualReps,
-        rpe: s.actualRpe!,
-        e1rm: impliedE1rm(matrix, weight, s.actualReps, s.actualRpe!),
-      };
-    });
+    .map((s) =>
+      impliedE1rm(matrix, s.actualWeight / scale, s.actualReps, s.actualRpe!),
+    );
 }
 
 export interface SessionFold {
@@ -101,7 +76,7 @@ export function foldSession(input: {
   eff: EffectiveConfig;
   prescription: ExercisePrescription;
   sets: LoggedSet[]; // added space, timestamp-sorted
-  demonstrated: DemonstratedSet[];
+  demonstrated: number[]; // this session's demonstrated e1RMs
   workoutId: string;
   finishedAt: number;
 }): SessionFold {
@@ -129,13 +104,7 @@ export function foldSession(input: {
 
   // Non-null: the caller routes cold-start exercises to seeding instead.
   const anchor = state.c1rm!;
-  const caught = catchUpC1rm(
-    anchor,
-    corroboratedE1rm(
-      demonstrated.map((d) => d.e1rm),
-      anchor,
-    ),
-  );
+  const caught = catchUpC1rm(anchor, corroboratedE1rm(demonstrated, anchor));
   const fired = caught !== anchor;
 
   return {
@@ -148,33 +117,4 @@ export function foldSession(input: {
         ? "increment"
         : outcome,
   };
-}
-
-/**
- * Refine the exercise's RPE curve from this session, or null to leave it alone.
- * The representative set is chosen by the same anti-fluke rule the catch-up uses
- * (`representativeByDistance`), so the two can never weigh a different set.
- *
- * The deviation gate keeps corrections to honest sets that already broadly agree
- * with the anchor: this only refines curve SHAPE, while a larger divergence is
- * catch-up's job to resolve by moving the anchor instead.
- */
-export function learnedRpeMatrix(
-  matrix: RpeMatrix,
-  demonstrated: DemonstratedSet[],
-  anchor: number,
-): RpeMatrix | null {
-  const rep = representativeByDistance(demonstrated, (d) => d.e1rm, anchor);
-  if (!rep) return null;
-  if (
-    Math.abs(rep.e1rm - anchor) / anchor >
-    RPE_MATRIX_CORRECTION_MAX_DEVIATION
-  )
-    return null;
-
-  return correctRpeMatrix(
-    matrix,
-    { actualWeight: rep.weight, actualReps: rep.reps, actualRpe: rep.rpe },
-    anchor,
-  );
 }

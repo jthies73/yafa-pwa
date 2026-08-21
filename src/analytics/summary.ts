@@ -6,11 +6,6 @@ import {
   pickBodyweightAt,
 } from "../engine/bodyweight";
 import {
-  repsDeviation,
-  rpeOvershoot,
-  weightDeviationPct,
-} from "../engine/comparison";
-import {
   impliedE1rm,
   isQualifyingSet,
   peakImpliedE1rm,
@@ -19,7 +14,7 @@ import type { TimestampedValue } from "./compute";
 
 // ----------------------------------------------
 // Post-workout summary (pure). Reports what happened in a session: duration,
-// volume, how closely it tracked the prescription (adherence), and any PRs.
+// volume, the share of prescribed sets performed (adherence), and any PRs.
 //
 // Pipeline stage: finish workout (display only). Adherence is ANALYTICS-ONLY and
 // never feeds the progression step — the engine's c1RM update is judged solely by
@@ -33,27 +28,17 @@ export interface SetCounts {
   overshoot: boolean;
 }
 
-/** Penalty points for one deduction category, plus the exercises that caused it. */
-export interface DeductionEntry {
-  value: number;
-  exercises: string[];
-}
-
-/** What cost adherence points, by cause — values sum to (100 − score) when unclamped. */
-export interface AdherenceDeductions {
-  rpe: DeductionEntry; // trained harder than the target RPE
-  reps: DeductionEntry; // reps off target
-  load: DeductionEntry; // weight off the prescribed load beyond the tolerance band
-  missing: DeductionEntry; // prescribed sets that were never performed
-  trash: DeductionEntry; // off-script extra ("trash") volume
-}
-
+/**
+ * Adherence: the share of prescribed sets that were actually performed. Nothing
+ * else deducts — training harder, heavier, or for different reps than prescribed
+ * costs nothing, and off-script sets neither help nor hurt. Deliberately a number
+ * the user can verify in their head from the set counts next to it.
+ */
 export interface AdherenceResult {
   score: number; // 0..100
-  prescribedSets: number;
-  extraSets: number;
+  prescribedSets: number; // the denominator: what the prescription asked for
+  completedSets: number; // how many of those were performed; never exceeds it
   missingSets: number;
-  deductions: AdherenceDeductions;
 }
 
 export type PrType = "e1rm" | "rep" | "volume";
@@ -89,20 +74,6 @@ export interface SummaryInput {
   bodyweightEntries?: TimestampedValue[];
 }
 
-// Adherence penalty weights — TUNABLE. Ordered by importance per the spec: an RPE
-// overshoot (trained too hard) is penalized heaviest, then rep deviation, then
-// load deviation. Undershooting RPE (easier than asked) is never penalized, and
-// weight deviations inside the engine's tolerance band score zero — mirroring the
-// engine, which treats both as at-prescription (see engine/comparison.ts).
-// Off-script "trash volume" is a small capped penalty.
-export const ADHERENCE_WEIGHTS = {
-  rpeOver: 12, // per RPE point above target
-  rep: 4, // per rep off target
-  load: 0.5, // per percent off the target weight, beyond the tolerance band
-  trashPerExtraSet: 5,
-  trashCap: 20,
-};
-
 const volumeOf = (sets: LoggedSet[]) =>
   sets.reduce((sum, s) => sum + s.actualWeight * s.actualReps, 0);
 
@@ -113,121 +84,29 @@ function setsForExercise(workout: Workout, exerciseId: string): LoggedSet[] {
     .flatMap((e) => e.sets);
 }
 
-interface SetPenalty {
-  rpe: number;
-  reps: number;
-  load: number;
-}
-
-/** Per-category deviation penalty for one judged set (kept separate so the
- * post-workout summary can show exactly what cost points). */
-function penaltyForSet(set: LoggedSet): SetPenalty {
-  const rpe =
-    set.targetRpe != null && set.actualRpe != null
-      ? rpeOvershoot(set.actualRpe, set.targetRpe) * ADHERENCE_WEIGHTS.rpeOver
-      : 0;
-  const reps =
-    repsDeviation(set.actualReps, set.targetReps) * ADHERENCE_WEIGHTS.rep;
-  const load =
-    weightDeviationPct(set.actualWeight, set.targetWeight) *
-    ADHERENCE_WEIGHTS.load;
-  return { rpe, reps, load };
-}
-
 function computeAdherence(input: SummaryInput): AdherenceResult {
-  const { workout, plannedCounts, exercisesById } = input;
-  const judged: LoggedSet[] = []; // prescribed sets that carry a target
+  const { workout, plannedCounts } = input;
   let prescribedSets = 0;
-  let extraSets = 0;
-  let missingSets = 0;
+  let completedSets = 0;
 
-  const exRpe: string[] = [];
-  const exReps: string[] = [];
-  const exLoad: string[] = [];
-  const exMissing: string[] = [];
-  const exTrash: string[] = [];
-
-  // Iterate the UNION of prescribed (planned) and logged exercises, so an exercise
-  // that was skipped entirely still counts its planned sets as missing.
-  const ids = new Set<string>([
-    ...Object.keys(plannedCounts),
-    ...workout.exercises.map((e) => e.exerciseId),
-  ]);
-  for (const exerciseId of ids) {
-    const sets = setsForExercise(workout, exerciseId); // merges duplicate slots
-    const planned = plannedCounts[exerciseId] ?? sets.length;
-    const prescribed = sets.slice(0, planned);
-    prescribedSets += prescribed.length;
-    extraSets += Math.max(0, sets.length - planned);
-    missingSets += Math.max(0, planned - prescribed.length);
-
-    // Only sets with a real target inform the deviation score.
-    const exerciseJudged = prescribed.filter(
-      (s) => s.targetRpe != null || s.targetWeight > 0,
-    );
-    for (const s of exerciseJudged) judged.push(s);
-
-    const name = exercisesById.get(exerciseId)?.name;
-    if (name) {
-      if (planned - prescribed.length > 0) exMissing.push(name);
-      if (sets.length - planned > 0) exTrash.push(name);
-      if (exerciseJudged.length > 0) {
-        const penalties = exerciseJudged.map(penaltyForSet);
-        if (penalties.some((p) => p.rpe > 0)) exRpe.push(name);
-        if (penalties.some((p) => p.reps > 0)) exReps.push(name);
-        if (penalties.some((p) => p.load > 0)) exLoad.push(name);
-      }
-    }
+  // Only prescribed exercises are counted, so an exercise logged off-script
+  // cannot dilute the score — and a prescribed one that was never logged still
+  // counts every set it asked for as missing.
+  for (const [exerciseId, planned] of Object.entries(plannedCounts)) {
+    const logged = setsForExercise(workout, exerciseId).length; // merged slots
+    prescribedSets += planned;
+    completedSets += Math.min(logged, planned);
   }
 
-  // Deviation penalties are a MEAN over judged sets (quality, normalized); missing
-  // and trash are ABSOLUTE counts (you can't average away skipped or junk volume).
-  const mean = (pick: (p: SetPenalty) => number) =>
-    judged.length === 0
-      ? 0
-      : judged.reduce((sum, s) => sum + pick(penaltyForSet(s)), 0) /
-        judged.length;
-
-  const totalPlanned = Object.values(plannedCounts).reduce((a, b) => a + b, 0);
-  const entry = (value: number, exercises: string[]): DeductionEntry => ({
-    value: Math.round(value),
-    exercises,
-  });
-
-  const deductions: AdherenceDeductions = {
-    rpe: entry(
-      mean((p) => p.rpe),
-      exRpe,
-    ),
-    reps: entry(
-      mean((p) => p.reps),
-      exReps,
-    ),
-    load: entry(
-      mean((p) => p.load),
-      exLoad,
-    ),
-    missing: entry(
-      totalPlanned > 0 ? (missingSets / totalPlanned) * 100 : 0,
-      exMissing,
-    ),
-    trash: entry(
-      Math.min(
-        ADHERENCE_WEIGHTS.trashCap,
-        extraSets * ADHERENCE_WEIGHTS.trashPerExtraSet,
-      ),
-      exTrash,
-    ),
+  return {
+    score:
+      prescribedSets === 0
+        ? 100 // nothing was asked for, so nothing was missed
+        : Math.round((completedSets / prescribedSets) * 100),
+    prescribedSets,
+    completedSets,
+    missingSets: prescribedSets - completedSets,
   };
-
-  const total =
-    deductions.rpe.value +
-    deductions.reps.value +
-    deductions.load.value +
-    deductions.missing.value +
-    deductions.trash.value;
-  const score = Math.max(0, Math.min(100, 100 - total));
-  return { score, prescribedSets, extraSets, missingSets, deductions };
 }
 
 function detectPrs(input: SummaryInput): PrResult[] {

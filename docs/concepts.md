@@ -4,7 +4,7 @@ aliases: [Glossary, Concepts, Terminology]
 tags: [yafa/concepts]
 area: shared
 order: 1
-updated: 2026-08-01
+updated: 2026-08-21
 ---
 
 # Concepts & Glossary
@@ -15,7 +15,7 @@ Canonical definitions for the terms used across this documentation set. **Defini
 
 ## Adherence
 
-A 0–100 score of how faithfully a session followed its prescription, computed from RPE overshoot, rep deviation, weight deviation, and missing/trashed sets. Adherence is **analytics-only**: it colors the post-workout summary gauge but never feeds progression decisions. Anchor: `computeAdherence` (internal) in `src/analytics/summary.ts`, weights in `ADHERENCE_WEIGHTS`.
+A 0–100 score: the share of a session's **prescribed sets that were performed**, rounded to a whole percent. Nothing else deducts — training harder, heavier, or for different reps than prescribed is free, off-script sets neither help nor hurt, and an exercise that was never logged counts every set it asked for as missing. A session with nothing prescribed scores 100. Adherence is **analytics-only**: it colors the post-workout summary gauge but never feeds progression decisions. Anchor: `computeAdherence` (internal) in `src/analytics/summary.ts`.
 Mechanics: [[analytics#Workout summary, adherence and PRs|analytics]]
 
 ## Bodyweight offset

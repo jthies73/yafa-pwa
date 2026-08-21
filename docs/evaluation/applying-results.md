@@ -12,7 +12,7 @@ aliases:
 tags: [yafa/evaluation, yafa/engine]
 area: evaluation
 order: 1
-updated: 2026-08-01
+updated: 2026-08-21
 ---
 
 # Applying Workout Results
@@ -58,7 +58,7 @@ Three subtleties worth naming:
 
 - **Worst set decides a regression; success needs every set.** The worst set is the hardest one: highest RPE, tie-broken by fewest reps. (Top-set model: only the top set judges.)
 - **Missing RPE falls through to hold** — a set logged without RPE can neither confirm success nor trigger a regression.
-- **"At the prescribed weight" is delegated** to `weightMatches` (`src/engine/comparison.ts`, ±`PRESCRIBED_WEIGHT_TOLERANCE_KG`, currently 2.5 kg). `comparison.ts` is the **single source of truth** for prescribed-vs-actual — evaluation, the green-dot adjustment, and adherence analytics all use its helpers (`weightDeviationKg/Pct`, `rpeOvershoot` — undershoot never penalized, `repsDeviation`), so they can never disagree about what "on prescription" means.
+- **"At the prescribed weight" is delegated** to `weightMatches` (`src/engine/comparison.ts`, ±`PRESCRIBED_WEIGHT_TOLERANCE_KG`, currently 2.5 kg). `comparison.ts` is the **single source of truth** for prescribed-vs-actual: evaluation and the green-dot adjustment both judge through it, so they can never disagree about what "on prescription" means. Adherence no longer judges deviations at all, so it no longer reads from here.
 
 Per-model criteria are summarized in the [[progression-models#Per-model behavior matrix|behavior matrix]]; the per-model implementations live alongside `evaluate` in `src/engine/evaluation.ts`.
 

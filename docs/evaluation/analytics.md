@@ -4,12 +4,12 @@ aliases: [Analytics, Adherence, Workout Summary, PRs, Charts]
 tags: [yafa/evaluation]
 area: evaluation
 order: 2
-updated: 2026-07-09
+updated: 2026-08-21
 ---
 
 # Analytics
 
-Everything in `src/analytics/` is a **read-only view over history**. The firewall invariant comes first because it shapes the whole module: [[concepts#Adherence|adherence]] scores, PRs, and chart aggregations **never feed progression** — c1RM moves only through the deterministic rules in [[applying-results]]. Analytics may reuse engine _math_ (`impliedE1rm`, `isQualifyingSet`, the `comparison.ts` deviation helpers) but never engine _state transitions_.
+Everything in `src/analytics/` is a **read-only view over history**. The firewall invariant comes first because it shapes the whole module: [[concepts#Adherence|adherence]] scores, PRs, and chart aggregations **never feed progression** — c1RM moves only through the deterministic rules in [[applying-results]]. Analytics may reuse engine _math_ (`impliedE1rm`, `isQualifyingSet`) but never engine _state transitions_.
 
 ## Chart pipeline
 
@@ -31,7 +31,7 @@ flowchart LR
 
 Built by `buildWorkoutSummary` (`src/analytics/service.ts`) → `computeWorkoutSummary` (`src/analytics/summary.ts`), **before** the workout persists — ordering owned by [[workout-tracking#Finish ordering|workout-tracking]]. Rendered by `WorkoutSummarySheet.vue` (hero gauge, PR highlights, calibration list).
 
-**Adherence** — `computeAdherence` (internal, `summary.ts`) scores 0–100 with penalty weights from `ADHERENCE_WEIGHTS` (`summary.ts`): per-set deviations (RPE overshoot — undershoot is free —, rep deviation, weight deviation beyond the ±2.5 kg dead zone) averaged over judged sets, plus absolute counts for missing/trashed sets. Deviations reuse the `comparison.ts` helpers, so "on prescription" here means exactly what it means in evaluation ([[applying-results#Evaluation semantics|applying-results]]). The `SummaryHero` gauge colors green > 90, amber 75–89, red < 75, with a "Why not 100%?" deduction breakdown.
+**Adherence** — `computeAdherence` (internal, `summary.ts`) is `round(100 × performed prescribed sets ÷ prescribed sets)`. It iterates `plannedCounts` alone, so an off-script exercise cannot dilute the score, and caps each exercise's contribution at what was prescribed, so extra sets cannot inflate it; a prescribed exercise with no logged sets contributes pure missing. Nothing is weighted and no deviation is judged — how hard, how heavy or how many reps the set was does not enter. Zero prescribed sets scores 100. The `SummaryHero` gauge colors green > 90, amber 75–89, red < 75; the "Sets" tile beside it carries the raw completed/planned counts, which is where extra volume stays visible.
 
 **PRs** — `detectPrs` (internal, `summary.ts`): an e1RM PR when the session's `peakImpliedE1rm` beats the historical best (qualifying sets only), and a volume PR when session tonnage beats history. History deliberately excludes the current session. e1RM comparison happens in total-load space with **each session's own workout-time bodyweight**, so logging a new bodyweight never creates or destroys past PRs ([[bodyweight]]); the reported PR weight converts back to added weight.
 
@@ -56,7 +56,7 @@ Any chart exports to CSV (`AnalyticsChartCard.vue` → `buildChartCsv`, `src/ana
 | `buildChartSeries`            | `src/analytics/service.ts`      | Dexie loader + timeframe window            |
 | `buildWorkoutSummary`         | `src/analytics/service.ts`      | Summary loader (excludes current session)  |
 | `computeWorkoutSummary`       | `src/analytics/summary.ts`      | Duration / sets / volume / adherence / PRs |
-| `computeAdherence` (internal) | `src/analytics/summary.ts`      | Weighted penalties, analytics-only         |
+| `computeAdherence` (internal) | `src/analytics/summary.ts`      | Share of prescribed sets, analytics-only   |
 | `detectPrs` (internal)        | `src/analytics/summary.ts`      | e1RM + volume PRs                          |
 | `buildChartCsv`               | `src/analytics/chartCsv.ts`     | Config + table + rebuild guide             |
 | `computeRoutineStats`         | `src/analytics/routineStats.ts` | Dashboard weekly stats                     |

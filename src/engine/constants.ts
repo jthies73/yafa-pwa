@@ -58,7 +58,8 @@ export const QUALIFYING_MAX_REPS = 10;
 //
 // Catch-up is evaluated every finish and, once the anchor is strongly deviated from
 // the session's demonstrated capacity, WINS over the deterministic rules outright:
-// past a LARGE threshold it jumps most of the way toward that estimate in one move,
+// past a LARGE threshold it jumps toward that estimate in one move (how far depends
+// on the direction — see below),
 // fully overriding that session's rule outcome (the streak clears and no reset is
 // armed). Below the threshold the rules drive (success/hold/regression). This
 // deliberately relaxes the "e1RM never feeds c1RM" rule, but only as a large
@@ -67,8 +68,14 @@ export const QUALIFYING_MAX_REPS = 10;
 // Rather than smoothing across history, we trust a SINGLE session's honest sets — but
 // require ≥2 qualifying sets and move toward the 2nd-furthest from the anchor (drop the
 // lone outlier), so one mistyped/fluke set can't move the anchor in either direction.
+// The close is ASYMMETRIC, because being wrong in the two directions costs
+// different amounts. Too low an anchor prescribes weights that are merely easy, so
+// one good session is treated as evidence and most of the gap is closed. Too high
+// an anchor prescribes weights the lifter cannot lift, which ends sessions — so a
+// session demonstrating less capacity is believed outright.
 export const CATCHUP_THRESHOLD = 0.1; // only engage past ±10% deviation from demonstrated
-export const CATCHUP_CLOSE_FRACTION = 0.7; // close most of the gap in one move (fast catch-up)
+export const CATCHUP_CLOSE_UP = 0.7; // capacity ran ahead: close most of the gap
+export const CATCHUP_CLOSE_DOWN = 1; // capacity fell: land on the estimate itself
 
 // --- RPE matrix grid bounds (mirror src/db/rpeMatrix.ts) ---
 
@@ -79,13 +86,13 @@ export const MATRIX_MAX_RPE = 10;
 /** RPE columns are spaced every 0.5; snapRpe rounds to this grid. */
 export const RPE_STEP = 0.5;
 
-// --- RPE Matrix Auto-Correction (HEURISTIC — explicitly tunable) ---
-/** Learning rate at which the exercise-specific RPE matrix adjusts. */
-export const RPE_MATRIX_CORRECTION_ALPHA = 0.1;
-/** Smoothing radius (in reps-to-failure) to propagate adjustments to neighboring cells. */
-export const RPE_MATRIX_CORRECTION_RADIUS = 1.5;
-/** Maximum relative deviation of the session's implied e1RM from the current c1RM to trigger matrix correction. */
-export const RPE_MATRIX_CORRECTION_MAX_DEVIATION = 0.05;
+// --- RPE Matrix manual editing (HEURISTIC — explicitly tunable) ---
+/**
+ * Smoothing radius (in reps-to-failure) over which a hand-edited cell carries
+ * its change to neighbouring cells — cells representing the same effort move
+ * together rather than leaving a spike behind.
+ */
+export const MATRIX_EDIT_SMOOTHING_RADIUS = 1.5;
 
 // --- Mesocycle modifiers (HEURISTIC — explicitly tunable) ---
 //

@@ -3,7 +3,6 @@ import { DEFAULT_RPE_MATRIX } from "../../db/rpeMatrix";
 import type { Set as LoggedSet } from "../../db/types";
 import {
   clampLookupReps,
-  correctRpeMatrix,
   enforceMatrixMonotonicity,
   impliedE1rm,
   isQualifyingSet,
@@ -230,60 +229,6 @@ describe("enforceMatrixMonotonicity", () => {
         if (row2[c] !== undefined) {
           expect(row1[c]).toBeGreaterThanOrEqual(row2[c] - 1e-9);
         }
-      }
-    }
-  });
-});
-
-describe("correctRpeMatrix", () => {
-  it("performs downward correction safely on all iso-effort cells", () => {
-    // Completed 8 reps @ RPE 9. Weight 100kg, anchorE1rm 200kg.
-    // nSet = 8 + (10 - 9) = 9.
-    // pDemo = 100 / 200 = 0.50.
-    // Downward correction (0.50 < 0.74 at 8@9).
-    const completedSet = { actualWeight: 100, actualReps: 8, actualRpe: 9 };
-    const result = correctRpeMatrix(M, completedSet, 200, 0.1, 3.0);
-
-    // Target reps-to-failure n = 9.
-    // 8 reps @ RPE 9: n = 9, reps = 8. w = 1.0. Old: 0.74. New: 0.74 + 0.1 * 1.0 * (0.50 - 0.74) = 0.716.
-    expect(result[8][9]).toBeCloseTo(0.716, 5);
-
-    // 7 reps @ RPE 8: n = 9, reps = 7. w = 1.0. Old: 0.72. New: 0.72 + 0.1 * 1.0 * (0.50 - 0.72) = 0.698.
-    expect(result[7][8]).toBeCloseTo(0.698, 5);
-
-    // 9 reps @ RPE 10: n = 9, reps = 9. w = 1.0. Old: 0.76. New: 0.76 + 0.1 * 1.0 * (0.50 - 0.76) = 0.734.
-    // Since it's downward, safety constraint does not trigger.
-    expect(result[9][10]).toBeCloseTo(0.734, 5);
-  });
-
-  it("applies safety constraint for upward corrections (no upward correction for higher reps)", () => {
-    // Completed 8 reps @ RPE 9. Weight 170kg, anchorE1rm 200kg.
-    // nSet = 8 + (10 - 9) = 9.
-    // pDemo = 170 / 200 = 0.85.
-    // Upward correction (0.85 > 0.74 at 8@9).
-    const completedSet = { actualWeight: 170, actualReps: 8, actualRpe: 9 };
-    const result = correctRpeMatrix(M, completedSet, 200, 0.1, 3.0);
-
-    // 8 reps @ RPE 9: reps = 8 <= 8. Allowed. Old: 0.74. New: 0.74 + 0.1 * 1.0 * (0.85 - 0.74) = 0.751.
-    expect(result[8][9]).toBeCloseTo(0.751, 5);
-
-    // 7 reps @ RPE 8: reps = 7 <= 8. Allowed. Old: 0.72. New: 0.72 + 0.1 * 1.0 * (0.85 - 0.72) = 0.733.
-    expect(result[7][8]).toBeCloseTo(0.733, 5);
-
-    // 9 reps @ RPE 10: reps = 9 > 8. NOT allowed upwards. So it should not increase.
-    // (It might be slightly adjusted down if monotonicity drags it, but it cannot be > 0.79).
-    expect(result[9][10]).toBeLessThanOrEqual(M[9][10] + 1e-9);
-  });
-
-  it("clamps percentages to at most 100% (1.0)", () => {
-    // Attempt to make a set with massive weight to trigger > 1.0 adjustment
-    const completedSet = { actualWeight: 500, actualReps: 1, actualRpe: 10 };
-    const result = correctRpeMatrix(M, completedSet, 100, 1.0, 3.0);
-
-    // No cell in result should exceed 1.0
-    for (const r of Object.keys(result).map(Number)) {
-      for (const c of Object.keys(result[r]).map(Number)) {
-        expect(result[r][c]).toBeLessThanOrEqual(1.0 + 1e-9);
       }
     }
   });

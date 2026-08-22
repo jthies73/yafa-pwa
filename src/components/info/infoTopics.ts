@@ -27,9 +27,9 @@ The ceiling only limits the load — it never decides success or failure. That's
   },
   adherenceScore: {
     title: "Adherence Score",
-    body: `How closely the session followed its prescription, from 0 to 100. It's a feedback signal only — it never changes your training max (c1RM).
+    body: `The share of your prescribed sets you actually performed, from 0 to 100. It's a feedback signal only — it never changes your training max (c1RM).
 
-Points come off for training harder than the target RPE, for missing reps, for weight off the prescription by more than 2.5 kg, for skipping prescribed sets, and for piling on off-script "junk" volume. Training easier than the target RPE or staying within the 2.5 kg band costs nothing. Tap "Why not 100%?" to see the exact breakdown.`,
+Only skipped sets cost you anything. Training harder, heavier, or for different reps than prescribed costs nothing, and extra sets on top cost nothing either — the "Sets" tile next to the gauge shows what you did against what was asked.`,
   },
   rpeMatrix: {
     title: "RPE Matrix",

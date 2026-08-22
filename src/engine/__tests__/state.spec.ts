@@ -202,14 +202,24 @@ describe("catchUpC1rm", () => {
     expect(catchUpC1rm(0, 200)).toBe(0); // no anchor
   });
 
-  it("closes most of the gap in one move when it deviates up", () => {
-    // gap 20, beyond threshold → close 70% → 114.
+  it("closes 70% of the gap when capacity has run AHEAD of the anchor", () => {
+    // gap +20, beyond threshold → 100 + 20 × 0.7 = 114. Deliberately partial:
+    // one good session is evidence, not proof.
     expect(catchUpC1rm(100, 120)).toBeCloseTo(114, 6);
   });
 
-  it("catches up downward too", () => {
-    // gap −20 → 100 + (−20)*0.7 = 86.
-    expect(catchUpC1rm(100, 80)).toBeCloseTo(86, 6);
+  it("closes the gap FULLY when capacity has fallen BELOW the anchor", () => {
+    // gap −20 → the anchor lands on the estimate itself. A lifter who has lost
+    // strength must stop being prescribed weights they cannot lift.
+    expect(catchUpC1rm(100, 80)).toBe(80);
+  });
+
+  it("is asymmetric: the same gap size moves the anchor differently by direction", () => {
+    const up = catchUpC1rm(100, 130) - 100; // +30 gap
+    const down = 100 - catchUpC1rm(100, 70); // −30 gap
+    expect(down).toBeGreaterThan(up);
+    expect(down).toBeCloseTo(30, 6);
+    expect(up).toBeCloseTo(21, 6);
   });
 });
 
@@ -262,5 +272,10 @@ describe("liveEffectiveE1rm", () => {
     const s = setImplying(130, 3, 9); // 30% over → catch-up fires
     // 100 + (130 − 100) * 0.7 = 121.
     expect(liveEffectiveE1rm(M, [s], 100)).toBeCloseTo(121, 6);
+  });
+
+  it("drops all the way to a diverging-DOWN set, mid-session as at finish", () => {
+    const s = setImplying(70, 3, 9); // 30% under → full close
+    expect(liveEffectiveE1rm(M, [s], 100)).toBeCloseTo(70, 6);
   });
 });

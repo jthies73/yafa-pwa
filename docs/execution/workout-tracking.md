@@ -12,7 +12,7 @@ aliases:
 tags: [yafa/execution, yafa/ui]
 area: execution
 order: 3
-updated: 2026-07-09
+updated: 2026-08-21
 ---
 
 # Workout Tracking
@@ -54,7 +54,7 @@ Both are module-level singletons so every component shares one source of truth:
 Mechanics home for [[concepts#Green dot|green dot]]. Three related behaviors, all built on `proposeSetAdjustment` (`src/engine/adjustment.ts`) — which derives a demonstrated e1RM from a completed set (`impliedE1rm`, in total-load space when a [[concepts#Bodyweight offset|bodyweight offset]] applies), re-renders a remaining set's weight for its target reps@RPE, and returns null when the change is within the ±2.5 kg `weightMatches` band (trivial deviations are noise) or the target has no RPE:
 
 1. **Proposal surfacing** — `proposalFor` (`useWorkoutTracker.ts`): for a pending, prescription-backed set whose _immediately preceding_ completed set has valid reps/weight/RPE, compute a proposal. The set's index badge becomes a clickable green dot; `ReprescriptionPopover.vue` shows Load `old → new` and rep changes.
-2. **Apply with cascade** — `applyProposal` (`useWorkoutTracker.ts`): user-confirmed; rewrites the set's `target` (so it becomes the new adherence baseline) and cascades through the remaining pending sets **of that card only** — back-off rows rescale off the re-prescribed top set and only ever adjust downward.
+2. **Apply with cascade** — `applyProposal` (`useWorkoutTracker.ts`): user-confirmed; rewrites the set's `target` (what the row displays as prescribed) and cascades through the remaining pending sets **of that card only** — back-off rows rescale off the re-prescribed top set and only ever adjust downward.
 3. **Cold-start governor** — `fillColdStartFromGovernor` (`useWorkoutTracker.ts`): automatic (no confirm) — once the first set of a [[concepts#Cold start|cold-start]] exercise is logged, its demonstrated capacity fills the remaining empty rows (back-offs via their `backoffFraction`). Non-destructive and idempotent.
 
 The guardrail: adjustments are **today-only** and never touch [[concepts#c1RM|c1RM]]. Post-session divergence correction is the [[concepts#Catch-up|catch-up]]'s job — keeping the two mechanisms decoupled means a bad in-session guess can't corrupt the anchor.
@@ -78,13 +78,13 @@ sequenceDiagram
 
     UAW->>UAW: merge calculator sets, set endTime,<br/>drop untouched exercises
     UAW->>AN: buildWorkoutSummary (BEFORE persist)
-    Note over UAW,AN: PR history must exclude this session;<br/>adherence must use pre-learning matrices
+    Note over UAW,AN: PR history must exclude this session
     UAW->>DB: db.workouts.add(completed)
     UAW->>ENG: applyWorkoutResults → CalibrationChange[]
     UAW->>UAW: reset() then show summary
 ```
 
-Building the summary **before** persisting is a correctness invariant, not a style choice: `detectPrs` compares against history and must not see the current session, and adherence should be judged against the matrices as they were when the session was prescribed — `applyWorkoutResults` may rewrite them ([[applying-results#Ordering invariants|applying-results]]). Summary content itself: [[analytics#Workout summary, adherence and PRs|analytics]].
+Building the summary **before** persisting is a correctness invariant, not a style choice: `detectPrs` compares against history and must not see the current session, and `applyWorkoutResults` may rewrite the RPE matrices the PR comparison reads ([[applying-results#Ordering invariants|applying-results]]). Adherence is unaffected either way — it counts sets, not loads. Summary content itself: [[analytics#Workout summary, adherence and PRs|analytics]].
 
 ## Calculator panel
 

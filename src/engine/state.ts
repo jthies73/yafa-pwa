@@ -8,7 +8,8 @@ import type {
 } from "../db/types";
 import type { ProgressionOutcome } from "./evaluation";
 import {
-  CATCHUP_CLOSE_FRACTION,
+  CATCHUP_CLOSE_DOWN,
+  CATCHUP_CLOSE_UP,
   CATCHUP_THRESHOLD,
   REGRESSION_RESET_TRIGGER,
   RESET_DROP,
@@ -166,61 +167,44 @@ export function step(
 //      sets. We trust honest sets over a smoothed average (a real divergence shouldn't
 //      be damped away), but require ≥2 sets and drop the lone outlier so one mistyped
 //      or fluke set can't move the anchor — in either direction.
-//   2. catchUpC1rm — past a LARGE threshold, jumps most of the way toward that estimate
-//      in one move. The caller applies it INSTEAD of the rule outcome, so the two never
-//      collide in one session.
+//   2. catchUpC1rm — past a LARGE threshold, jumps toward that estimate in one move:
+//      most of the way up, the whole way down. The caller applies it INSTEAD of the
+//      rule outcome, so the two never collide in one session.
 // ----------------------------------------------
 
 /**
  * Demonstrated capacity from a SINGLE session's qualifying e1RMs (RPE ≥ 8, reps ≤ 10).
- * With ≥2 sets, drops the single most-extreme (a typo/fluke) and trusts the 2nd-furthest
- * from the anchor. With exactly 1 set (top-set programs), uses it directly — there is no
- * outlier to drop and the top set is the main event. Null only when no positive
- * observations exist.
+ * With ≥2 observations, drops the single most-extreme (a typo/fluke) and trusts the
+ * 2nd-furthest from the anchor — that drop is what stops one mistyped set from moving
+ * the anchor, in either direction. With exactly 1 (top-set programs), uses it directly:
+ * there is no outlier to drop and the top set is the main event. Null only when no
+ * positive observations exist.
  */
 export function corroboratedE1rm(
   sessionE1rms: number[],
   anchor: number,
 ): number | null {
-  return representativeByDistance(
-    sessionE1rms.filter((e) => e > 0),
-    (e) => e,
-    anchor,
-  );
-}
-
-/**
- * The anti-fluke pick: of these items, the one whose value is 2nd-furthest from
- * `anchor` — or the only item when there is just one. Dropping the single most
- * extreme observation is what stops one mistyped set from moving the anchor, in
- * either direction. Generic because the same rule governs both the catch-up
- * estimate (over e1RM numbers) and the RPE-curve correction (over sets), and
- * those two must never disagree about which set counted.
- */
-export function representativeByDistance<T>(
-  items: T[],
-  valueOf: (item: T) => number,
-  anchor: number,
-): T | null {
-  if (items.length === 0) return null;
-  const byDistance = [...items].sort(
-    (a, b) => Math.abs(valueOf(b) - anchor) - Math.abs(valueOf(a) - anchor),
+  const positive = sessionE1rms.filter((e) => e > 0);
+  if (positive.length === 0) return null;
+  const byDistance = [...positive].sort(
+    (a, b) => Math.abs(b - anchor) - Math.abs(a - anchor),
   );
   return byDistance[Math.min(1, byDistance.length - 1)];
 }
 
 /**
  * Catch the c1RM up to the demonstrated e1RM estimate. Returns the anchor UNCHANGED
- * unless the relative gap exceeds the (large) threshold; then it closes most of the
- * gap in one move (fast convergence, not a per-session nibble). Returning the input
- * unchanged is the caller's signal that catch-up did not fire. Kept UNROUNDED like
- * every other c1RM transition. Null/zero inputs pass the anchor through unchanged.
+ * unless the relative gap exceeds the (large) threshold — that is the caller's signal
+ * that catch-up did not fire. The threshold is symmetric, the close is NOT: upward it
+ * takes CATCHUP_CLOSE_UP of the gap, downward it closes fully and lands on the
+ * estimate (see the constants for why). Kept UNROUNDED like every other c1RM
+ * transition. Null/zero inputs pass the anchor through unchanged.
  */
 export function catchUpC1rm(c1rm: number, estimate: number | null): number {
   if (estimate == null || c1rm <= 0) return c1rm;
   const gap = estimate - c1rm;
   if (Math.abs(gap) / c1rm <= CATCHUP_THRESHOLD) return c1rm;
-  return c1rm + gap * CATCHUP_CLOSE_FRACTION;
+  return c1rm + gap * (gap > 0 ? CATCHUP_CLOSE_UP : CATCHUP_CLOSE_DOWN);
 }
 
 /**

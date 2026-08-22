@@ -1,15 +1,15 @@
 ---
 title: RPE Matrix & e1RM Math
-aliases: [RPE Matrix, Matrix Correction, e1RM, matrixPct]
+aliases: [RPE Matrix, e1RM, matrixPct]
 tags: [yafa/planning, yafa/engine]
 area: planning
 order: 4
-updated: 2026-08-01
+updated: 2026-08-21
 ---
 
 # RPE Matrix & e1RM Math
 
-All weight math in YAFA flows through `src/engine/matrix.ts`. The [[concepts#RPE matrix|RPE matrix]] maps `(reps, RPE)` to a percentage of 1RM; prescriptions multiply it by [[concepts#c1RM|c1RM]], and analytics divide by it to get [[concepts#Implied e1RM|implied e1RMs]]. This doc is the mechanics home for the matrix in _all_ phases — lookup, qualifying sets, manual editing, and the adaptive correction.
+All weight math in YAFA flows through `src/engine/matrix.ts`. The [[concepts#RPE matrix|RPE matrix]] maps `(reps, RPE)` to a percentage of 1RM; prescriptions multiply it by [[concepts#c1RM|c1RM]], and analytics divide by it to get [[concepts#Implied e1RM|implied e1RMs]]. This doc is the mechanics home for the matrix in _all_ phases — lookup, qualifying sets, and manual editing. The matrix is **static data**: nothing in the engine rewrites it, so the only thing that ever changes a cell is a hand edit.
 
 > User-facing overview: [README — Cell-Based RPE Matrix](../../README.md)
 
@@ -23,7 +23,7 @@ Two invariants stated in the module itself:
 
 `RpeMatrix = Record<reps, Record<rpe, pct>>` (`src/db/types.ts`), decimals 0–1. Grid bounds from `src/engine/constants.ts`: reps `MATRIX_MIN_REPS`–`MATRIX_MAX_REPS` (1–15), RPE `MATRIX_MIN_RPE`–`MATRIX_MAX_RPE` (6–10) in `RPE_STEP` (0.5) steps.
 
-Hierarchical cascade: the global default `DEFAULT_RPE_MATRIX` (`src/db/rpeMatrix.ts`, seeded from RTS-style evidence-based values) applies to every exercise unless it stores its own `Exercise.rpeMatrix` override. Overrides materialize two ways: the user toggles "Overwrite RPE matrix" and edits cells, or the adaptive correction writes one automatically after a qualifying session.
+Hierarchical cascade: the global default `DEFAULT_RPE_MATRIX` (`src/db/rpeMatrix.ts`, seeded from RTS-style evidence-based values) applies to every exercise unless it stores its own `Exercise.rpeMatrix` override. An override materializes exactly one way: the user toggles "Overwrite RPE matrix" and edits cells. (An earlier build also had the engine learn the curve automatically after a session; that was removed, and the override field is what a future implementation would write to.)
 
 ## Lookup and derivation
 
@@ -50,27 +50,7 @@ Mechanics home for [[concepts#Qualifying set|qualifying set]]: `isQualifyingSet`
 
 ## Manual editing
 
-The editor path (`ExerciseRpeMatrixEditor.vue` + `RpeMatrixTable.vue`, embedded in the exercise form and config sheet) is **deliberately conservative**: `setMatrixCell` (`src/engine/matrix.ts`) applies the user's exact value, propagates the delta through a smoothing kernel over reps-to-failure space, then re-enforces monotonicity while **pinning the edited cell** — a hand edit never silently reshapes the whole grid. `enforceMatrixMonotonicity` (`matrix.ts`) iteratively clamps so percentages rise with RPE and fall with reps. Reset-to-default restores `DEFAULT_RPE_MATRIX` behind a confirm; persistence writes the override directly to the exercise record. The settings page displays the global matrix read-only.
-
-## Adaptive correction
-
-Within the ±10% band where a session broadly _agrees_ with the anchor, the engine refines the **shape** of the exercise's curve instead of moving c1RM (that's the [[concepts#Catch-up|catch-up]]'s job):
-
-```mermaid
-flowchart TD
-    SET["representative qualifying set<br/>(same corroboration as catch-up)"] --> UNFAT["un-fatigue weight<br/>(divide out session-fatigue scale)"]
-    UNFAT --> GATE{"deviation from anchor<br/>≤ RPE_MATRIX_CORRECTION_MAX_DEVIATION (5%)?"}
-    GATE -->|no| SKIP["skip — catch-up territory"]
-    GATE -->|yes| NSPACE["reframe as reps-to-failure axis<br/>n = reps + (10 − RPE)"]
-    NSPACE --> NUDGE["nudge cells toward pDemo<br/>alpha 0.1 × triangular kernel (radius 1.5)"]
-    NUDGE --> SAFE["safety: never raise cells for<br/>reps > actually performed"]
-    SAFE --> MONO["enforceMatrixMonotonicity"]
-    MONO --> WRITE["persist as per-exercise override"]
-```
-
-`correctRpeMatrix(matrix, completedSet, anchorE1rm, …)` (`src/engine/matrix.ts`) implements the learning: the demonstrated fraction `pDemo = min(1, weight / anchor)` pulls each cell by `alpha × kernelWeight × (pDemo − pOld)`, where the triangular kernel fades linearly within `RPE_MATRIX_CORRECTION_RADIUS` (1.5) in n-space — cells representing the same effort learn together. The anchor is the stable rules-driven c1RM (pre-catch-up).
-
-**When** it runs — last in the [[concepts#Fold|fold]], so it only shapes future sessions — and its gating by `learnedRpeMatrix` (`src/engine/fold.ts`) are owned by [[applying-results#Ordering invariants|applying-results]].
+The editor path (`ExerciseRpeMatrixEditor.vue` + `RpeMatrixTable.vue`, embedded in the exercise form and config sheet) is **deliberately conservative**: `setMatrixCell` (`src/engine/matrix.ts`) applies the user's exact value, propagates the delta through a smoothing kernel over reps-to-failure space (radius `MATRIX_EDIT_SMOOTHING_RADIUS`, 1.5), then re-enforces monotonicity while **pinning the edited cell** — a hand edit never silently reshapes the whole grid. `enforceMatrixMonotonicity` (`matrix.ts`) iteratively clamps so percentages rise with RPE and fall with reps. Reset-to-default restores `DEFAULT_RPE_MATRIX` behind a confirm; persistence writes the override directly to the exercise record. The settings page displays the global matrix read-only.
 
 ## Consumers
 
@@ -91,6 +71,5 @@ flowchart TD
 | `peakImpliedE1rm`                        | `src/engine/matrix.ts`     | Best-set e1RM                          |
 | `setMatrixCell`                          | `src/engine/matrix.ts`     | Manual edit, pinned cell               |
 | `enforceMatrixMonotonicity`              | `src/engine/matrix.ts`     | ≤20-pass clamp                         |
-| `correctRpeMatrix`                       | `src/engine/matrix.ts`     | Adaptive learning                      |
 | `snapRpe` / `clampLookupReps`            | `src/engine/matrix.ts`     | Grid normalization                     |
 | `solveWeight` / `solveReps` / `solveRpe` | `src/engine/calculator.ts` | Calculator solvers on the same matrix  |

@@ -4,7 +4,7 @@ aliases: [Glossary, Concepts, Terminology]
 tags: [yafa/concepts]
 area: shared
 order: 1
-updated: 2026-08-01
+updated: 2026-08-22
 ---
 
 # Concepts & Glossary
@@ -15,7 +15,7 @@ Canonical definitions for the terms used across this documentation set. **Defini
 
 ## Adherence
 
-A 0–100 score of how faithfully a session followed its prescription, computed from RPE overshoot, rep deviation, weight deviation, and missing/trashed sets. Adherence is **analytics-only**: it colors the post-workout summary gauge but never feeds progression decisions. Anchor: `computeAdherence` (internal) in `src/analytics/summary.ts`, weights in `ADHERENCE_WEIGHTS`.
+A 0–100 score: the share of a session's **prescribed sets that were performed**, rounded to a whole percent. Nothing else deducts — training harder, heavier, or for different reps than prescribed is free, off-script sets neither help nor hurt, and an exercise that was never logged counts every set it asked for as missing. A session with nothing prescribed scores 100. Adherence is **analytics-only**: it colors the post-workout summary gauge but never feeds progression decisions. Anchor: `computeAdherence` (internal) in `src/analytics/summary.ts`.
 Mechanics: [[analytics#Workout summary, adherence and PRs|analytics]]
 
 ## Bodyweight offset
@@ -30,7 +30,7 @@ Mechanics: [[applying-results]] (movement), [[prescription-pipeline]] (consumpti
 
 ## Catch-up
 
-The single-move correction that fires when a session's [[#Demonstrated e1RM|demonstrated e1RM]] diverges from [[#c1RM|c1RM]] by more than ±`CATCHUP_THRESHOLD` (currently 10%): c1RM jumps `CATCHUP_CLOSE_FRACTION` (currently 70%) of the gap toward the estimate. When it fires it takes **full precedence** over the deterministic progression rules for that session — the regression streak clears and no reset is armed. Anchor: `catchUpC1rm` in `src/engine/state.ts`.
+The single-move correction that fires when a session's [[#Demonstrated e1RM|demonstrated e1RM]] diverges from [[#c1RM|c1RM]] by more than ±`CATCHUP_THRESHOLD` (currently 10%). The threshold is symmetric but the move is **not**: upward c1RM takes `CATCHUP_CLOSE_UP` (currently 70%) of the gap, downward it takes `CATCHUP_CLOSE_DOWN` (currently 100%) and lands on the estimate itself. The asymmetry is deliberate — too low an anchor only prescribes easy weights, while too high an anchor prescribes weights that end the session. When it fires it takes **full precedence** over the deterministic progression rules for that session — the regression streak clears and no reset is armed. Anchor: `catchUpC1rm` in `src/engine/state.ts`.
 Mechanics: [[applying-results#Catch-up|applying-results]]
 
 ## Cold start
@@ -40,12 +40,12 @@ Mechanics: [[prescription-pipeline#Cold start|prescription-pipeline]], [[workout
 
 ## Demonstrated e1RM
 
-The e1RM a session actually **demonstrated**, corroborated from that session's [[#Qualifying set|qualifying sets]]: a lone qualifying set is used directly; with two or more, the single furthest-from-anchor set is dropped as a possible fluke and the next-furthest is used. It is never used for prescriptions directly — it is the signal the [[#Catch-up|catch-up]] and the [[#RPE matrix correction|matrix correction]] weigh against c1RM. Anchor: `corroboratedE1rm` in `src/engine/state.ts`.
+The e1RM a session actually **demonstrated**, corroborated from that session's [[#Qualifying set|qualifying sets]]: a lone qualifying set is used directly; with two or more, the single furthest-from-anchor set is dropped as a possible fluke and the next-furthest is used. It is never used for prescriptions directly — it is the signal the [[#Catch-up|catch-up]] weighs against c1RM. Anchor: `corroboratedE1rm` in `src/engine/state.ts`.
 Mechanics: [[applying-results#Catch-up|applying-results]]
 
 ## Fold
 
-Shorthand for the post-session application of workout results to progression state: evaluate the outcome, step the state, weigh the catch-up, then (last) learn the RPE matrix — **one c1RM move per session**, guarded for idempotency by `lastWorkoutId`. Anchor: `applyWorkoutResults` in `src/engine/service.ts`, which delegates the per-session decision to `foldSession` in `src/engine/fold.ts`.
+Shorthand for the post-session application of workout results to progression state: evaluate the outcome, step the state, weigh the catch-up — **one c1RM move per session**, guarded for idempotency by `lastWorkoutId`. Anchor: `applyWorkoutResults` in `src/engine/service.ts`, which delegates the per-session decision to `foldSession` in `src/engine/fold.ts`.
 Mechanics: [[applying-results]]
 
 ## Green dot
@@ -87,11 +87,6 @@ Mechanics: [[applying-results#Two-phase reset|applying-results]]
 
 The grid mapping `(reps 1–15, RPE 6–10 in 0.5 steps)` to a percentage of 1RM. One global default (`DEFAULT_RPE_MATRIX`, seeded from RTS-style values) with optional per-exercise overrides; lookups interpolate **only on the RPE axis** (rep rows are exact) and clamp at the grid edges. All weight math — prescription, implied e1RM, the calculator — flows through it. Anchors: `RpeMatrix` in `src/db/types.ts`, `matrixPct` in `src/engine/matrix.ts`.
 Mechanics: [[rpe-matrix]]
-
-## RPE matrix correction
-
-The adaptive learning step that reshapes an exercise's RPE curve toward demonstrated performance. Fires only when the session broadly **agrees** with the anchor (deviation ≤ `RPE_MATRIX_CORRECTION_MAX_DEVIATION`, currently 5%) — larger divergence is [[#Catch-up|catch-up]] territory. Cells are nudged with learning rate `RPE_MATRIX_CORRECTION_ALPHA` (0.1) through a triangular kernel over reps-to-failure space, applied **last** in the [[#Fold|fold]] so it only shapes future sessions. Anchor: `correctRpeMatrix` in `src/engine/matrix.ts`, gated by `learnedRpeMatrix` in `src/engine/fold.ts`.
-Mechanics: [[rpe-matrix#Adaptive correction|rpe-matrix]], [[applying-results#Ordering invariants|applying-results]]
 
 ## Slot alignment
 

@@ -5,7 +5,7 @@ aliases:
 tags: [yafa/execution, yafa/engine]
 area: execution
 order: 4
-updated: 2026-07-09
+updated: 2026-08-21
 ---
 
 # Bodyweight Exercises
@@ -44,7 +44,7 @@ Helpers in `src/engine/bodyweight.ts`:
 - **Prescription** — `prescribeExercise` takes a `bodyweightOffsetKg`; the load closure subtracts it before rounding. Top-set back-off drops apply to the **total** (`(top + offset) × fraction − offset`). The preview carries `bodyweightOffsetKg` (shown as a "Bodyweight share" row) and a `bodyweightMissing` hint. ([[prescription-pipeline]])
 - **Tracking** — `useActiveWorkout` captures `bodyweightKg` once at session start and stores it in the snapshot (additive field; `SNAPSHOT_VERSION` stays 2, old snapshots refetch). Set validation accepts 0 and negative added weights. Green-dot proposals and the cold-start governor pass the offset into `proposeSetAdjustment`, which runs its matrix math in total space and gates on `weight + offset > 0`. ([[workout-tracking]])
 - **Calculator** — `solveWeight` subtracts the offset from its result; `solveReps`/`solveRpe` receive `added + offset` as input. The numeric keypad gained a **±** key for assistance weights. ([[workout-tracking#Calculator panel|workout-tracking]])
-- **Fold** — `applyWorkoutResults` lifts logged sets (with the session-time bodyweight) before seeding, corroborating, and matrix learning. ([[applying-results]])
+- **Fold** — `applyWorkoutResults` lifts logged sets (with the session-time bodyweight) before seeding and corroborating. ([[applying-results]])
 - **Analytics** — the e1RM metric, PR detection, tooltips, and CSV export all lift per-workout (`pickBodyweightAt` per session); best sets render as `added + offset BW`. ([[analytics]])
 - **Data layer** — `Exercise.bodyweightFactor?` (absent ⇒ 0); migration v11 backfills the factor and re-protects the Bodyweight measurement type (reversing v6); backups normalize both on import ([[data-model]], [[backup-restore]]).
 - **Factor edits re-base c1RM** — `updateExercise` shifts the anchor by `bodyweightShiftKg` in a transaction so prescribed added weights stay continuous; streak/reset state is untouched and any residual drift is absorbed by the next [[concepts#Catch-up|catch-up]].

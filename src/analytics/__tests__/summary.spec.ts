@@ -38,131 +38,114 @@ const input = (
 });
 
 describe("computeWorkoutSummary — adherence", () => {
-  it("a perfectly-executed workout scores 100 with no deductions", () => {
-    const a = computeWorkoutSummary(
-      input([{ exerciseId: "ex1", sets: [set(), set(), set()] }], { ex1: 3 }),
-    ).adherence;
+  const adherenceOf = (
+    exercises: { exerciseId: string; sets: LoggedSet[] }[],
+    plannedCounts: Record<string, number>,
+  ) => computeWorkoutSummary(input(exercises, plannedCounts)).adherence;
+
+  it("performing every prescribed set scores 100", () => {
+    const a = adherenceOf(
+      [{ exerciseId: "ex1", sets: [set(), set(), set()] }],
+      {
+        ex1: 3,
+      },
+    );
     expect(a.score).toBe(100);
+    expect(a.prescribedSets).toBe(3);
+    expect(a.completedSets).toBe(3);
     expect(a.missingSets).toBe(0);
-    expect(a.deductions).toEqual({
-      rpe: { value: 0, exercises: [] },
-      reps: { value: 0, exercises: [] },
-      load: { value: 0, exercises: [] },
-      missing: { value: 0, exercises: [] },
-      trash: { value: 0, exercises: [] },
-    });
   });
 
-  it("missing prescribed sets cut the score proportionally", () => {
-    // 2 of 4 prescribed sets done, both perfect → −50 → 50.
-    const a = computeWorkoutSummary(
-      input([{ exerciseId: "ex1", sets: [set(), set()] }], { ex1: 4 }),
-    ).adherence;
+  it("the score is the share of prescribed sets performed", () => {
+    // 2 of 4 prescribed sets done.
+    const a = adherenceOf([{ exerciseId: "ex1", sets: [set(), set()] }], {
+      ex1: 4,
+    });
+    expect(a.completedSets).toBe(2);
     expect(a.missingSets).toBe(2);
-    expect(a.deductions.missing.value).toBe(50);
     expect(a.score).toBe(50);
   });
 
-  it("an entirely skipped exercise counts its planned sets as missing", () => {
-    // ex1 done perfectly (planned 3); ex2 (planned 2) never logged → 2 missing of 5 total → −40.
-    const a = computeWorkoutSummary(
-      input([{ exerciseId: "ex1", sets: [set(), set(), set()] }], {
+  it("rounds to a whole percent", () => {
+    // 1 of 3 → 33.33… → 33.
+    const a = adherenceOf([{ exerciseId: "ex1", sets: [set()] }], { ex1: 3 });
+    expect(a.score).toBe(33);
+  });
+
+  it("an entirely skipped exercise counts its prescribed sets as missing", () => {
+    // ex1 done (3 of 3); ex2 never logged (0 of 2) → 3 of 5.
+    const a = adherenceOf(
+      [{ exerciseId: "ex1", sets: [set(), set(), set()] }],
+      {
         ex1: 3,
         ex2: 2,
-      }),
-    ).adherence;
+      },
+    );
     expect(a.missingSets).toBe(2);
     expect(a.score).toBe(60);
   });
 
-  it("deductions decompose the score exactly", () => {
-    // 2 of 3 done: one perfect, one RPE 9 (overshoot 1 → 12, meaned over 2 = 6);
-    // 1 missing of 3 total → 33. total 39 → score 61.
-    const a = computeWorkoutSummary(
-      input([{ exerciseId: "ex1", sets: [set(), set({ actualRpe: 9 })] }], {
-        ex1: 3,
-      }),
-    ).adherence;
-    const d = a.deductions;
-    expect(d.rpe.value).toBe(6);
-    expect(d.missing.value).toBe(33);
-    expect(
-      d.rpe.value +
-        d.reps.value +
-        d.load.value +
-        d.missing.value +
-        d.trash.value,
-    ).toBe(100 - a.score);
-    expect(a.score).toBe(61);
-  });
-
-  it("weight within the ±2.5 kg tolerance band costs nothing", () => {
-    // Mirrors the engine: within the band the set is "at prescribed".
-    const a = computeWorkoutSummary(
-      input(
-        [
-          {
-            exerciseId: "ex1",
-            sets: [
-              set({ actualWeight: 102.5 }),
-              set({ actualWeight: 97.5 }),
-              set(),
-            ],
-          },
-        ],
-        { ex1: 3 },
-      ),
-    ).adherence;
-    expect(a.deductions.load.value).toBe(0);
+  it("training harder than the target RPE costs nothing", () => {
+    const a = adherenceOf(
+      [
+        {
+          exerciseId: "ex1",
+          sets: [set({ actualRpe: 10 }), set({ actualRpe: 10 }), set()],
+        },
+      ],
+      { ex1: 3 },
+    );
     expect(a.score).toBe(100);
   });
 
-  it("weight beyond the band is penalized on the full deviation", () => {
-    // One set 10% off (110 vs 100) → 10 × 0.5 = 5, meaned over 3 sets ≈ 2.
-    const a = computeWorkoutSummary(
-      input(
-        [
-          {
-            exerciseId: "ex1",
-            sets: [set({ actualWeight: 110 }), set(), set()],
-          },
-        ],
-        { ex1: 3 },
-      ),
-    ).adherence;
-    expect(a.deductions.load.value).toBe(2);
-    expect(a.score).toBe(98);
-  });
-
-  it("undershooting the target RPE costs nothing", () => {
-    const a = computeWorkoutSummary(
-      input(
-        [
-          {
-            exerciseId: "ex1",
-            sets: [set({ actualRpe: 6 }), set({ actualRpe: 7 }), set()],
-          },
-        ],
-        { ex1: 3 },
-      ),
-    ).adherence;
-    expect(a.deductions.rpe.value).toBe(0);
+  it("reps and weight off the prescription cost nothing", () => {
+    const a = adherenceOf(
+      [
+        {
+          exerciseId: "ex1",
+          sets: [set({ actualReps: 2 }), set({ actualWeight: 140 }), set()],
+        },
+      ],
+      { ex1: 3 },
+    );
     expect(a.score).toBe(100);
   });
 
-  it("off-script extra sets add a capped trash penalty", () => {
-    // 3 planned, 5 perfect logged → 2 extra → −10 trash.
-    const a = computeWorkoutSummary(
+  it("extra sets cost nothing and stay visible in the set counts", () => {
+    // 3 prescribed, 5 logged.
+    const summary = computeWorkoutSummary(
       input(
         [{ exerciseId: "ex1", sets: [set(), set(), set(), set(), set()] }],
         {
           ex1: 3,
         },
       ),
-    ).adherence;
-    expect(a.extraSets).toBe(2);
-    expect(a.deductions.trash.value).toBe(10);
-    expect(a.score).toBe(90);
+    );
+    expect(summary.adherence.score).toBe(100);
+    expect(summary.adherence.completedSets).toBe(3); // never exceeds prescribed
+    expect(summary.sets.completed).toBe(5);
+    expect(summary.sets.planned).toBe(3);
+    expect(summary.sets.overshoot).toBe(true);
+  });
+
+  it("an off-script exercise neither helps nor hurts the score", () => {
+    // ex2 was never prescribed; ex1 is half done.
+    const a = adherenceOf(
+      [
+        { exerciseId: "ex1", sets: [set()] },
+        { exerciseId: "ex2", sets: [set(), set(), set()] },
+      ],
+      { ex1: 2 },
+    );
+    expect(a.prescribedSets).toBe(2);
+    expect(a.completedSets).toBe(1);
+    expect(a.score).toBe(50);
+  });
+
+  it("a session with nothing prescribed scores 100", () => {
+    const a = adherenceOf([{ exerciseId: "ex1", sets: [set()] }], {});
+    expect(a.prescribedSets).toBe(0);
+    expect(a.score).toBe(100);
   });
 });
 

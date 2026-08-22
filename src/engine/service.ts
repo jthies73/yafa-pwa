@@ -18,7 +18,6 @@ import {
   getRoutine,
   getWorkoutsBetween,
   putProgressionState,
-  setExerciseRpeMatrix,
 } from "../db/repository";
 import { bodyweightAt, currentBodyweight } from "../db/measurements";
 import { bodyweightOffsetKg, liftSets } from "./bodyweight";
@@ -38,7 +37,7 @@ import {
   priorsBySlot,
   type MuscleProfile,
 } from "./fatigue";
-import { demonstratedSets, foldSession, learnedRpeMatrix } from "./fold";
+import { demonstratedE1rms, foldSession } from "./fold";
 import { consumeReset } from "./state";
 import { seedE1rm } from "./matrix";
 
@@ -433,7 +432,7 @@ async function foldExercise(
     ctx.priors.get(exerciseId) ?? [],
     ctx.bodyweight,
   );
-  const demonstrated = demonstratedSets(matrix, sets, offsetKg, prescription);
+  const demonstrated = demonstratedE1rms(matrix, sets, offsetKg, prescription);
   const { persisted, reason } = foldSession({
     state,
     eff,
@@ -444,12 +443,6 @@ async function foldExercise(
     finishedAt: ctx.finishedAt,
   });
   await putProgressionState(persisted);
-
-  // Learn the exercise's RPE curve LAST, so it never feeds this session's own
-  // prescription, evaluation, or catch-up (those all read the prior matrix).
-  // The anchor is the stable rules-driven c1RM, not the post-catch-up value.
-  const corrected = learnedRpeMatrix(matrix, demonstrated, state.c1rm);
-  if (corrected) await setExerciseRpeMatrix(exerciseId, corrected);
 
   return {
     exerciseId,
@@ -500,7 +493,7 @@ export async function applyWorkoutResults(
   };
 
   const changes: CalibrationChange[] = [];
-  await db.transaction("rw", [db.progressionStates, db.exercises], async () => {
+  await db.transaction("rw", db.progressionStates, async () => {
     for (const [exerciseId, sets] of byExercise) {
       const change = await foldExercise(exerciseId, sets, foldCtx);
       if (change) changes.push(change);

@@ -12,12 +12,12 @@ aliases:
 tags: [yafa/evaluation, yafa/engine]
 area: evaluation
 order: 1
-updated: 2026-08-01
+updated: 2026-08-22
 ---
 
 # Applying Workout Results
 
-The [[concepts#Fold|fold]]: after a workout persists, `applyWorkoutResults` (`src/engine/service.ts`) turns each exercise's logged sets into exactly **one c1RM move** — an increment, a hold, a regression mark, a recalibration jump, or a first-time seed — plus, last of all, an RPE-matrix learning step. This is the densest doc in the set; the deterministic rules here are locked design decisions.
+The [[concepts#Fold|fold]]: after a workout persists, `applyWorkoutResults` (`src/engine/service.ts`) turns each exercise's logged sets into exactly **one c1RM move** — an increment, a hold, a regression mark, a recalibration jump, or a first-time seed. This is the densest doc in the set; the deterministic rules here are locked design decisions.
 
 > User-facing overview: [README — Progression Models / Regression Tracking & Reset](../../README.md)
 
@@ -34,17 +34,16 @@ flowchart TD
     RERENDER --> EVAL["evaluate → success | hold | regression"]
     EVAL --> STEP["step: increment / cursor / streak / arm reset"]
     STEP --> UNFAT["lift to total load (session bodyweight),<br/>then un-fatigue logged weights"]
-    UNFAT --> CORR["demonstratedSets → corroboratedE1rm<br/>(drop furthest-from-anchor outlier)"]
+    UNFAT --> CORR["demonstratedE1rms → corroboratedE1rm<br/>(drop furthest-from-anchor outlier)"]
     CORR --> CATCH{"catchUpC1rm fired?<br/>(divergence > ±10%)"}
     CATCH -->|yes| RECAL["c1rm = caught value<br/>streak 0, reset disarmed<br/>reason: recalibrate — FULL PRECEDENCE"]
     CATCH -->|no| KEEP["step result stands<br/>reason: increment / hold / regression"]
     RECAL --> PUT["putProgressionState"]
     KEEP --> PUT
     SEED --> PUT
-    PUT --> LEARN["learnedRpeMatrix → correctRpeMatrix<br/>applied LAST, persists per-exercise override"]
 ```
 
-The whole fold runs in one `[progressionStates, exercises]` transaction and returns `CalibrationChange[]` (`src/engine/service.ts`) — the before/after list the summary sheet renders. Sets logged for exercises _not_ in the routine just get stamped with `lastWorkoutId` (no progression off-script).
+The whole fold runs in one `progressionStates` transaction and returns `CalibrationChange[]` (`src/engine/service.ts`) — the before/after list the summary sheet renders. Sets logged for exercises _not_ in the routine just get stamped with `lastWorkoutId` (no progression off-script).
 
 Three subtleties worth naming:
 
@@ -58,7 +57,7 @@ Three subtleties worth naming:
 
 - **Worst set decides a regression; success needs every set.** The worst set is the hardest one: highest RPE, tie-broken by fewest reps. (Top-set model: only the top set judges.)
 - **Missing RPE falls through to hold** — a set logged without RPE can neither confirm success nor trigger a regression.
-- **"At the prescribed weight" is delegated** to `weightMatches` (`src/engine/comparison.ts`, ±`PRESCRIBED_WEIGHT_TOLERANCE_KG`, currently 2.5 kg). `comparison.ts` is the **single source of truth** for prescribed-vs-actual — evaluation, the green-dot adjustment, and adherence analytics all use its helpers (`weightDeviationKg/Pct`, `rpeOvershoot` — undershoot never penalized, `repsDeviation`), so they can never disagree about what "on prescription" means.
+- **"At the prescribed weight" is delegated** to `weightMatches` (`src/engine/comparison.ts`, ±`PRESCRIBED_WEIGHT_TOLERANCE_KG`, currently 2.5 kg). `comparison.ts` is the **single source of truth** for prescribed-vs-actual: evaluation and the green-dot adjustment both judge through it, so they can never disagree about what "on prescription" means. Adherence no longer judges deviations at all, so it no longer reads from here.
 
 Per-model criteria are summarized in the [[progression-models#Per-model behavior matrix|behavior matrix]]; the per-model implementations live alongside `evaluate` in `src/engine/evaluation.ts`.
 
@@ -99,24 +98,23 @@ A regression never changes load on the spot — one bad day can't derail progres
 
 Mechanics home for [[concepts#Catch-up|catch-up]] and [[concepts#Demonstrated e1RM|demonstrated e1RM]]. Because c1RM normally nudges one increment per success, it can fall far behind (or ahead of) true capacity — after a layoff, a peak, or a mis-seeded anchor. Correction happens in two pure steps:
 
-1. **Corroborate** — `corroboratedE1rm(sessionE1rms, anchor)` (`src/engine/state.ts`): from this session's qualifying implied e1RMs, drop the single furthest-from-anchor value as a possible fluke and use the next-furthest; a lone qualifying set (top-set programs) is used directly. The pick itself is `representativeByDistance` (`state.ts`), shared with the matrix correction so the two can never weigh a different set.
-2. **Close the gap** — `catchUpC1rm(c1rm, estimate)` (`state.ts`): inside ±`CATCHUP_THRESHOLD` (10%) the anchor is returned unchanged (the caller's signal that nothing fired); outside it, c1RM jumps `CATCHUP_CLOSE_FRACTION` (70%) of the gap in one move — fast convergence, not a per-session nibble, in either direction.
+1. **Corroborate** — `corroboratedE1rm(sessionE1rms, anchor)` (`src/engine/state.ts`): from this session's qualifying implied e1RMs, drop the single furthest-from-anchor value as a possible fluke and use the next-furthest; a lone qualifying set (top-set programs) is used directly.
+2. **Close the gap** — `catchUpC1rm(c1rm, estimate)` (`state.ts`): inside ±`CATCHUP_THRESHOLD` (10%) the anchor is returned unchanged (the caller's signal that nothing fired); outside it, c1RM jumps in one move — `CATCHUP_CLOSE_UP` (70%) of the gap when capacity ran ahead, `CATCHUP_CLOSE_DOWN` (100%) when it fell, landing on the estimate. The threshold is symmetric, the close is not: an anchor that is too low costs easy sessions, one that is too high costs the session itself.
 
 When it fires, `foldSession` (`src/engine/fold.ts`) gives it **full precedence**: the caught value replaces whatever `step` computed, the streak clears, the pending reset disarms, and the calibration reason becomes `recalibrate`.
 
-How the three correction mechanisms divide the space:
+How the two correction mechanisms divide the space:
 
-| Mechanism                                             | Trigger band      | What moves                    | Precedence                    |
-| ----------------------------------------------------- | ----------------- | ----------------------------- | ----------------------------- |
-| Increment (via `step`)                                | on success        | c1RM by `weightIncrement`     | default                       |
-| Catch-up                                              | divergence > ±10% | c1RM by 70% of the gap        | overrides step, streak, reset |
-| [[concepts#RPE matrix correction\|Matrix correction]] | deviation ≤ 5%    | the curve's _shape_, not c1RM | runs last, never conflicts    |
+| Mechanism              | Trigger band      | What moves                           | Precedence                    |
+| ---------------------- | ----------------- | ------------------------------------ | ----------------------------- |
+| Increment (via `step`) | on success        | c1RM by `weightIncrement`            | default                       |
+| Catch-up               | divergence > ±10% | c1RM by 70% of the gap up, 100% down | overrides step, streak, reset |
 
 ## Ordering invariants
 
-1. **Summary before fold** — `finishWorkout` builds the summary before persisting/folding so PR history excludes the session and adherence sees pre-learning matrices ([[workout-tracking#Finish ordering|workout-tracking]]).
+1. **Summary before fold** — `finishWorkout` builds the summary before persisting/folding so PR history excludes the session ([[workout-tracking#Finish ordering|workout-tracking]]).
 2. **One c1RM move per session** — seed, increment, or recalibrate; never a combination. Idempotency guard: `lastWorkoutId`.
-3. **Matrix correction last** — `learnedRpeMatrix` (`src/engine/fold.ts`) runs after prescription, evaluation, and catch-up, so learning only shapes _future_ sessions. It gates on deviation ≤ `RPE_MATRIX_CORRECTION_MAX_DEVIATION` (5%) and anchors on the stable pre-catch-up c1RM; the math lives in [[rpe-matrix#Adaptive correction|rpe-matrix]].
+3. **The fold never writes the RPE matrix** — the matrix is static data that only a hand edit changes, so a session can never reshape the curve it was prescribed from ([[rpe-matrix#Manual editing|rpe-matrix]]).
 4. **c1RM stays unrounded** — only rendered weights snap ([[concepts#Loadable increment|loadable increment]]).
 5. **Adherence never feeds progression** — the analytics firewall ([[analytics]]).
 6. **Slot-aligned grouping** — duplicate slots fold with the correct fatigue baselines ([[concepts#Slot alignment|slot alignment]]).
@@ -135,10 +133,9 @@ The first session for an exercise seeds rather than progresses: `seedE1rm` (`src
 | `step`                             | `src/engine/state.ts`                             | Outcome → state transition                                      |
 | `applyIncrement`                   | `src/engine/state.ts`                             | kg flat / percent compounding                                   |
 | `corroboratedE1rm`                 | `src/engine/state.ts`                             | Drop-furthest corroboration                                     |
-| `catchUpC1rm`                      | `src/engine/state.ts`                             | ±10% gate, 70% close                                            |
+| `catchUpC1rm`                      | `src/engine/state.ts`                             | ±10% gate; 70% close up, 100% down                              |
 | `weightMatches`                    | `src/engine/comparison.ts`                        | ±2.5 kg single source of truth                                  |
-| `learnedRpeMatrix`                 | `src/engine/fold.ts`                              | ≤5% gate before matrix learning                                 |
 | `seedE1rm` / `seedC1rmFromHistory` | `src/engine/matrix.ts` / `src/engine/sessions.ts` | Shared seeding gate; history seeding wraps it                   |
-| `demonstratedSets`                 | `src/engine/fold.ts`                              | Qualifying sets lifted + un-fatigued, once                      |
+| `demonstratedE1rms`                | `src/engine/fold.ts`                              | Qualifying sets lifted + un-fatigued, once                      |
 
-The integration test `src/engine/__tests__/loop.spec.ts` exercises this entire chain (prescribe → evaluate → step → catch-up → matrix correction) without Dexie and is the best executable specification of the rules above.
+The integration test `src/engine/__tests__/loop.spec.ts` exercises this entire chain (prescribe → evaluate → step → catch-up) without Dexie and is the best executable specification of the rules above.

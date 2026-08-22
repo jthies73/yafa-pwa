@@ -4,9 +4,8 @@ import {
   MATRIX_MAX_REPS,
   MATRIX_MIN_REPS,
   QUALIFYING_MAX_REPS,
+  MATRIX_EDIT_SMOOTHING_RADIUS,
   QUALIFYING_MIN_RPE,
-  RPE_MATRIX_CORRECTION_ALPHA,
-  RPE_MATRIX_CORRECTION_RADIUS,
   RPE_STEP,
 } from "./constants";
 
@@ -221,8 +220,9 @@ export function seedE1rm(matrix: RpeMatrix, sets: LoggedSet[]): number | null {
 }
 
 /**
- * Applies a 1-D smoothing kernel across the matrix in n-space (reps + (10 - RPE)).
- * Returns a new matrix.
+ * Applies a 1-D smoothing kernel across the matrix in n-space (reps + (10 - RPE)),
+ * so cells representing the same effort move together. Returns a new matrix.
+ * Sole caller is `setMatrixCell` — this is how a hand edit propagates.
  */
 function applySmoothingKernel(
   matrix: RpeMatrix,
@@ -269,7 +269,7 @@ export function setMatrixCell(
   if (Math.abs(delta) < 1e-9) return matrix;
 
   const targetN = reps + (10 - rpe);
-  const radius = RPE_MATRIX_CORRECTION_RADIUS;
+  const radius = MATRIX_EDIT_SMOOTHING_RADIUS;
 
   const smoothed = applySmoothingKernel(
     matrix,
@@ -346,34 +346,4 @@ export function enforceMatrixMonotonicity(
     }
   }
   return next;
-}
-
-/**
- * Automatically adjust the RPE matrix percentages based on a completed set.
- * Reframes the matrix as a 1-D reps-to-failure curve: n = reps + (10 - RPE).
- */
-export function correctRpeMatrix(
-  matrix: RpeMatrix,
-  completedSet: { actualWeight: number; actualReps: number; actualRpe: number },
-  anchorE1rm: number,
-  learningRate = RPE_MATRIX_CORRECTION_ALPHA,
-  smoothingRadius = RPE_MATRIX_CORRECTION_RADIUS,
-): RpeMatrix {
-  if (anchorE1rm <= 0) return matrix;
-
-  const nSet = completedSet.actualReps + (10 - completedSet.actualRpe);
-  const pDemo = Math.min(1.0, completedSet.actualWeight / anchorE1rm);
-
-  const smoothed = applySmoothingKernel(
-    matrix,
-    nSet,
-    smoothingRadius,
-    (reps, pOld, w) => {
-      const delta = learningRate * w * (pDemo - pOld);
-      // Safety constraint: only allow upward adjustments for reps <= actual reps completed.
-      return delta > 0 && reps > completedSet.actualReps ? 0 : delta;
-    },
-  );
-
-  return enforceMatrixMonotonicity(smoothed);
 }

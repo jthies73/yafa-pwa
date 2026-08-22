@@ -161,7 +161,8 @@ describe("loop — catch-up takes precedence over the progression rules", () => 
     const demonstrated = W / matrixPct(M, 3, 10);
 
     expect(r.reason).toBe("recalibrate");
-    expect(r.state.c1rm).toBeCloseTo(100 + (demonstrated - 100) * 0.7, 6);
+    // Downward the whole gap closes, so the anchor lands on what was demonstrated.
+    expect(r.state.c1rm).toBeCloseTo(demonstrated, 6);
     expect(r.state.c1rm!).toBeLessThan(100); // caught DOWN, not held
     expect(r.state.regressionStreak).toBe(0); // streak wiped — catch-up won
     expect(r.state.resetPending).toBe(false); // no deload armed this session

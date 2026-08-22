@@ -12,7 +12,7 @@ aliases:
 tags: [yafa/evaluation, yafa/engine]
 area: evaluation
 order: 1
-updated: 2026-08-21
+updated: 2026-08-22
 ---
 
 # Applying Workout Results
@@ -99,16 +99,16 @@ A regression never changes load on the spot — one bad day can't derail progres
 Mechanics home for [[concepts#Catch-up|catch-up]] and [[concepts#Demonstrated e1RM|demonstrated e1RM]]. Because c1RM normally nudges one increment per success, it can fall far behind (or ahead of) true capacity — after a layoff, a peak, or a mis-seeded anchor. Correction happens in two pure steps:
 
 1. **Corroborate** — `corroboratedE1rm(sessionE1rms, anchor)` (`src/engine/state.ts`): from this session's qualifying implied e1RMs, drop the single furthest-from-anchor value as a possible fluke and use the next-furthest; a lone qualifying set (top-set programs) is used directly.
-2. **Close the gap** — `catchUpC1rm(c1rm, estimate)` (`state.ts`): inside ±`CATCHUP_THRESHOLD` (10%) the anchor is returned unchanged (the caller's signal that nothing fired); outside it, c1RM jumps `CATCHUP_CLOSE_FRACTION` (70%) of the gap in one move — fast convergence, not a per-session nibble, in either direction.
+2. **Close the gap** — `catchUpC1rm(c1rm, estimate)` (`state.ts`): inside ±`CATCHUP_THRESHOLD` (10%) the anchor is returned unchanged (the caller's signal that nothing fired); outside it, c1RM jumps in one move — `CATCHUP_CLOSE_UP` (70%) of the gap when capacity ran ahead, `CATCHUP_CLOSE_DOWN` (100%) when it fell, landing on the estimate. The threshold is symmetric, the close is not: an anchor that is too low costs easy sessions, one that is too high costs the session itself.
 
 When it fires, `foldSession` (`src/engine/fold.ts`) gives it **full precedence**: the caught value replaces whatever `step` computed, the streak clears, the pending reset disarms, and the calibration reason becomes `recalibrate`.
 
 How the two correction mechanisms divide the space:
 
-| Mechanism              | Trigger band      | What moves                | Precedence                    |
-| ---------------------- | ----------------- | ------------------------- | ----------------------------- |
-| Increment (via `step`) | on success        | c1RM by `weightIncrement` | default                       |
-| Catch-up               | divergence > ±10% | c1RM by 70% of the gap    | overrides step, streak, reset |
+| Mechanism              | Trigger band      | What moves                           | Precedence                    |
+| ---------------------- | ----------------- | ------------------------------------ | ----------------------------- |
+| Increment (via `step`) | on success        | c1RM by `weightIncrement`            | default                       |
+| Catch-up               | divergence > ±10% | c1RM by 70% of the gap up, 100% down | overrides step, streak, reset |
 
 ## Ordering invariants
 
@@ -133,7 +133,7 @@ The first session for an exercise seeds rather than progresses: `seedE1rm` (`src
 | `step`                             | `src/engine/state.ts`                             | Outcome → state transition                                      |
 | `applyIncrement`                   | `src/engine/state.ts`                             | kg flat / percent compounding                                   |
 | `corroboratedE1rm`                 | `src/engine/state.ts`                             | Drop-furthest corroboration                                     |
-| `catchUpC1rm`                      | `src/engine/state.ts`                             | ±10% gate, 70% close                                            |
+| `catchUpC1rm`                      | `src/engine/state.ts`                             | ±10% gate; 70% close up, 100% down                              |
 | `weightMatches`                    | `src/engine/comparison.ts`                        | ±2.5 kg single source of truth                                  |
 | `seedE1rm` / `seedC1rmFromHistory` | `src/engine/matrix.ts` / `src/engine/sessions.ts` | Shared seeding gate; history seeding wraps it                   |
 | `demonstratedE1rms`                | `src/engine/fold.ts`                              | Qualifying sets lifted + un-fatigued, once                      |

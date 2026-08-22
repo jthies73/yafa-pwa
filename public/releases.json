@@ -1,6 +1,10 @@
 {
-  "latest": "0.23.0",
+  "latest": "0.24.0",
   "releases": [
+    {
+      "version": "0.24.0",
+      "notes": "- Losing strength is now believed immediately. When a session shows you well below your training max, the anchor drops all the way to what you demonstrated instead of only 70% of the way, so the next session is not prescribed weights you cannot lift. Gaining still moves 70% of the way — one good session is evidence, not proof. The ±10% trigger is unchanged."
+    },
     {
       "version": "0.23.0",
       "notes": "- The RPE matrix no longer changes itself. Finishing a workout used to quietly reshape an exercise's RPE curve toward what you demonstrated; that automatic learning is gone, so a hand-edited matrix now stays exactly as you left it. Per-exercise overrides, the cell editor and the global read-only view are unchanged."

@@ -4,7 +4,7 @@ aliases: [Glossary, Concepts, Terminology]
 tags: [yafa/concepts]
 area: shared
 order: 1
-updated: 2026-08-21
+updated: 2026-08-22
 ---
 
 # Concepts & Glossary
@@ -30,7 +30,7 @@ Mechanics: [[applying-results]] (movement), [[prescription-pipeline]] (consumpti
 
 ## Catch-up
 
-The single-move correction that fires when a session's [[#Demonstrated e1RM|demonstrated e1RM]] diverges from [[#c1RM|c1RM]] by more than ±`CATCHUP_THRESHOLD` (currently 10%): c1RM jumps `CATCHUP_CLOSE_FRACTION` (currently 70%) of the gap toward the estimate. When it fires it takes **full precedence** over the deterministic progression rules for that session — the regression streak clears and no reset is armed. Anchor: `catchUpC1rm` in `src/engine/state.ts`.
+The single-move correction that fires when a session's [[#Demonstrated e1RM|demonstrated e1RM]] diverges from [[#c1RM|c1RM]] by more than ±`CATCHUP_THRESHOLD` (currently 10%). The threshold is symmetric but the move is **not**: upward c1RM takes `CATCHUP_CLOSE_UP` (currently 70%) of the gap, downward it takes `CATCHUP_CLOSE_DOWN` (currently 100%) and lands on the estimate itself. The asymmetry is deliberate — too low an anchor only prescribes easy weights, while too high an anchor prescribes weights that end the session. When it fires it takes **full precedence** over the deterministic progression rules for that session — the regression streak clears and no reset is armed. Anchor: `catchUpC1rm` in `src/engine/state.ts`.
 Mechanics: [[applying-results#Catch-up|applying-results]]
 
 ## Cold start
